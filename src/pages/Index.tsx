@@ -381,20 +381,42 @@ const Index = () => {
       )
     );
 
+    // ========================================
+    // FAKE TRACKING SIMULATION - REPLACE THIS
+    // ========================================
+    // TODO: Replace with real SAM2/CV tracking API call
+    // Real implementation should:
+    // 1. Extract frames from video (job.startFrame to job.stopFrame)
+    // 2. Send to tracking API (SAM2, DINO, etc.) with initial bbox/points
+    // 3. Receive per-frame results: { frame: number, found: boolean, bbox: {...}, confidence: number }[]
+    // 4. Update annotations with actual tracked ranges
+    
+    simulateFakeTracking(jobId, job);
+  };
+
+  const simulateFakeTracking = (jobId: string, job: TrackingJob) => {
+    // FAKE: Simulates progress with intervals
     let progress = 0;
     const interval = setInterval(() => {
       progress += 10;
       setTrackingJobs(jobs =>
-        jobs.map(job =>
-          job.id === jobId ? { ...job, progress } : job
+        jobs.map(j =>
+          j.id === jobId ? { ...j, progress } : j
         )
       );
 
       if (progress >= 100) {
         clearInterval(interval);
+        
+        // FAKE: Mark entire segment as tracked
+        // REAL: Would use actual frame-by-frame results from tracking API
+        const fakeTrackedRanges: [number, number][] = [
+          [job.startFrame, job.stopFrame] // FAKE: assumes perfect tracking
+        ];
+        
         setTrackingJobs(jobs =>
-          jobs.map(job =>
-            job.id === jobId ? { ...job, status: "completed" as const } : job
+          jobs.map(j =>
+            j.id === jobId ? { ...j, status: "completed" as const } : j
           )
         );
         
@@ -403,10 +425,9 @@ const Index = () => {
           prevAnnotations.map(ann => {
             if (job.objectIds.includes(ann.id)) {
               const trackedFrames = ann.trackedFrames || [];
-              const newRange: [number, number] = [job.startFrame, job.stopFrame];
               return {
                 ...ann,
-                trackedFrames: [...trackedFrames, newRange],
+                trackedFrames: [...trackedFrames, ...fakeTrackedRanges],
               };
             }
             return ann;
@@ -414,12 +435,15 @@ const Index = () => {
         );
         
         toast({
-          title: "Tracking completed",
+          title: "Tracking completed (FAKE)",
           description: `Tracked ${job.objectIds.length} object(s) from frame ${job.startFrame} to ${job.stopFrame}`,
         });
       }
     }, 500);
   };
+  // ========================================
+  // END FAKE TRACKING SIMULATION
+  // ========================================
 
   const handleDeleteJob = (jobId: string) => {
     setTrackingJobs(jobs => jobs.filter(job => job.id !== jobId));
