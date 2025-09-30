@@ -481,6 +481,7 @@ const Index = () => {
             },
             frameCreated: currentFrame,
             sam2Prompts: [{ x, y, type: 'positive' }], // Add initial click as positive prompt
+            isKeyframe: true, // Manual annotation
           };
 
           setInstances((prev) => [...prev, newInstance]);
@@ -553,6 +554,7 @@ const Index = () => {
           h: radius * 2,
         },
         frameCreated: currentFrame,
+        isKeyframe: true, // Manual annotation
       };
 
       setInstances((prev) => [...prev, newInstance]);
@@ -759,6 +761,7 @@ const Index = () => {
           frameCreated: currentFrame,
           points: detection.points,
           bbox: detection.bbox,
+          isKeyframe: true, // Auto-detected annotation
         };
         newAnnotations.push(annotation);
       });
