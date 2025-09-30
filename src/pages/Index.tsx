@@ -54,6 +54,7 @@ const Index = () => {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(false);
+  const [isNegativePrompt, setIsNegativePrompt] = useState(false);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -132,7 +133,13 @@ const Index = () => {
   }, [currentFrame, autoDetect, videoUrl]);
 
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Track "-" key for negative prompts in annotate mode
+      if ((e.key === "-" || e.key === "_") && selectedTool === "annotate") {
+        setIsNegativePrompt(true);
+        return;
+      }
+
       // Close context menu on ESC
       if (e.key === "Escape") {
         if (contextMenu) {
@@ -256,8 +263,19 @@ const Index = () => {
       }
     };
 
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Release "-" key for negative prompts
+      if ((e.key === "-" || e.key === "_") && selectedTool === "annotate") {
+        setIsNegativePrompt(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
   }, [totalFrames, currentFrame, keyframes, selectedTool, annotations, selectedAnnotationId]);
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,7 +339,13 @@ const Index = () => {
 
   // Mock SAM2 segmentation - simulates backend call
   // Creates bbox 5-15% of canvas size with 3-6 point polygon inside
-  const mockSAM2Segmentation = async (x: number, y: number, canvasWidth: number, canvasHeight: number): Promise<{
+  const mockSAM2Segmentation = async (
+    x: number, 
+    y: number, 
+    canvasWidth: number, 
+    canvasHeight: number, 
+    isNegative: boolean = false
+  ): Promise<{
     points: Array<{ x: number; y: number }>;
     className: string;
   }> => {
@@ -363,15 +387,17 @@ const Index = () => {
     async (x: number, y: number, videoWidth: number, videoHeight: number) => {
       // If SAM2 is enabled, use it regardless of class selection
       if (useSAM2) {
-        // Show loading toast
+        // Show loading toast with negative/positive indicator
         toast({
-          title: "Running SAM2 segmentation...",
-          description: "Detecting object boundary and class",
+          title: `Running SAM2 segmentation...`,
+          description: isNegativePrompt 
+            ? "Adding negative point (excluding area)" 
+            : "Detecting object boundary and class",
         });
 
         try {
-          // Call mock SAM2 backend with actual video dimensions
-          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight);
+          // Call mock SAM2 backend with actual video dimensions and negative prompt flag
+          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight, isNegativePrompt);
 
           // Find or create class
           let classData = classes.find(c => c.name === className);
@@ -516,7 +542,7 @@ const Index = () => {
         });
       }
     },
-    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, isNegativePrompt]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
