@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, StopCircle, X, Save, Download, Trash2 } from "lucide-react";
+import { Flag, StopCircle, X, Trash2 } from "lucide-react";
 
 interface Keyframe {
   frame: number;
@@ -14,8 +14,6 @@ interface KeyframeManagerProps {
   currentFrame: number;
   onAddKeyframe: (type: "START" | "STOP" | "SKIP") => void;
   onDeleteKeyframe: (frame: number) => void;
-  onSaveProject: () => void;
-  onExportData: () => void;
 }
 
 export function KeyframeManager({
@@ -23,8 +21,6 @@ export function KeyframeManager({
   currentFrame,
   onAddKeyframe,
   onDeleteKeyframe,
-  onSaveProject,
-  onExportData,
 }: KeyframeManagerProps) {
   const sortedKeyframes = [...keyframes].sort((a, b) => a.frame - b.frame);
 
@@ -298,17 +294,6 @@ export function KeyframeManager({
             ))
           )}
         </div>
-      </div>
-
-      <div className="border-t border-border pt-4 space-y-2">
-        <Button onClick={onSaveProject} className="w-full" variant="default">
-          <Save className="h-4 w-4 mr-2" />
-          Save Project (Ctrl+S)
-        </Button>
-        <Button onClick={onExportData} className="w-full" variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export Annotations
-        </Button>
       </div>
     </Card>
   );

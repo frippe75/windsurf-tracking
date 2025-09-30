@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard } from "lucide-react";
+import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 
 const SAIL_COLORS = [
@@ -951,6 +951,19 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleSaveProject}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Project
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportData}>
+                <Download className="h-4 w-4 mr-2" />
+                Export...
+              </Button>
+              {videoUrl && (
+                <Button variant="outline" size="sm" onClick={() => setMaximizeVideo((v) => !v)}>
+                  {maximizeVideo ? "Exit Full Width" : "Full Width Video"}
+                </Button>
+              )}
               <Button variant="outline" size="sm">
                 <Keyboard className="h-4 w-4 mr-2" />
                 Shortcuts
@@ -1004,11 +1017,6 @@ const Index = () => {
           </div>
         ) : (
           <div className={`grid grid-cols-12 ${maximizeVideo ? "gap-0" : "gap-3"}` }>
-            <div className="col-span-12 flex justify-end mb-2 pr-2">
-              <Button variant="secondary" size="sm" onClick={() => setMaximizeVideo((v) => !v)}>
-                {maximizeVideo ? "Exit Full Width" : "Full Width Video"}
-              </Button>
-            </div>
             {/* Left sidebar - Controls */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 space-y-4"}>
               <Toolbox
@@ -1117,8 +1125,6 @@ const Index = () => {
                     currentFrame={currentFrame}
                     onAddKeyframe={handleAddKeyframe}
                     onDeleteKeyframe={handleDeleteKeyframe}
-                    onSaveProject={handleSaveProject}
-                    onExportData={handleExportData}
                   />
                   <TrackingJobs
                     jobs={trackingJobs}
