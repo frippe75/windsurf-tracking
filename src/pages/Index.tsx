@@ -274,33 +274,34 @@ const Index = () => {
   };
 
   // Mock SAM2 segmentation - simulates backend call
-  // Returns objects sized at 5-15% of screen area (proportional to canvas size)
-  const mockSAM2Segmentation = async (x: number, y: number, canvasWidth: number = 1280, canvasHeight: number = 720): Promise<{
+  // Creates bbox 5-15% of canvas size with 3-6 point polygon inside
+  const mockSAM2Segmentation = async (x: number, y: number, canvasWidth: number, canvasHeight: number): Promise<{
     points: Array<{ x: number; y: number }>;
     className: string;
   }> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Generate object sized at 5-15% of screen area
-    // Size factor: 0.05-0.15 of total canvas area, converted to radius proportion
-    const sizeFactor = 0.05 + Math.random() * 0.10; // 5-15% of area
-    const areaSize = Math.sqrt(canvasWidth * canvasHeight * sizeFactor);
+    // Create bbox: 5-15% of canvas width and height
+    const bboxWidth = canvasWidth * (0.05 + Math.random() * 0.10);
+    const bboxHeight = canvasHeight * (0.05 + Math.random() * 0.10);
     
-    // Convert area to radius (divide by ~3 to get a reasonable radius from area dimension)
-    const baseRadius = areaSize / 3;
-    const radiusX = baseRadius * (0.8 + Math.random() * 0.4); // Vary width 80-120%
-    const radiusY = baseRadius * (0.8 + Math.random() * 0.4); // Vary height 80-120%
+    // Position bbox around click point (ensure it stays within canvas)
+    const bboxX = Math.max(0, Math.min(canvasWidth - bboxWidth, x - bboxWidth / 2));
+    const bboxY = Math.max(0, Math.min(canvasHeight - bboxHeight, y - bboxHeight / 2));
     
-    // Generate random organic polygon around click point
-    const numPoints = 12 + Math.floor(Math.random() * 12); // 12-24 points
+    // Create 3-6 point polygon within the bbox
+    const numPoints = 3 + Math.floor(Math.random() * 4); // 3-6 points
     const points = [];
+    
     for (let i = 0; i < numPoints; i++) {
       const angle = (i / numPoints) * Math.PI * 2;
-      const variance = 0.6 + Math.random() * 0.8; // 0.6-1.4 radius variance for organic shape
+      const radiusX = (bboxWidth / 2) * (0.7 + Math.random() * 0.3);
+      const radiusY = (bboxHeight / 2) * (0.7 + Math.random() * 0.3);
+      
       points.push({
-        x: x + Math.cos(angle) * radiusX * variance,
-        y: y + Math.sin(angle) * radiusY * variance,
+        x: bboxX + bboxWidth / 2 + Math.cos(angle) * radiusX,
+        y: bboxY + bboxHeight / 2 + Math.sin(angle) * radiusY,
       });
     }
     
@@ -322,8 +323,8 @@ const Index = () => {
         });
 
         try {
-          // Call mock SAM2 backend
-          const { points, className } = await mockSAM2Segmentation(x, y);
+          // Call mock SAM2 backend with default canvas dimensions (1280x720)
+          const { points, className } = await mockSAM2Segmentation(x, y, 1280, 720);
 
           // Find or create class
           let classData = classes.find(c => c.name === className);
