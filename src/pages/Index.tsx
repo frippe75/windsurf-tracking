@@ -272,8 +272,31 @@ const Index = () => {
     );
   };
 
+  // Mock SAM2 segmentation - simulates backend call
+  const mockSAM2Segmentation = async (x: number, y: number): Promise<Array<{ x: number; y: number }>> => {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Generate random organic polygon around click point
+    const numPoints = 12 + Math.floor(Math.random() * 12); // 12-24 points
+    const radiusX = 40 + Math.random() * 80; // 40-120px width
+    const radiusY = 40 + Math.random() * 80; // 40-120px height
+    
+    const points = [];
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * Math.PI * 2;
+      const variance = 0.6 + Math.random() * 0.8; // 0.6-1.4 radius variance for organic shape
+      points.push({
+        x: x + Math.cos(angle) * radiusX * variance,
+        y: y + Math.sin(angle) * radiusY * variance,
+      });
+    }
+    
+    return points;
+  };
+
   const handleCanvasClick = useCallback(
-    (x: number, y: number) => {
+    async (x: number, y: number) => {
       if (!selectedClassId) {
         toast({
           title: "No class selected",
@@ -285,18 +308,25 @@ const Index = () => {
       const selectedClass = classes.find(c => c.id === selectedClassId);
       if (!selectedClass) return;
 
-      // Create mock annotation with SAM2 click-prompt
-      const points = [];
-      const radius = 5;
-      for (let i = 0; i < 20; i++) {
-        const angle = (i / 20) * Math.PI * 2;
-        points.push({
-          x: x + Math.cos(angle) * radius,
-          y: y + Math.sin(angle) * radius,
-        });
-      }
+      // Show loading toast
+      toast({
+        title: "Running SAM2 segmentation...",
+        description: "Detecting object boundary",
+      });
 
-      // Create new instance for this class
+      try {
+        // Call mock SAM2 backend
+        const points = await mockSAM2Segmentation(x, y);
+
+        // Calculate bounding box from segmentation points
+        const xs = points.map(p => p.x);
+        const ys = points.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        // Create new instance for this class
       const classInstances = instances.filter(inst => inst.classId === selectedClassId);
       const instanceNumber = classInstances.length + 1;
       const newInstance: Instance = {
@@ -306,42 +336,40 @@ const Index = () => {
         metadata: {},
       };
 
-      // Create annotation for this instance
-      const newAnnotation: Annotation = {
-        id: `ann-${Date.now()}`,
-        instanceId: newInstance.id,
-        points,
-        bbox: {
-          x: x - radius,
-          y: y - radius,
-          w: radius * 2,
-          h: radius * 2,
-        },
-        frameCreated: currentFrame,
-      };
+        // Create annotation for this instance
+        const newAnnotation: Annotation = {
+          id: `ann-${Date.now()}`,
+          instanceId: newInstance.id,
+          points,
+          bbox: {
+            x: minX,
+            y: minY,
+            w: maxX - minX,
+            h: maxY - minY,
+          },
+          frameCreated: currentFrame,
+        };
 
-      setInstances((prev) => [...prev, newInstance]);
-      setAnnotations((prev) => [...prev, newAnnotation]);
+        setInstances((prev) => [...prev, newInstance]);
+        setAnnotations((prev) => [...prev, newAnnotation]);
 
-      // Auto-create START keyframe if auto-track is enabled
-      if (autoTrack) {
-        const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
-        if (!existingKeyframe || existingKeyframe.type !== "START") {
-          handleAddKeyframe("START");
-          toast({
-            title: "Instance created with START keyframe",
-            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
-          });
-        } else {
-          toast({
-            title: "Instance created",
-            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
-          });
-        }
-      } else {
         toast({
-          title: "Instance created",
-          description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
+          title: "Segmentation complete",
+          description: `${selectedClass.name}#${instanceNumber} created`,
+        });
+
+        // Auto-create START keyframe if auto-track is enabled
+        if (autoTrack) {
+          const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
+          if (!existingKeyframe || existingKeyframe.type !== "START") {
+            handleAddKeyframe("START");
+          }
+        }
+      } catch (error) {
+        toast({
+          title: "Segmentation failed",
+          description: "Could not segment object",
+          variant: "destructive",
         });
       }
     },
