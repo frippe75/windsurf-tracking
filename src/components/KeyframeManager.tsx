@@ -149,17 +149,18 @@ export function KeyframeManager({
   
   // Collect any orphan SKIP frames (outside all START/STOP pairs)
   const orphanSkips: number[] = [];
-  let lastStopFrame = -1;
+  const processedSkipFrames = new Set<number>();
   
-  for (let i = sortedKeyframes.length - 1; i >= 0; i--) {
-    if (sortedKeyframes[i].type === "STOP") {
-      lastStopFrame = sortedKeyframes[i].frame;
-      break;
+  // Track which SKIP frames were already processed in START/STOP groups
+  groupedKeyframes.forEach(group => {
+    if (group.type === "SKIP") {
+      group.frames.forEach(f => processedSkipFrames.add(f));
     }
-  }
+  });
   
+  // Only add SKIP frames that weren't already processed
   sortedKeyframes.forEach(kf => {
-    if (kf.type === "SKIP" && (lastStopFrame < 0 || kf.frame > lastStopFrame)) {
+    if (kf.type === "SKIP" && !processedSkipFrames.has(kf.frame)) {
       orphanSkips.push(kf.frame);
     }
   });
