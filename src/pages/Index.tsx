@@ -389,19 +389,56 @@ const Index = () => {
 
   const handleCanvasClick = useCallback(
     async (x: number, y: number, videoWidth: number, videoHeight: number) => {
-      // If SAM2 is enabled, use it regardless of class selection
+      // If in edit mode or select mode, don't handle canvas clicks
+      if (selectedTool !== "annotate") return;
+
+      // Check if clicking on an existing annotation to add a prompt
+      const clickedAnnotation = annotations.find(ann => {
+        if (!ann.bbox || ann.frameCreated !== currentFrame) return false;
+        const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
+        return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+      });
+
+      // If clicking on existing annotation, add SAM2 prompt to it
+      if (clickedAnnotation) {
+        const promptType: 'positive' | 'negative' = isNegativePrompt ? 'negative' : 'positive';
+        const existingPrompts = clickedAnnotation.sam2Prompts || [];
+        const updatedPrompts = [...existingPrompts, { x, y, type: promptType }];
+        
+        setAnnotations(prev => prev.map(ann => 
+          ann.id === clickedAnnotation.id 
+            ? { ...ann, sam2Prompts: updatedPrompts }
+            : ann
+        ));
+
+        toast({
+          title: `${promptType === 'positive' ? 'Positive' : 'Negative'} prompt added`,
+          description: `Click added to existing annotation`,
+        });
+        return;
+      }
+
+      // If SAM2 is enabled and no existing annotation clicked, create new one
       if (useSAM2) {
-        // Show loading toast with negative/positive indicator
+        // Don't create new annotations with negative prompts
+        if (isNegativePrompt) {
+          toast({
+            title: "No annotation selected",
+            description: "Negative prompts must be added to existing annotations",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Show loading toast
         toast({
           title: `Running SAM2 segmentation...`,
-          description: isNegativePrompt 
-            ? "Adding negative point (excluding area)" 
-            : "Detecting object boundary and class",
+          description: "Detecting object boundary and class",
         });
 
         try {
-          // Call mock SAM2 backend with actual video dimensions and negative prompt flag
-          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight, isNegativePrompt);
+          // Call mock SAM2 backend with actual video dimensions
+          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight, false);
 
           // Find or create class
           let classData = classes.find(c => c.name === className);
@@ -435,7 +472,7 @@ const Index = () => {
             metadata: {},
           };
 
-          // Create annotation for this instance
+          // Create annotation for this instance with initial positive prompt
           const newAnnotation: Annotation = {
             id: `ann-${Date.now()}`,
             instanceId: newInstance.id,
@@ -447,6 +484,7 @@ const Index = () => {
               h: maxY - minY,
             },
             frameCreated: currentFrame,
+            sam2Prompts: [{ x, y, type: 'positive' }], // Add initial click as positive prompt
           };
 
           setInstances((prev) => [...prev, newInstance]);

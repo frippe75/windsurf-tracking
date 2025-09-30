@@ -22,6 +22,7 @@ export interface Annotation {
   points: Array<{ x: number; y: number }>;
   bbox?: { x: number; y: number; w: number; h: number };
   trackedFrames?: Array<[number, number]>; // Array of [start, end] ranges where object is tracked
+  sam2Prompts?: Array<{ x: number; y: number; type: 'positive' | 'negative' }>; // SAM2 point prompts
 }
 
 export interface Keyframe {

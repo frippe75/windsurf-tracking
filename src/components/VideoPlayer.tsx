@@ -20,6 +20,7 @@ interface VideoPlayerProps {
     instanceId: string;
     points: Array<{ x: number; y: number }>;
     bbox?: { x: number; y: number; w: number; h: number };
+    sam2Prompts?: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
   }>;
   onAnnotationUpdate: (id: string, updates: { bbox?: { x: number; y: number; w: number; h: number }; points?: Array<{ x: number; y: number }> }) => void;
   onAnnotationSelect?: (id: string | undefined) => void;
@@ -217,6 +218,43 @@ export function VideoPlayer({
         ctx.beginPath();
         ctx.arc(x, y, 5 * dpr, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      // Draw SAM2 prompts (positive/negative point markers)
+      if (annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
+        annotation.sam2Prompts.forEach(prompt => {
+          const x = (prompt.x / 100) * canvas.width;
+          const y = (prompt.y / 100) * canvas.height;
+          const radius = 8 * dpr;
+          
+          // Draw circle
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff0000';
+          ctx.lineWidth = 2 * dpr;
+          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)';
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          
+          // Draw +/- sign
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff0000';
+          ctx.lineWidth = 2 * dpr;
+          const signSize = 4 * dpr;
+          
+          // Horizontal line for both
+          ctx.beginPath();
+          ctx.moveTo(x - signSize, y);
+          ctx.lineTo(x + signSize, y);
+          ctx.stroke();
+          
+          // Vertical line only for positive
+          if (prompt.type === 'positive') {
+            ctx.beginPath();
+            ctx.moveTo(x, y - signSize);
+            ctx.lineTo(x, y + signSize);
+            ctx.stroke();
+          }
+        });
       }
     });
     
