@@ -234,7 +234,7 @@ export function VideoPlayer({
 
     // Zoom in/out with mouse wheel
     const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.min(Math.max(0.1, zoom * zoomDelta), 10);
+    const newZoom = Math.min(Math.max(1, zoom * zoomDelta), 3);
 
     // Adjust pan to zoom towards mouse position
     const scale = newZoom / zoom;
