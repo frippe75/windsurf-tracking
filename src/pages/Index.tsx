@@ -173,7 +173,13 @@ const Index = () => {
         case "x":
         case "X":
           e.preventDefault();
-          handleAddKeyframe("SKIP");
+          // Toggle SKIP keyframe
+          const existingSkip = keyframes.find(k => k.frame === currentFrame && k.type === "SKIP");
+          if (existingSkip) {
+            handleDeleteKeyframe(currentFrame);
+          } else {
+            handleAddKeyframe("SKIP");
+          }
           break;
         case "v":
           e.preventDefault();
@@ -205,7 +211,7 @@ const Index = () => {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [totalFrames, currentFrame]);
+  }, [totalFrames, currentFrame, keyframes]);
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

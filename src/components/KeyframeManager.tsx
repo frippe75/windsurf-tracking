@@ -266,7 +266,7 @@ export function KeyframeManager({
                       {group.ranges.map((range, rangeIdx) => (
                         <div
                           key={rangeIdx}
-                          className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-0.5 text-foreground hover:bg-muted/80 transition-all"
+                          className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-1 text-foreground hover:bg-muted/80 transition-all"
                         >
                           <span>{range.text}</span>
                           <button
