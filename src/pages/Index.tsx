@@ -68,6 +68,12 @@ const Index = () => {
     context: any;
   } | null>(null);
   const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
+  const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
+
+  // Frame range for timeline (defaults to full video, or zooms to selected scene)
+  const frameRange: [number, number] = selectedScene 
+    ? [selectedScene.startFrame, selectedScene.endFrame]
+    : [0, totalFrames];
 
   // Auto-detect DINO on frame change
   useEffect(() => {
@@ -194,7 +200,12 @@ const Index = () => {
   };
 
   const handleSceneSelect = (scene: Scene) => {
+    setSelectedScene(scene);
     setCurrentFrame(scene.startFrame);
+    toast({
+      title: "Scene selected",
+      description: `Timeline zoomed to frames ${scene.startFrame}-${scene.endFrame}`,
+    });
   };
 
   const handleSceneQualityChange = (sceneId: string, quality: "good" | "bad" | "unknown") => {
@@ -521,11 +532,18 @@ const Index = () => {
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
                 totalFrames={totalFrames}
+                frameRange={frameRange}
                 onFrameChange={setCurrentFrame}
                 onCanvasClick={handleCanvasClick}
                 annotations={annotations}
+                onAnnotationUpdate={(id, updates) => {
+                  setAnnotations(prev => 
+                    prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
+                  );
+                }}
                 overlays={overlays}
                 selectedTool={selectedTool}
+                selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
               />
               <Timeline
@@ -533,7 +551,16 @@ const Index = () => {
                 keyframes={keyframes}
                 currentFrame={currentFrame}
                 totalFrames={totalFrames}
+                frameRange={frameRange}
                 onFrameChange={setCurrentFrame}
+                selectedScene={selectedScene}
+                onClearScene={() => {
+                  setSelectedScene(null);
+                  toast({
+                    title: "Timeline reset",
+                    description: "Showing full video range",
+                  });
+                }}
               />
             </div>
 

@@ -9,6 +9,7 @@ interface VideoPlayerProps {
   videoUrl: string;
   currentFrame: number;
   totalFrames: number;
+  frameRange: [number, number];
   onFrameChange: (frame: number) => void;
   onCanvasClick: (x: number, y: number) => void;
   annotations: Array<{
@@ -17,12 +18,14 @@ interface VideoPlayerProps {
     points: Array<{ x: number; y: number }>;
     bbox?: { x: number; y: number; w: number; h: number };
   }>;
+  onAnnotationUpdate: (id: string, updates: { bbox?: { x: number; y: number; w: number; h: number }; points?: Array<{ x: number; y: number }> }) => void;
   overlays: {
     segments: boolean;
     bboxes: boolean;
     points: boolean;
   };
   selectedTool: ToolMode;
+  selectedAnnotationId?: string;
   onContextMenu: (x: number, y: number, context: any) => void;
 }
 
@@ -30,17 +33,27 @@ export function VideoPlayer({
   videoUrl,
   currentFrame,
   totalFrames,
+  frameRange,
   onFrameChange,
   onCanvasClick,
   annotations,
+  onAnnotationUpdate,
   overlays,
   selectedTool,
+  selectedAnnotationId,
   onContextMenu,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps] = useState(30); // Default FPS
+  const [dragState, setDragState] = useState<{
+    annotationId: string;
+    handle: "move" | "nw" | "ne" | "sw" | "se" | null;
+    startX: number;
+    startY: number;
+    originalBbox: { x: number; y: number; w: number; h: number };
+  } | null>(null);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -68,6 +81,8 @@ export function VideoPlayer({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     annotations.forEach((annotation) => {
+      const isSelected = selectedAnnotationId === annotation.id;
+      
       // Draw segment overlay
       if (overlays.segments && annotation.points.length > 0) {
         ctx.fillStyle = annotation.color + "40"; // 25% opacity
@@ -91,8 +106,19 @@ export function VideoPlayer({
         const h = (bbox.h / 100) * canvas.height;
 
         ctx.strokeStyle = annotation.color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
+
+        // Draw resize handles if selected and in edit mode
+        if (isSelected && selectedTool === "edit") {
+          const handleSize = 8;
+          ctx.fillStyle = annotation.color;
+          
+          // Corner handles
+          [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
+            ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+          });
+        }
       }
 
       // Draw center point
@@ -108,6 +134,105 @@ export function VideoPlayer({
         ctx.fill();
       }
     });
+  };
+
+  const getResizeHandle = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
+    const threshold = 2; // percentage units
+    const { x: bx, y: by, w: bw, h: bh } = bbox;
+    
+    if (Math.abs(x - bx) < threshold && Math.abs(y - by) < threshold) return "nw";
+    if (Math.abs(x - (bx + bw)) < threshold && Math.abs(y - by) < threshold) return "ne";
+    if (Math.abs(x - bx) < threshold && Math.abs(y - (by + bh)) < threshold) return "sw";
+    if (Math.abs(x - (bx + bw)) < threshold && Math.abs(y - (by + bh)) < threshold) return "se";
+    
+    return null;
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // Edit mode: check for resize handles
+    if (selectedTool === "edit" && selectedAnnotationId) {
+      const annotation = annotations.find(a => a.id === selectedAnnotationId);
+      if (annotation?.bbox) {
+        const handle = getResizeHandle(x, y, annotation.bbox);
+        if (handle) {
+          setDragState({
+            annotationId: selectedAnnotationId,
+            handle,
+            startX: x,
+            startY: y,
+            originalBbox: { ...annotation.bbox },
+          });
+          return;
+        }
+        
+        // Check if clicking inside bbox for move
+        const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
+        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+          setDragState({
+            annotationId: selectedAnnotationId,
+            handle: "move",
+            startX: x,
+            startY: y,
+            originalBbox: { ...annotation.bbox },
+          });
+          return;
+        }
+      }
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!dragState) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const dx = x - dragState.startX;
+    const dy = y - dragState.startY;
+    const { originalBbox, handle } = dragState;
+
+    let newBbox = { ...originalBbox };
+
+    if (handle === "move") {
+      newBbox.x = originalBbox.x + dx;
+      newBbox.y = originalBbox.y + dy;
+    } else if (handle === "nw") {
+      newBbox.x = originalBbox.x + dx;
+      newBbox.y = originalBbox.y + dy;
+      newBbox.w = originalBbox.w - dx;
+      newBbox.h = originalBbox.h - dy;
+    } else if (handle === "ne") {
+      newBbox.y = originalBbox.y + dy;
+      newBbox.w = originalBbox.w + dx;
+      newBbox.h = originalBbox.h - dy;
+    } else if (handle === "sw") {
+      newBbox.x = originalBbox.x + dx;
+      newBbox.w = originalBbox.w - dx;
+      newBbox.h = originalBbox.h + dy;
+    } else if (handle === "se") {
+      newBbox.w = originalBbox.w + dx;
+      newBbox.h = originalBbox.h + dy;
+    }
+
+    // Ensure minimum size
+    if (newBbox.w < 2 || newBbox.h < 2) return;
+
+    onAnnotationUpdate(dragState.annotationId, { bbox: newBbox });
+  };
+
+  const handleCanvasMouseUp = () => {
+    setDragState(null);
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -171,8 +296,13 @@ export function VideoPlayer({
         />
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full cursor-crosshair"
+          className="absolute inset-0 w-full h-full"
+          style={{ cursor: selectedTool === "edit" && selectedAnnotationId ? "move" : "crosshair" }}
           onClick={handleCanvasClick}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp}
           onContextMenu={handleCanvasContextMenu}
         />
       </div>
@@ -186,7 +316,8 @@ export function VideoPlayer({
           <Slider
             value={[currentFrame]}
             onValueChange={(value) => onFrameChange(value[0])}
-            max={totalFrames}
+            min={frameRange[0]}
+            max={frameRange[1]}
             step={1}
             className="flex-1"
           />
@@ -197,7 +328,7 @@ export function VideoPlayer({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onFrameChange(Math.max(0, currentFrame - 30))}
+            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 30))}
             title="Back 1 sec (Shift+Left)"
           >
             <SkipBack className="h-4 w-4" />
@@ -205,7 +336,7 @@ export function VideoPlayer({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onFrameChange(Math.max(0, currentFrame - 1))}
+            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 1))}
             title="Previous frame (Left)"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -221,7 +352,7 @@ export function VideoPlayer({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onFrameChange(Math.min(totalFrames, currentFrame + 1))}
+            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 1))}
             title="Next frame (Right)"
           >
             <ChevronRight className="h-4 w-4" />
@@ -229,7 +360,7 @@ export function VideoPlayer({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onFrameChange(Math.min(totalFrames, currentFrame + 30))}
+            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 30))}
             title="Forward 1 sec (Shift+Right)"
           >
             <SkipForward className="h-4 w-4" />
