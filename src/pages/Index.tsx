@@ -54,7 +54,6 @@ const Index = () => {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(false);
-  const [isNegativePrompt, setIsNegativePrompt] = useState(false);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -134,19 +133,6 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Track Alt key for negative prompts in annotate mode
-      if (e.key === "Alt" && selectedTool === "annotate") {
-        setIsNegativePrompt(true);
-        // Only show toast on initial press, not on repeated keydown events
-        if (!e.repeat) {
-          toast({
-            title: "Negative prompt mode",
-            description: "Click to add negative point (exclude area)",
-          });
-        }
-        return;
-      }
-
       // Close context menu on ESC
       if (e.key === "Escape") {
         if (contextMenu) {
@@ -270,18 +256,9 @@ const Index = () => {
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      // Release Alt key for negative prompts
-      if (e.key === "Alt" && selectedTool === "annotate") {
-        setIsNegativePrompt(false);
-      }
-    };
-
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
     };
   }, [totalFrames, currentFrame, keyframes, selectedTool, annotations, selectedAnnotationId]);
 
@@ -391,9 +368,18 @@ const Index = () => {
   };
 
   const handleCanvasClick = useCallback(
-    async (x: number, y: number, videoWidth: number, videoHeight: number) => {
+    async (x: number, y: number, videoWidth: number, videoHeight: number, ctrlKey: boolean, altKey: boolean) => {
       // If in edit mode or select mode, don't handle canvas clicks
       if (selectedTool !== "annotate") return;
+
+      // Require Ctrl for positive prompts or Alt for negative prompts
+      if (!ctrlKey && !altKey) {
+        toast({
+          title: "Hold modifier key",
+          description: "Hold Ctrl for + prompt or Alt for - prompt while clicking",
+        });
+        return;
+      }
 
       // Check if clicking on an existing annotation to add a prompt
       const clickedAnnotation = annotations.find(ann => {
@@ -404,7 +390,7 @@ const Index = () => {
 
       // If clicking on existing annotation, add SAM2 prompt to it
       if (clickedAnnotation) {
-        const promptType: 'positive' | 'negative' = isNegativePrompt ? 'negative' : 'positive';
+        const promptType: 'positive' | 'negative' = altKey ? 'negative' : 'positive';
         
         setAnnotations(prev => prev.map(ann => {
           if (ann.id === clickedAnnotation.id) {
@@ -424,7 +410,7 @@ const Index = () => {
       // If SAM2 is enabled and no existing annotation clicked, create new one
       if (useSAM2) {
         // Don't create new annotations with negative prompts
-        if (isNegativePrompt) {
+        if (altKey) {
           toast({
             title: "No annotation selected",
             description: "Negative prompts must be added to existing annotations",
@@ -587,7 +573,7 @@ const Index = () => {
         });
       }
     },
-    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, isNegativePrompt]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
