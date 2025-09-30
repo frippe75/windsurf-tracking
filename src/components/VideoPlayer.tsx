@@ -222,12 +222,15 @@ export function VideoPlayer({
 
   const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const containerRect = container.getBoundingClientRect();
+    const displayed = getDisplayedRect();
+    
+    // Mouse position relative to untransformed canvas top-left
+    const mouseX = e.clientX - containerRect.left - displayed.left;
+    const mouseY = e.clientY - containerRect.top - displayed.top;
 
     // Zoom in/out with mouse wheel
     const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
