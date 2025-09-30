@@ -41,46 +41,127 @@ export function KeyframeManager({
     }
   };
 
-  // Group keyframes for display (collect all SKIP frames into one group)
+  // Group keyframes for display (group SKIP frames between START/STOP pairs)
   const groupedKeyframes: Array<{
     type: "START" | "STOP" | "SKIP";
     frames: number[];
     displayText: string;
   }> = [];
 
-  // Separate SKIP frames from others
-  const skipFrames = sortedKeyframes.filter(kf => kf.type === "SKIP").map(kf => kf.frame);
-  const nonSkipKeyframes = sortedKeyframes.filter(kf => kf.type !== "SKIP");
-
-  // Add all non-SKIP keyframes individually
-  nonSkipKeyframes.forEach(kf => {
-    groupedKeyframes.push({
-      type: kf.type,
-      frames: [kf.frame],
-      displayText: `${kf.frame}`,
-    });
-  });
-
-  // Group all SKIP frames into one item with ranges
-  if (skipFrames.length > 0) {
-    const ranges: string[] = [];
-    let rangeStart = skipFrames[0];
-    let rangeEnd = skipFrames[0];
+  let i = 0;
+  while (i < sortedKeyframes.length) {
+    const kf = sortedKeyframes[i];
     
-    for (let i = 1; i < skipFrames.length; i++) {
-      if (skipFrames[i] === rangeEnd + 1) {
-        rangeEnd = skipFrames[i];
+    if (kf.type === "START") {
+      // Add START keyframe
+      groupedKeyframes.push({
+        type: "START",
+        frames: [kf.frame],
+        displayText: `${kf.frame}`,
+      });
+      
+      // Find the corresponding STOP keyframe
+      let stopIndex = -1;
+      for (let j = i + 1; j < sortedKeyframes.length; j++) {
+        if (sortedKeyframes[j].type === "STOP") {
+          stopIndex = j;
+          break;
+        }
+      }
+      
+      // Collect all SKIP frames between START and STOP
+      const skipFrames: number[] = [];
+      for (let j = i + 1; j < (stopIndex >= 0 ? stopIndex : sortedKeyframes.length); j++) {
+        if (sortedKeyframes[j].type === "SKIP") {
+          skipFrames.push(sortedKeyframes[j].frame);
+        }
+      }
+      
+      // Add grouped SKIP frames if any
+      if (skipFrames.length > 0) {
+        const ranges: string[] = [];
+        let rangeStart = skipFrames[0];
+        let rangeEnd = skipFrames[0];
+        
+        for (let k = 1; k < skipFrames.length; k++) {
+          if (skipFrames[k] === rangeEnd + 1) {
+            rangeEnd = skipFrames[k];
+          } else {
+            ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+            rangeStart = skipFrames[k];
+            rangeEnd = skipFrames[k];
+          }
+        }
+        ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+        
+        groupedKeyframes.push({
+          type: "SKIP",
+          frames: skipFrames,
+          displayText: ranges.join(", "),
+        });
+      }
+      
+      // Add STOP keyframe if found
+      if (stopIndex >= 0) {
+        groupedKeyframes.push({
+          type: "STOP",
+          frames: [sortedKeyframes[stopIndex].frame],
+          displayText: `${sortedKeyframes[stopIndex].frame}`,
+        });
+        i = stopIndex + 1;
+      } else {
+        i++;
+      }
+    } else if (kf.type === "STOP") {
+      // Orphan STOP (no preceding START)
+      groupedKeyframes.push({
+        type: "STOP",
+        frames: [kf.frame],
+        displayText: `${kf.frame}`,
+      });
+      i++;
+    } else {
+      // Orphan SKIP (outside START/STOP pairs) - skip for now, will be added at end
+      i++;
+    }
+  }
+  
+  // Collect any orphan SKIP frames (outside all START/STOP pairs)
+  const orphanSkips: number[] = [];
+  let lastStopFrame = -1;
+  
+  for (let i = sortedKeyframes.length - 1; i >= 0; i--) {
+    if (sortedKeyframes[i].type === "STOP") {
+      lastStopFrame = sortedKeyframes[i].frame;
+      break;
+    }
+  }
+  
+  sortedKeyframes.forEach(kf => {
+    if (kf.type === "SKIP" && (lastStopFrame < 0 || kf.frame > lastStopFrame)) {
+      orphanSkips.push(kf.frame);
+    }
+  });
+  
+  if (orphanSkips.length > 0) {
+    const ranges: string[] = [];
+    let rangeStart = orphanSkips[0];
+    let rangeEnd = orphanSkips[0];
+    
+    for (let k = 1; k < orphanSkips.length; k++) {
+      if (orphanSkips[k] === rangeEnd + 1) {
+        rangeEnd = orphanSkips[k];
       } else {
         ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
-        rangeStart = skipFrames[i];
-        rangeEnd = skipFrames[i];
+        rangeStart = orphanSkips[k];
+        rangeEnd = orphanSkips[k];
       }
     }
     ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
     
     groupedKeyframes.push({
       type: "SKIP",
-      frames: skipFrames,
+      frames: orphanSkips,
       displayText: ranges.join(", "),
     });
   }
