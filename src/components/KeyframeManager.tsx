@@ -266,12 +266,12 @@ export function KeyframeManager({
                       {group.ranges.map((range, rangeIdx) => (
                         <div
                           key={rangeIdx}
-                          className="group h-5 pl-2 pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-1 text-foreground hover:bg-muted/80"
+                          className="group h-5 px-2 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-1 group-hover:pr-1 text-foreground hover:bg-muted/80 transition-all"
                         >
                           <span>{range.text}</span>
                           <button
                             onClick={() => handleDeleteGroup(range.frames)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+                            className="w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 transition-all hover:text-destructive overflow-hidden"
                             title={`Delete frames ${range.text}`}
                           >
                             <X className="h-2.5 w-2.5" />
