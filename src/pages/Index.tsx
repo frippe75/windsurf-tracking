@@ -75,6 +75,45 @@ const Index = () => {
     ? [selectedScene.startFrame, selectedScene.endFrame]
     : [0, totalFrames];
 
+  // Auto-create tracking jobs from START->STOP keyframe pairs
+  useEffect(() => {
+    const sortedKeyframes = [...keyframes].sort((a, b) => a.frame - b.frame);
+    const newJobs: TrackingJob[] = [];
+    
+    for (let i = 0; i < sortedKeyframes.length; i++) {
+      if (sortedKeyframes[i].type === "START") {
+        const startFrame = sortedKeyframes[i].frame;
+        const stopKeyframe = sortedKeyframes.slice(i + 1).find(kf => kf.type === "STOP");
+        
+        if (stopKeyframe) {
+          const jobId = `segment-${startFrame}-${stopKeyframe.frame}`;
+          
+          // Check if job already exists
+          const jobExists = trackingJobs.some(job => job.id === jobId);
+          
+          if (!jobExists) {
+            // Find annotations created in this segment
+            const segmentAnnotations = annotations
+              .filter(ann => ann.frameCreated >= startFrame && ann.frameCreated <= stopKeyframe.frame)
+              .map(ann => ann.id);
+            
+            newJobs.push({
+              id: jobId,
+              startFrame,
+              stopFrame: stopKeyframe.frame,
+              objectIds: segmentAnnotations,
+              status: "pending",
+            });
+          }
+        }
+      }
+    }
+    
+    if (newJobs.length > 0) {
+      setTrackingJobs(prev => [...prev, ...newJobs]);
+    }
+  }, [keyframes, annotations]);
+
   // Auto-detect DINO on frame change
   useEffect(() => {
     if (autoDetect && videoUrl) {
