@@ -109,51 +109,58 @@ export function ScenesManager({
               <p className="text-xs">No scenes detected yet.</p>
             </div>
           ) : (
-            scenes.map((scene, index) => (
-              <div
-                key={scene.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ml-4 ${
-                  selectedScene?.id === scene.id
-                    ? "bg-primary/10 border-primary"
-                    : "bg-muted/30 border-border hover:bg-muted/50"
-                }`}
-                onClick={() => handleSceneClick(scene)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Badge variant="secondary" className="text-xs">
-                    Scene {index + 1}
-                  </Badge>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSceneQualityChange(scene.id, "good");
-                      }}
-                    >
-                      {getQualityIcon(scene.quality === "good" ? "good" : "unknown")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSceneQualityChange(scene.id, "bad");
-                      }}
-                    >
-                      {getQualityIcon(scene.quality === "bad" ? "bad" : "unknown")}
-                    </Button>
+            scenes.map((scene, index) => {
+              const isBad = scene.quality === "bad";
+              return (
+                <div
+                  key={scene.id}
+                  className={`p-3 rounded-lg border cursor-pointer transition-all ml-4 ${
+                    isBad 
+                      ? "opacity-50 bg-muted/20 border-destructive/20 hover:opacity-60" 
+                      : selectedScene?.id === scene.id
+                      ? "bg-primary/10 border-primary"
+                      : "bg-muted/30 border-border hover:bg-muted/50"
+                  }`}
+                  onClick={() => !isBad && handleSceneClick(scene)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant="secondary" className="text-xs">
+                      Scene {index + 1}
+                    </Badge>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSceneQualityChange(scene.id, "good");
+                        }}
+                      >
+                        {getQualityIcon(scene.quality === "good" ? "good" : "unknown")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSceneQualityChange(scene.id, "bad");
+                        }}
+                      >
+                        {getQualityIcon(scene.quality === "bad" ? "bad" : "unknown")}
+                      </Button>
+                    </div>
                   </div>
+                  {!isBad && (
+                    <div className="text-xs text-muted-foreground">
+                      Frames {scene.startFrame} - {scene.endFrame}
+                      <span className="ml-2">({scene.endFrame - scene.startFrame + 1} frames)</span>
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Frames {scene.startFrame} - {scene.endFrame}
-                  <span className="ml-2">({scene.endFrame - scene.startFrame + 1} frames)</span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </ScrollArea>
