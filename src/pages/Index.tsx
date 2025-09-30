@@ -137,6 +137,10 @@ const Index = () => {
       // Track "-" key for negative prompts in annotate mode
       if ((e.key === "-" || e.key === "_") && selectedTool === "annotate") {
         setIsNegativePrompt(true);
+        toast({
+          title: "Negative prompt mode",
+          description: "Click to add negative point (exclude area)",
+        });
         return;
       }
 
