@@ -205,11 +205,11 @@ export function HierarchicalTimeline({
                 }}
                 title={`Tracking segment: ${seg.start} → ${seg.end}${job ? ` (${job.status}${job.progress ? `: ${job.progress}%` : ''})` : ''}`}
               >
-                {/* Progress bar for processing jobs */}
-                {job?.status === "processing" && job.progress !== undefined && (
+                {/* Progress bar for processing and completed jobs */}
+                {job && (job.status === "processing" || job.status === "completed") && (
                   <div
                     className="absolute bottom-0 left-0 h-[3px] bg-primary transition-all"
-                    style={{ width: `${job.progress}%` }}
+                    style={{ width: job.status === "completed" ? "100%" : `${job.progress || 0}%` }}
                   />
                 )}
               </div>
