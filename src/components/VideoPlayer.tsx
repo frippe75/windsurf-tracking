@@ -13,9 +13,11 @@ interface VideoPlayerProps {
   onFrameChange: (frame: number) => void;
   onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number }) => void;
   onCanvasClick: (x: number, y: number) => void;
+  classes: Array<{ id: string; color: string }>;
+  instances: Array<{ id: string; classId: string }>;
   annotations: Array<{
     id: string;
-    color: string;
+    instanceId: string;
     points: Array<{ x: number; y: number }>;
     bbox?: { x: number; y: number; w: number; h: number };
   }>;
@@ -38,6 +40,8 @@ export function VideoPlayer({
   onFrameChange,
   onVideoMetadata,
   onCanvasClick,
+  classes,
+  instances,
   annotations,
   onAnnotationUpdate,
   overlays,
@@ -45,6 +49,13 @@ export function VideoPlayer({
   selectedAnnotationId,
   onContextMenu,
 }: VideoPlayerProps) {
+  // Helper to get color for an annotation
+  const getAnnotationColor = (annotation: { instanceId: string }) => {
+    const instance = instances.find(i => i.id === annotation.instanceId);
+    if (!instance) return "#888888";
+    const cls = classes.find(c => c.id === instance.classId);
+    return cls?.color || "#888888";
+  };
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -84,10 +95,11 @@ export function VideoPlayer({
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
+      const color = getAnnotationColor(annotation);
       
       // Draw segment overlay
       if (overlays.segments && annotation.points.length > 0) {
-        ctx.fillStyle = annotation.color + "40"; // 25% opacity
+        ctx.fillStyle = color + "40"; // 25% opacity
         ctx.beginPath();
         annotation.points.forEach((point, i) => {
           const x = (point.x / 100) * canvas.width;
@@ -107,14 +119,14 @@ export function VideoPlayer({
         const w = (bbox.w / 100) * canvas.width;
         const h = (bbox.h / 100) * canvas.height;
 
-        ctx.strokeStyle = annotation.color;
+        ctx.strokeStyle = color;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
 
         // Draw resize handles if selected and in edit mode
         if (isSelected && selectedTool === "edit") {
           const handleSize = 8;
-          ctx.fillStyle = annotation.color;
+          ctx.fillStyle = color;
           
           // Corner handles
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
@@ -130,7 +142,7 @@ export function VideoPlayer({
         const x = (centerX / 100) * canvas.width;
         const y = (centerY / 100) * canvas.height;
 
-        ctx.fillStyle = annotation.color;
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, y, 5, 0, Math.PI * 2);
         ctx.fill();

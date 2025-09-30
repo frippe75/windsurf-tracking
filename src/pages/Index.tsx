@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { VideoPlayer } from "@/components/VideoPlayer";
-import { AnnotationControls } from "@/components/AnnotationControls";
+import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
-import { Timeline } from "@/components/Timeline";
+import { HierarchicalTimeline } from "@/components/HierarchicalTimeline";
 import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
@@ -12,30 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard } from "lucide-react";
-
-interface Annotation {
-  id: string;
-  color: string;
-  colorName: string;
-  name?: string; // Custom user-provided name (overrides colorName for display)
-  points: Array<{ x: number; y: number }>;
-  bbox?: { x: number; y: number; w: number; h: number };
-  frameCreated: number;
-  trackedFrames?: Array<[number, number]>; // Array of [start, end] ranges where object is tracked
-}
-
-interface Keyframe {
-  frame: number;
-  type: "START" | "STOP" | "SKIP";
-  timestamp: string;
-}
-
-interface Scene {
-  id: string;
-  startFrame: number;
-  endFrame: number;
-  quality: "good" | "bad" | "unknown";
-}
+import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -50,10 +27,12 @@ const Index = () => {
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
+  const [selectedClassId, setSelectedClassId] = useState<string>();
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
   const [overlays, setOverlays] = useState({
     segments: true,
@@ -289,21 +268,16 @@ const Index = () => {
 
   const handleCanvasClick = useCallback(
     (x: number, y: number) => {
-      // Check if click is inside an existing annotation
-      const clickedAnnotation = annotations.find((ann) => {
-        if (!ann.bbox) return false;
-        const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
-        return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
-      });
-
-      if (clickedAnnotation) {
-        setSelectedAnnotationId(clickedAnnotation.id);
+      if (!selectedClassId) {
         toast({
-          title: "Annotation selected",
-          description: "Click outside to create new annotation",
+          title: "No class selected",
+          description: "Create and select a class first",
         });
         return;
       }
+
+      const selectedClass = classes.find(c => c.id === selectedClassId);
+      if (!selectedClass) return;
 
       // Create mock annotation with SAM2 click-prompt
       const points = [];
@@ -316,11 +290,20 @@ const Index = () => {
         });
       }
 
-      const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
+      // Create new instance for this class
+      const classInstances = instances.filter(inst => inst.classId === selectedClassId);
+      const instanceNumber = classInstances.length + 1;
+      const newInstance: Instance = {
+        id: `inst-${Date.now()}`,
+        classId: selectedClassId,
+        instanceNumber,
+        metadata: {},
+      };
+
+      // Create annotation for this instance
       const newAnnotation: Annotation = {
         id: `ann-${Date.now()}`,
-        color: color.hex,
-        colorName: color.name,
+        instanceId: newInstance.id,
         points,
         bbox: {
           x: x - radius,
@@ -331,9 +314,8 @@ const Index = () => {
         frameCreated: currentFrame,
       };
 
+      setInstances((prev) => [...prev, newInstance]);
       setAnnotations((prev) => [...prev, newAnnotation]);
-      setColorIndex((prev) => prev + 1);
-      setSelectedAnnotationId(newAnnotation.id);
 
       // Auto-create START keyframe if auto-track is enabled
       if (autoTrack) {
@@ -341,23 +323,23 @@ const Index = () => {
         if (!existingKeyframe || existingKeyframe.type !== "START") {
           handleAddKeyframe("START");
           toast({
-            title: "Annotation added with START keyframe",
-            description: `${color.name} sail at frame ${currentFrame}`,
+            title: "Instance created with START keyframe",
+            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
           });
         } else {
           toast({
-            title: "Annotation added",
-            description: `${color.name} sail at frame ${currentFrame}`,
+            title: "Instance created",
+            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
           });
         }
       } else {
         toast({
-          title: "Annotation added",
-          description: `${color.name} sail at frame ${currentFrame}`,
+          title: "Instance created",
+          description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
         });
       }
     },
-    [currentFrame, colorIndex, toast, annotations, autoTrack, keyframes]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
@@ -481,17 +463,64 @@ const Index = () => {
     setOverlays((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleDeleteAnnotation = (id: string) => {
-    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+  const handleCreateClass = (name: string) => {
+    const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
+    const newClass: Class = {
+      id: `class-${Date.now()}`,
+      name,
+      color: color.hex,
+      colorName: color.name,
+    };
+    setClasses((prev) => [...prev, newClass]);
+    setColorIndex((prev) => prev + 1);
+    setSelectedClassId(newClass.id);
     toast({
-      title: "Annotation deleted",
+      title: "Class created",
+      description: name,
     });
   };
 
-  const handleRenameAnnotation = (id: string, newName: string) => {
-    const trimmedName = newName.trim();
-    setAnnotations((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, name: trimmedName || undefined } : a))
+  const handleRenameClass = (classId: string, newName: string) => {
+    setClasses((prev) =>
+      prev.map((c) => (c.id === classId ? { ...c, name: newName } : c))
+    );
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    const classInstances = instances.filter(inst => inst.classId === classId);
+    const instanceIds = classInstances.map(inst => inst.id);
+    
+    setClasses((prev) => prev.filter((c) => c.id !== classId));
+    setInstances((prev) => prev.filter((inst) => inst.classId !== classId));
+    setAnnotations((prev) => prev.filter((ann) => !instanceIds.includes(ann.instanceId)));
+    
+    if (selectedClassId === classId) {
+      setSelectedClassId(undefined);
+    }
+    
+    toast({
+      title: "Class deleted",
+      description: "All instances and annotations removed",
+    });
+  };
+
+  const handleRenameInstance = (instanceId: string, newName: string) => {
+    setInstances((prev) =>
+      prev.map((inst) => (inst.id === instanceId ? { ...inst, name: newName } : inst))
+    );
+  };
+
+  const handleDeleteInstance = (instanceId: string) => {
+    setInstances((prev) => prev.filter((inst) => inst.id !== instanceId));
+    setAnnotations((prev) => prev.filter((ann) => ann.instanceId !== instanceId));
+    toast({
+      title: "Instance deleted",
+    });
+  };
+
+  const handleUpdateMetadata = (instanceId: string, metadata: Record<string, string>) => {
+    setInstances((prev) =>
+      prev.map((inst) => (inst.id === instanceId ? { ...inst, metadata } : inst))
     );
   };
 
@@ -514,10 +543,12 @@ const Index = () => {
 
   const handleSaveProject = () => {
     const project = {
-      version: "0.2.5",
+      version: "0.3.0-hierarchical",
       videoUrl,
       currentFrame,
       totalFrames,
+      classes,
+      instances,
       annotations,
       keyframes,
       savedAt: new Date().toISOString(),
@@ -540,6 +571,8 @@ const Index = () => {
 
   const handleExportData = () => {
     const exportData = {
+      classes,
+      instances,
       annotations,
       keyframes,
       exportedAt: new Date().toISOString(),
@@ -556,7 +589,7 @@ const Index = () => {
 
     toast({
       title: "Data exported",
-      description: "Annotations exported to JSON",
+      description: "Hierarchical annotations exported to JSON",
     });
   };
 
@@ -570,7 +603,7 @@ const Index = () => {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
                 Video Annotation Tool
               </h1>
-              <p className="text-sm text-muted-foreground">v0.2.5 - Professional sail tracking</p>
+              <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm">
@@ -636,15 +669,21 @@ const Index = () => {
                 autoDetect={autoDetect}
                 onAutoDetectChange={setAutoDetect}
               />
-              <AnnotationControls
+              <ClassManager
+                classes={classes}
+                instances={instances}
                 annotations={annotations}
                 currentFrame={currentFrame}
                 overlays={overlays}
+                selectedClassId={selectedClassId}
                 onToggleOverlay={handleToggleOverlay}
-                onDeleteAnnotation={handleDeleteAnnotation}
-                onRenameAnnotation={handleRenameAnnotation}
-                onSelectAnnotation={setSelectedAnnotationId}
-                selectedAnnotationId={selectedAnnotationId}
+                onSelectClass={setSelectedClassId}
+                onCreateClass={handleCreateClass}
+                onRenameClass={handleRenameClass}
+                onDeleteClass={handleDeleteClass}
+                onRenameInstance={handleRenameInstance}
+                onDeleteInstance={handleDeleteInstance}
+                onUpdateMetadata={handleUpdateMetadata}
               />
             </div>
 
@@ -664,6 +703,8 @@ const Index = () => {
                   });
                 }}
                 onCanvasClick={handleCanvasClick}
+                classes={classes}
+                instances={instances}
                 annotations={annotations}
                 onAnnotationUpdate={(id, updates) => {
                   setAnnotations(prev => 
@@ -672,10 +713,11 @@ const Index = () => {
                 }}
                 overlays={overlays}
                 selectedTool={selectedTool}
-                selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
               />
-              <Timeline
+              <HierarchicalTimeline
+                classes={classes}
+                instances={instances}
                 annotations={annotations}
                 keyframes={keyframes}
                 currentFrame={currentFrame}
@@ -738,7 +780,7 @@ const Index = () => {
           y={contextMenu.y}
           context={contextMenu.context}
           onClose={() => setContextMenu(null)}
-          onDeleteAnnotation={handleDeleteAnnotation}
+          onDeleteAnnotation={handleDeleteInstance}
           onDeleteKeyframe={handleDeleteKeyframe}
           onAddKeyframe={handleAddKeyframe}
           onStartTracking={handleStartTracking}
