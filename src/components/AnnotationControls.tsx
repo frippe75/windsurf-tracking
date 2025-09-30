@@ -124,9 +124,9 @@ export function AnnotationControls({
                   style={{ color: annotation.color }}
                   fill={annotation.color}
                 />
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex items-center gap-1">
                   {editingId === annotation.id ? (
-                    <div className="flex items-center gap-1">
+                    <>
                       <Input
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
@@ -134,14 +134,14 @@ export function AnnotationControls({
                           if (e.key === "Enter") saveEdit(annotation.id);
                           if (e.key === "Escape") cancelEditing();
                         }}
-                        className="h-7 text-sm"
+                        className="h-auto py-0 px-0 text-sm font-medium border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                         autoFocus
                         maxLength={50}
                       />
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 flex-shrink-0"
+                        className="h-5 w-5 flex-shrink-0"
                         onClick={() => saveEdit(annotation.id)}
                       >
                         <Check className="h-3 w-3" />
@@ -149,24 +149,25 @@ export function AnnotationControls({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 flex-shrink-0"
+                        className="h-5 w-5 flex-shrink-0"
                         onClick={cancelEditing}
                       >
                         <X className="h-3 w-3" />
                       </Button>
-                    </div>
+                    </>
                   ) : (
-                    <>
+                    <div className="flex-1 min-w-0">
                       <div
-                        className="text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                        className="text-sm font-medium cursor-pointer hover:underline transition-all"
                         onClick={() => startEditing(annotation)}
+                        title="Click to rename"
                       >
                         {annotation.name || annotation.colorName}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Frame {annotation.frameCreated}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
                 {editingId !== annotation.id && (
