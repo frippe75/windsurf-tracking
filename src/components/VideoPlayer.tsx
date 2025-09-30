@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react";
+import type { ToolMode } from "./Toolbox";
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -21,6 +22,8 @@ interface VideoPlayerProps {
     bboxes: boolean;
     points: boolean;
   };
+  selectedTool: ToolMode;
+  onContextMenu: (x: number, y: number, context: any) => void;
 }
 
 export function VideoPlayer({
@@ -31,6 +34,8 @@ export function VideoPlayer({
   onCanvasClick,
   annotations,
   overlays,
+  selectedTool,
+  onContextMenu,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,6 +111,8 @@ export function VideoPlayer({
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (selectedTool !== "annotate") return;
+    
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -113,6 +120,28 @@ export function VideoPlayer({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     onCanvasClick(x, y);
+  };
+
+  const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // Check if click is on an annotation
+    const clickedAnnotation = annotations.find(ann => {
+      if (!ann.bbox) return false;
+      const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
+      return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+    });
+
+    onContextMenu(e.clientX, e.clientY, {
+      type: clickedAnnotation ? "annotation" : "empty",
+      id: clickedAnnotation?.id,
+    });
   };
 
   const togglePlayPause = () => {
@@ -144,6 +173,7 @@ export function VideoPlayer({
           ref={canvasRef}
           className="absolute inset-0 w-full h-full cursor-crosshair"
           onClick={handleCanvasClick}
+          onContextMenu={handleCanvasContextMenu}
         />
       </div>
 

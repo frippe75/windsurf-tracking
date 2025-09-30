@@ -4,6 +4,9 @@ import { AnnotationControls } from "@/components/AnnotationControls";
 import { KeyframeManager } from "@/components/KeyframeManager";
 import { Timeline } from "@/components/Timeline";
 import { ScenesManager } from "@/components/ScenesManager";
+import { Toolbox, type ToolMode } from "@/components/Toolbox";
+import { ContextMenu } from "@/components/ContextMenu";
+import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,10 +59,31 @@ const Index = () => {
     points: true,
   });
   const [colorIndex, setColorIndex] = useState(0);
+  const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
+  const [autoTrack, setAutoTrack] = useState(false);
+  const [autoDetect, setAutoDetect] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    context: any;
+  } | null>(null);
+  const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
 
-  // Keyboard shortcuts
+  // Auto-detect DINO on frame change
+  useEffect(() => {
+    if (autoDetect && videoUrl) {
+      // TODO: Call DINO detection API
+      console.log("Auto-detecting objects at frame", currentFrame);
+    }
+  }, [currentFrame, autoDetect, videoUrl]);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Close context menu on ESC
+      if (e.key === "Escape" && contextMenu) {
+        setContextMenu(null);
+        return;
+      }
       // Ignore if typing in input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -100,6 +124,18 @@ const Index = () => {
         case "X":
           e.preventDefault();
           handleAddKeyframe("SKIP");
+          break;
+        case "v":
+          e.preventDefault();
+          setSelectedTool("select");
+          break;
+        case "a":
+          e.preventDefault();
+          setSelectedTool("annotate");
+          break;
+        case "m":
+          e.preventDefault();
+          setSelectedTool("edit");
           break;
         case "1":
         case "2":
@@ -169,7 +205,23 @@ const Index = () => {
 
   const handleCanvasClick = useCallback(
     (x: number, y: number) => {
-      // Create mock annotation with a simple circular pattern
+      // Check if click is inside an existing annotation
+      const clickedAnnotation = annotations.find((ann) => {
+        if (!ann.bbox) return false;
+        const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
+        return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+      });
+
+      if (clickedAnnotation) {
+        setSelectedAnnotationId(clickedAnnotation.id);
+        toast({
+          title: "Annotation selected",
+          description: "Click outside to create new annotation",
+        });
+        return;
+      }
+
+      // Create mock annotation with SAM2 click-prompt
       const points = [];
       const radius = 5;
       for (let i = 0; i < 20; i++) {
@@ -197,13 +249,106 @@ const Index = () => {
 
       setAnnotations((prev) => [...prev, newAnnotation]);
       setColorIndex((prev) => prev + 1);
-      toast({
-        title: "Annotation added",
-        description: `${color.name} sail at frame ${currentFrame}`,
-      });
+      setSelectedAnnotationId(newAnnotation.id);
+
+      // Auto-create START keyframe if auto-track is enabled
+      if (autoTrack) {
+        const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
+        if (!existingKeyframe || existingKeyframe.type !== "START") {
+          handleAddKeyframe("START");
+          toast({
+            title: "Annotation added with START keyframe",
+            description: `${color.name} sail at frame ${currentFrame}`,
+          });
+        } else {
+          toast({
+            title: "Annotation added",
+            description: `${color.name} sail at frame ${currentFrame}`,
+          });
+        }
+      } else {
+        toast({
+          title: "Annotation added",
+          description: `${color.name} sail at frame ${currentFrame}`,
+        });
+      }
     },
-    [currentFrame, colorIndex, toast]
+    [currentFrame, colorIndex, toast, annotations, autoTrack, keyframes]
   );
+
+  const handleContextMenu = (x: number, y: number, context: any) => {
+    setContextMenu({ x, y, context });
+  };
+
+  const handleStartTracking = (annotationId: string) => {
+    const annotation = annotations.find(a => a.id === annotationId);
+    if (!annotation) return;
+
+    const startFrame = annotation.frameCreated;
+    const stopKeyframe = keyframes.find(
+      k => k.type === "STOP" && k.frame > startFrame
+    );
+
+    if (!stopKeyframe) {
+      toast({
+        title: "No STOP keyframe found",
+        description: "Add a STOP keyframe after this annotation",
+      });
+      return;
+    }
+
+    const newJob: TrackingJob = {
+      id: `job-${Date.now()}`,
+      startFrame,
+      stopFrame: stopKeyframe.frame,
+      objectIds: [annotationId],
+      status: "pending",
+    };
+
+    setTrackingJobs([...trackingJobs, newJob]);
+    toast({
+      title: "Tracking job created",
+      description: `Frames ${startFrame} → ${stopKeyframe.frame}`,
+    });
+  };
+
+  const handleProcessJob = (jobId: string) => {
+    setTrackingJobs(jobs =>
+      jobs.map(job =>
+        job.id === jobId ? { ...job, status: "processing" as const, progress: 0 } : job
+      )
+    );
+
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 10;
+      setTrackingJobs(jobs =>
+        jobs.map(job =>
+          job.id === jobId ? { ...job, progress } : job
+        )
+      );
+
+      if (progress >= 100) {
+        clearInterval(interval);
+        setTrackingJobs(jobs =>
+          jobs.map(job =>
+            job.id === jobId ? { ...job, status: "completed" as const } : job
+          )
+        );
+        toast({
+          title: "Tracking completed",
+          description: "SAM2 tracking job finished",
+        });
+      }
+    }, 500);
+  };
+
+  const handleDeleteJob = (jobId: string) => {
+    setTrackingJobs(jobs => jobs.filter(job => job.id !== jobId));
+    toast({
+      title: "Job deleted",
+    });
+  };
 
   const handleToggleOverlay = (key: "segments" | "bboxes" | "points") => {
     setOverlays((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -351,6 +496,14 @@ const Index = () => {
           <div className="grid grid-cols-12 gap-6">
             {/* Left sidebar - Controls */}
             <div className="col-span-3 space-y-4">
+              <Toolbox
+                selectedTool={selectedTool}
+                onToolChange={setSelectedTool}
+                autoTrack={autoTrack}
+                onAutoTrackChange={setAutoTrack}
+                autoDetect={autoDetect}
+                onAutoDetectChange={setAutoDetect}
+              />
               <AnnotationControls
                 annotations={annotations}
                 currentFrame={currentFrame}
@@ -372,6 +525,8 @@ const Index = () => {
                 onCanvasClick={handleCanvasClick}
                 annotations={annotations}
                 overlays={overlays}
+                selectedTool={selectedTool}
+                onContextMenu={handleContextMenu}
               />
               <Timeline
                 annotations={annotations}
@@ -399,7 +554,7 @@ const Index = () => {
                     isDetecting={isDetectingScenes}
                   />
                 </TabsContent>
-                <TabsContent value="tracking" className="mt-4">
+                <TabsContent value="tracking" className="mt-4 space-y-4">
                   <KeyframeManager
                     keyframes={keyframes}
                     currentFrame={currentFrame}
@@ -408,12 +563,29 @@ const Index = () => {
                     onSaveProject={handleSaveProject}
                     onExportData={handleExportData}
                   />
+                  <TrackingJobs
+                    jobs={trackingJobs}
+                    onProcessJob={handleProcessJob}
+                    onDeleteJob={handleDeleteJob}
+                  />
                 </TabsContent>
               </Tabs>
             </div>
           </div>
         )}
       </main>
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          context={contextMenu.context}
+          onClose={() => setContextMenu(null)}
+          onDeleteAnnotation={handleDeleteAnnotation}
+          onDeleteKeyframe={handleDeleteKeyframe}
+          onAddKeyframe={handleAddKeyframe}
+          onStartTracking={handleStartTracking}
+        />
+      )}
     </div>
   );
 };
