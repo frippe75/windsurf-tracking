@@ -69,6 +69,7 @@ export function VideoPlayer({
   const [pan, setPan] = useState({ x: 0, y: 0 }); // Pan offset in pixels
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [cursorStyle, setCursorStyle] = useState<string>("crosshair");
   const [dragState, setDragState] = useState<{
     annotationId: string;
     handle: "move" | "nw" | "ne" | "sw" | "se" | null;
@@ -153,12 +154,17 @@ export function VideoPlayer({
 
         // Draw resize handles if selected and in edit mode
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 8;
-          ctx.fillStyle = color;
+          const handleSize = 12;
           
-          // Corner handles
+          // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
+            // White fill
+            ctx.fillStyle = "white";
             ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+            // Black border
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
           });
         }
       }
@@ -182,7 +188,7 @@ export function VideoPlayer({
   };
 
   const getResizeHandle = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
-    const threshold = 2; // percentage units
+    const threshold = 3; // percentage units - larger threshold for easier grabbing
     const { x: bx, y: by, w: bw, h: bh } = bbox;
     
     if (Math.abs(x - bx) < threshold && Math.abs(y - by) < threshold) return "nw";
@@ -325,6 +331,34 @@ export function VideoPlayer({
       return;
     }
 
+    // Update cursor based on hover state
+    if (selectedTool === "edit" && selectedAnnotationId && !dragState) {
+      const rect = canvas.getBoundingClientRect();
+      const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
+      const x = (canvasX / canvas.width) * 100;
+      const y = (canvasY / canvas.height) * 100;
+
+      const annotation = annotations.find(a => a.id === selectedAnnotationId);
+      if (annotation?.bbox) {
+        const handle = getResizeHandle(x, y, annotation.bbox);
+        if (handle === "nw" || handle === "se") {
+          setCursorStyle("nwse-resize");
+          return;
+        } else if (handle === "ne" || handle === "sw") {
+          setCursorStyle("nesw-resize");
+          return;
+        }
+        
+        const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
+        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+          setCursorStyle("move");
+          return;
+        }
+      }
+    }
+    
+    setCursorStyle(selectedTool === "edit" ? "default" : "crosshair");
+
     if (!dragState) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -462,11 +496,7 @@ export function VideoPlayer({
             height: displayed.height,
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'top left',
-            cursor: isPanning
-              ? "grabbing"
-              : selectedTool === "edit" && selectedAnnotationId
-                ? "move"
-                : "crosshair",
+            cursor: isPanning ? "grabbing" : cursorStyle,
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
