@@ -21,6 +21,8 @@ interface VideoPlayerProps {
     points: Array<{ x: number; y: number }>;
     bbox?: { x: number; y: number; w: number; h: number };
     sam2Prompts?: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
+    frameCreated: number;
+    trackedFrames?: Array<[number, number]>;
   }>;
   onAnnotationUpdate: (id: string, updates: { bbox?: { x: number; y: number; w: number; h: number }; points?: Array<{ x: number; y: number }> }) => void;
   onAnnotationSelect?: (id: string | undefined) => void;
@@ -133,7 +135,20 @@ export function VideoPlayer({
     const baseY = canvas.height / zoom; // = displayed.height * dpr
     const invZoom = 1 / zoom;
 
-    annotations.forEach((annotation) => {
+    // Filter annotations to only show those visible on current frame
+    const visibleAnnotations = annotations.filter((annotation) => {
+      // Check if annotation is tracked to this frame
+      if (annotation.trackedFrames) {
+        const isInTrackedRange = annotation.trackedFrames.some(
+          ([start, end]) => currentFrame >= start && currentFrame <= end
+        );
+        if (isInTrackedRange) return true;
+      }
+      // Otherwise, only show on the frame where it was created
+      return currentFrame === annotation.frameCreated;
+    });
+
+    visibleAnnotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
       const color = getAnnotationColor(annotation);
       
