@@ -61,51 +61,53 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
           jobs.map((job) => (
             <div
               key={job.id}
-              className="p-2.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors space-y-1.5"
+              className="rounded-lg bg-secondary hover:bg-secondary/80 transition-colors relative overflow-hidden"
             >
-              {/* Top row: Frame range and actions */}
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">
-                  Frames {job.startFrame} → {job.stopFrame}
-                </div>
-                <div className="flex gap-1">
-                  {job.status === "pending" && (
+              <div className="p-2.5 space-y-1.5">
+                {/* Top row: Frame range and actions */}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">
+                    Frames {job.startFrame} → {job.stopFrame}
+                  </div>
+                  <div className="flex gap-1">
+                    {job.status === "pending" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => onProcessJob(job.id)}
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      onClick={() => onProcessJob(job.id)}
+                      onClick={() => onDeleteJob(job.id)}
                     >
-                      <Play className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => onDeleteJob(job.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  </div>
+                </div>
+                
+                {/* Second row: Status and object count in light grey */}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Badge variant={getStatusColor(job.status)} className="text-xs">
+                    {getStatusIcon(job.status)}
+                    <span className="ml-1">{job.status}</span>
+                  </Badge>
+                  <span className="text-xs">
+                    {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
               </div>
               
-              {/* Second row: Status and object count in light grey */}
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Badge variant={getStatusColor(job.status)} className="text-xs">
-                  {getStatusIcon(job.status)}
-                  <span className="ml-1">{job.status}</span>
-                </Badge>
-                <span className="text-xs">
-                  {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-              
-              {/* Progress bar */}
+              {/* Progress bar at bottom */}
               {job.status === "processing" && job.progress !== undefined && (
-                <div className="w-full bg-muted rounded-full h-1.5">
+                <div className="w-full bg-muted/50 h-[3px]">
                   <div
-                    className="bg-primary h-1.5 rounded-full transition-all"
+                    className="bg-primary h-full transition-all"
                     style={{ width: `${job.progress}%` }}
                   />
                 </div>
