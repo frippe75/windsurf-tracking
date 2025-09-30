@@ -53,6 +53,7 @@ const Index = () => {
   const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
+  const [maximizeVideo, setMaximizeVideo] = useState(false);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -896,7 +897,7 @@ const Index = () => {
       </header>
 
       {/* Main content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className={`w-full ${maximizeVideo ? "px-0 py-2" : "px-4 py-6"}`}>
         {!videoUrl ? (
           <div className="flex items-center justify-center min-h-[600px]">
             <div className="text-center space-y-4">
@@ -924,9 +925,14 @@ const Index = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-12 gap-3">
+          <div className={`grid grid-cols-12 ${maximizeVideo ? "gap-0" : "gap-3"}` }>
+            <div className="col-span-12 flex justify-end mb-2 pr-2">
+              <Button variant="secondary" size="sm" onClick={() => setMaximizeVideo((v) => !v)}>
+                {maximizeVideo ? "Exit Full Width" : "Full Width Video"}
+              </Button>
+            </div>
             {/* Left sidebar - Controls */}
-            <div className="col-span-2 space-y-4">
+            <div className={maximizeVideo ? "hidden" : "col-span-2 space-y-4"}>
               <Toolbox
                 selectedTool={selectedTool}
                 onToolChange={setSelectedTool}
@@ -958,7 +964,7 @@ const Index = () => {
             </div>
 
             {/* Center - Video player & Timeline */}
-            <div className="col-span-8 space-y-4">
+            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-8 space-y-4"}>
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
@@ -1009,7 +1015,7 @@ const Index = () => {
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
-            <div className="col-span-2">
+            <div className={maximizeVideo ? "hidden" : "col-span-2"}>
               <Tabs defaultValue="tracking" className="h-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
