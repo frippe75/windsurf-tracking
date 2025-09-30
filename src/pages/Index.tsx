@@ -141,6 +141,36 @@ const Index = () => {
         return;
       }
 
+      // Tab cycling through annotations (only in edit mode)
+      if (e.key === "Tab" && selectedTool === "edit") {
+        e.preventDefault();
+        const currentFrameAnnotations = annotations.filter(ann => 
+          ann.frameCreated === currentFrame
+        );
+        
+        if (currentFrameAnnotations.length === 0) return;
+        
+        const currentIndex = selectedAnnotationId 
+          ? currentFrameAnnotations.findIndex(ann => ann.id === selectedAnnotationId)
+          : -1;
+        
+        let nextIndex;
+        if (e.shiftKey) {
+          // Shift+Tab: cycle backwards
+          nextIndex = currentIndex <= 0 
+            ? currentFrameAnnotations.length - 1 
+            : currentIndex - 1;
+        } else {
+          // Tab: cycle forwards
+          nextIndex = currentIndex >= currentFrameAnnotations.length - 1 
+            ? 0 
+            : currentIndex + 1;
+        }
+        
+        setSelectedAnnotationId(currentFrameAnnotations[nextIndex].id);
+        return;
+      }
+
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -207,7 +237,7 @@ const Index = () => {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [totalFrames, currentFrame, keyframes]);
+  }, [totalFrames, currentFrame, keyframes, selectedTool, annotations, selectedAnnotationId]);
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -590,7 +590,7 @@ export function VideoPlayer({
         </div>
 
         <div className="text-xs text-muted-foreground text-center">
-          Space: Play/Pause • Arrows: Frame • Shift+Arrows: 1 sec • Click video to annotate
+          Space: Play/Pause • Arrows: Frame • Shift+Arrows: 1 sec • M: Edit mode • Tab/Shift+Tab: Cycle annotations
         </div>
       </div>
     </Card>
