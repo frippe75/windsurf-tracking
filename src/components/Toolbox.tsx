@@ -15,6 +15,8 @@ interface ToolboxProps {
   onAutoDetectChange: (enabled: boolean) => void;
   useSAM2: boolean;
   onUseSAM2Change: (enabled: boolean) => void;
+  showLabels: boolean;
+  onShowLabelsChange: (enabled: boolean) => void;
 }
 
 export function Toolbox({
@@ -26,6 +28,8 @@ export function Toolbox({
   onAutoDetectChange,
   useSAM2,
   onUseSAM2Change,
+  showLabels,
+  onShowLabelsChange,
 }: ToolboxProps) {
   return (
     <Card className="p-3 bg-card border-border">
@@ -93,6 +97,16 @@ export function Toolbox({
               id="auto-track"
               checked={autoTrack}
               onCheckedChange={onAutoTrackChange}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="show-labels" className="text-xs cursor-pointer">
+              Show bbox labels
+            </Label>
+            <Switch
+              id="show-labels"
+              checked={showLabels}
+              onCheckedChange={onShowLabelsChange}
             />
           </div>
         </div>

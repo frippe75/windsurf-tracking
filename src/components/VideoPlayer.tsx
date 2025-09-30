@@ -13,8 +13,8 @@ interface VideoPlayerProps {
   onFrameChange: (frame: number) => void;
   onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number }) => void;
   onCanvasClick: (x: number, y: number, videoWidth: number, videoHeight: number) => void;
-  classes: Array<{ id: string; color: string }>;
-  instances: Array<{ id: string; classId: string }>;
+  classes: Array<{ id: string; color: string; name: string }>;
+  instances: Array<{ id: string; classId: string; instanceNumber: number }>;
   annotations: Array<{
     id: string;
     instanceId: string;
@@ -31,6 +31,7 @@ interface VideoPlayerProps {
   selectedTool: ToolMode;
   selectedAnnotationId?: string;
   onContextMenu: (x: number, y: number, context: any) => void;
+  showLabels?: boolean;
 }
 
 export function VideoPlayer({
@@ -50,6 +51,7 @@ export function VideoPlayer({
   selectedTool,
   selectedAnnotationId,
   onContextMenu,
+  showLabels = true,
 }: VideoPlayerProps) {
   // Helper to get color for an annotation
   const getAnnotationColor = (annotation: { instanceId: string }) => {
@@ -87,7 +89,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     drawAnnotations();
-  }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool]);
+  }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool, showLabels]);
 
   // Track container size so we can align canvas to the video's rendered box (object-contain)
   useEffect(() => {
@@ -151,6 +153,31 @@ export function VideoPlayer({
         ctx.strokeStyle = color;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
+
+        // Draw label above bbox
+        if (showLabels) {
+          const instance = instances.find(i => i.id === annotation.instanceId);
+          const cls = classes.find(c => c.id === instance?.classId);
+          if (instance && cls) {
+            const label = `${cls.name}#${instance.instanceNumber}`;
+            
+            // Measure text for background
+            ctx.font = "14px sans-serif";
+            const metrics = ctx.measureText(label);
+            const padding = 6;
+            const labelWidth = metrics.width + padding * 2;
+            const labelHeight = 20;
+            
+            // Draw background (slightly above bbox)
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y - labelHeight - 4, labelWidth, labelHeight);
+            
+            // Draw text
+            ctx.fillStyle = "white";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, x + padding, y - labelHeight / 2 - 4);
+          }
+        }
 
         // Draw resize handles if selected and in edit mode
         if (isSelected && selectedTool === "edit") {

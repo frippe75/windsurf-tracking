@@ -44,6 +44,7 @@ const Index = () => {
   const [autoTrack, setAutoTrack] = useState(true);
   const [autoDetect, setAutoDetect] = useState(true);
   const [useSAM2, setUseSAM2] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -923,6 +924,8 @@ const Index = () => {
                 onAutoDetectChange={setAutoDetect}
                 useSAM2={useSAM2}
                 onUseSAM2Change={setUseSAM2}
+                showLabels={showLabels}
+                onShowLabelsChange={setShowLabels}
               />
               <ClassManager
                 classes={classes}
@@ -971,6 +974,7 @@ const Index = () => {
                 selectedTool={selectedTool}
                 selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
+                showLabels={showLabels}
               />
               <HierarchicalTimeline
                 classes={classes}
