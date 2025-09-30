@@ -124,9 +124,9 @@ export function AnnotationControls({
                   style={{ color: annotation.color }}
                   fill={annotation.color}
                 />
-                <div className="flex-1 min-w-0 flex items-center gap-1">
+                <div className="flex-1 min-w-0">
                   {editingId === annotation.id ? (
-                    <>
+                    <div className="flex items-center gap-1 mb-0.5">
                       <Input
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
@@ -154,21 +154,19 @@ export function AnnotationControls({
                       >
                         <X className="h-3 w-3" />
                       </Button>
-                    </>
+                    </div>
                   ) : (
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className="text-sm font-medium cursor-pointer hover:underline transition-all"
-                        onClick={() => startEditing(annotation)}
-                        title="Click to rename"
-                      >
-                        {annotation.name || annotation.colorName}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Frame {annotation.frameCreated}
-                      </div>
+                    <div
+                      className="text-sm font-medium cursor-pointer hover:underline transition-all mb-0.5"
+                      onClick={() => startEditing(annotation)}
+                      title="Click to rename"
+                    >
+                      {annotation.name || annotation.colorName}
                     </div>
                   )}
+                  <div className="text-xs text-muted-foreground">
+                    Frame {annotation.frameCreated}
+                  </div>
                 </div>
                 {editingId !== annotation.id && (
                   <Button
