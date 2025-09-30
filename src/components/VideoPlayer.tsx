@@ -124,6 +124,9 @@ export function VideoPlayer({
     // CSS transform is applied on the canvas element itself; no context transform needed
     ctx.save();
 
+    // Scale factor for zoom-independent elements
+    const invZoom = 1 / zoom;
+
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
       const color = getAnnotationColor(annotation);
@@ -154,19 +157,21 @@ export function VideoPlayer({
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
 
-        // Draw label at top-left of bbox
+        // Draw label at top-left of bbox (zoom-independent)
         if (showLabels) {
           const instance = instances.find(i => i.id === annotation.instanceId);
           const cls = classes.find(c => c.id === instance?.classId);
           if (instance && cls) {
             const label = `${cls.name}#${instance.instanceNumber}`;
             
-            // Measure text for background
-            ctx.font = "bold 16px sans-serif";
+            // Scale font and dimensions inversely to zoom for consistent size
+            const fontSize = 16 * invZoom;
+            const padding = 8 * invZoom;
+            const labelHeight = 26 * invZoom;
+            
+            ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
-            const padding = 8;
             const labelWidth = metrics.width + padding * 2;
-            const labelHeight = 26;
             
             // Draw background (aligned with top-left of bbox)
             ctx.fillStyle = color;
@@ -179,9 +184,9 @@ export function VideoPlayer({
           }
         }
 
-        // Draw resize handles if selected and in edit mode
+        // Draw resize handles if selected and in edit mode (zoom-independent)
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 12;
+          const handleSize = 12 * invZoom;
           
           // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
@@ -190,7 +195,7 @@ export function VideoPlayer({
             ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
             // Black border
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2 * invZoom;
             ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
           });
         }
