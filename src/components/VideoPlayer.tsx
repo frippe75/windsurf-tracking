@@ -12,7 +12,7 @@ interface VideoPlayerProps {
   frameRange: [number, number];
   onFrameChange: (frame: number) => void;
   onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number }) => void;
-  onCanvasClick: (x: number, y: number) => void;
+  onCanvasClick: (x: number, y: number, videoWidth: number, videoHeight: number) => void;
   classes: Array<{ id: string; color: string }>;
   instances: Array<{ id: string; classId: string }>;
   annotations: Array<{
@@ -253,12 +253,15 @@ export function VideoPlayer({
     if (selectedTool !== "annotate") return;
     
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    onCanvasClick(x, y);
+    const videoWidth = video.videoWidth || 1280;
+    const videoHeight = video.videoHeight || 720;
+    onCanvasClick(x, y, videoWidth, videoHeight);
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {

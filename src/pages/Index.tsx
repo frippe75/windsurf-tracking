@@ -313,7 +313,7 @@ const Index = () => {
   };
 
   const handleCanvasClick = useCallback(
-    async (x: number, y: number) => {
+    async (x: number, y: number, videoWidth: number, videoHeight: number) => {
       // If SAM2 is enabled, use it regardless of class selection
       if (useSAM2) {
         // Show loading toast
@@ -323,8 +323,8 @@ const Index = () => {
         });
 
         try {
-          // Call mock SAM2 backend with default canvas dimensions (1280x720)
-          const { points, className } = await mockSAM2Segmentation(x, y, 1280, 720);
+          // Call mock SAM2 backend with actual video dimensions
+          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight);
 
           // Find or create class
           let classData = classes.find(c => c.name === className);
