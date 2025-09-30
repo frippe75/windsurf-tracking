@@ -74,6 +74,23 @@ export function Timeline({
     return ((frame - startFrame) / rangeSize) * 100;
   };
 
+  // Calculate tracking segments (START -> STOP pairs)
+  const trackingSegments: Array<{ start: number; end: number }> = [];
+  const sortedKeyframes = [...keyframes].sort((a, b) => a.frame - b.frame);
+  
+  for (let i = 0; i < sortedKeyframes.length; i++) {
+    if (sortedKeyframes[i].type === "START") {
+      // Find next STOP keyframe
+      const stopKeyframe = sortedKeyframes.slice(i + 1).find(kf => kf.type === "STOP");
+      if (stopKeyframe) {
+        trackingSegments.push({
+          start: sortedKeyframes[i].frame,
+          end: stopKeyframe.frame,
+        });
+      }
+    }
+  }
+
   return (
     <Card className="p-4 bg-card border-border">
       <div className="flex items-center justify-between mb-3">
@@ -113,6 +130,31 @@ export function Timeline({
         <div className="space-y-2">
           {/* Main timeline ruler */}
           <div className="relative h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
+            {/* Tracking segments background */}
+            {trackingSegments.map((seg, idx) => {
+              const startPos = frameToPosition(seg.start);
+              const endPos = frameToPosition(seg.end);
+              
+              if (startPos < 0 && endPos < 0) return null;
+              
+              const displayStartPos = Math.max(0, startPos);
+              const displayEndPos = Math.min(100, endPos);
+              
+              if (displayEndPos <= displayStartPos) return null;
+              
+              return (
+                <div
+                  key={`segment-${idx}`}
+                  className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40"
+                  style={{
+                    left: `${displayStartPos}%`,
+                    width: `${displayEndPos - displayStartPos}%`,
+                  }}
+                  title={`Tracking segment: ${seg.start} → ${seg.end}`}
+                />
+              );
+            })}
+
             {/* Current frame indicator */}
             {currentFrame >= startFrame && currentFrame <= endFrame && (
               <div
