@@ -501,22 +501,20 @@ const Index = () => {
                 <Keyboard className="h-4 w-4 mr-2" />
                 Shortcuts
               </Button>
-              {!videoUrl && (
-                <label>
-                  <Button variant="default" size="sm" asChild>
-                    <span>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Load Video
-                    </span>
-                  </Button>
-                  <Input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    onChange={handleVideoUpload}
-                  />
-                </label>
-              )}
+              <label>
+                <Button variant="default" size="sm" asChild>
+                  <span>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {videoUrl ? "Change Video" : "Load Video"}
+                  </span>
+                </Button>
+                <Input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleVideoUpload}
+                />
+              </label>
             </div>
           </div>
         </div>
