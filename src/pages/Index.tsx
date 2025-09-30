@@ -779,6 +779,7 @@ const Index = () => {
                 onAutoTrackChange={setAutoTrack}
                 autoDetect={autoDetect}
                 onAutoDetectChange={setAutoDetect}
+                onAutoDetect={handleAutoDetect}
               />
               <ClassManager
                 classes={classes}
@@ -795,7 +796,6 @@ const Index = () => {
                 onRenameInstance={handleRenameInstance}
                 onDeleteInstance={handleDeleteInstance}
                 onUpdateMetadata={handleUpdateMetadata}
-                onAutoDetect={handleAutoDetect}
               />
             </div>
 
