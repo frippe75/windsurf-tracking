@@ -61,7 +61,7 @@ const Index = () => {
   });
   const [colorIndex, setColorIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
-  const [autoTrack, setAutoTrack] = useState(false);
+  const [autoTrack, setAutoTrack] = useState(true);
   const [autoDetect, setAutoDetect] = useState(true);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
