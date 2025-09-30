@@ -964,8 +964,8 @@ const Index = () => {
             </div>
 
             {/* Center - Video player & Timeline side by side */}
-            <div className={maximizeVideo ? "col-span-12 flex gap-3" : "col-span-8 flex gap-3"}>
-              <div className="flex-1">
+            <div className={maximizeVideo ? "col-span-12" : "col-span-8"}>
+              <div className="mb-3">
                 <VideoPlayer
                   videoUrl={videoUrl}
                   currentFrame={currentFrame}
@@ -996,26 +996,25 @@ const Index = () => {
                   showLabels={showLabels}
                 />
               </div>
-              <div className="w-80">
-                <HierarchicalTimeline
-                  classes={classes}
-                  instances={instances}
-                  annotations={annotations}
-                  keyframes={keyframes}
-                  currentFrame={currentFrame}
-                  totalFrames={totalFrames}
-                  frameRange={frameRange}
-                  onFrameChange={setCurrentFrame}
-                  selectedScene={selectedScene}
-                  onClearScene={() => {
-                    setSelectedScene(null);
-                    toast({
-                      title: "Timeline reset",
-                      description: "Showing full video range",
-                    });
-                  }}
-                />
-              </div>
+
+              <HierarchicalTimeline
+                classes={classes}
+                instances={instances}
+                annotations={annotations}
+                keyframes={keyframes}
+                currentFrame={currentFrame}
+                totalFrames={totalFrames}
+                frameRange={frameRange}
+                onFrameChange={setCurrentFrame}
+                selectedScene={selectedScene}
+                onClearScene={() => {
+                  setSelectedScene(null);
+                  toast({
+                    title: "Timeline reset",
+                    description: "Showing full video range",
+                  });
+                }}
+              />
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
