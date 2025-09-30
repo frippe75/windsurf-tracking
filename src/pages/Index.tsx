@@ -134,8 +134,8 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Track "-" key for negative prompts in annotate mode
-      if ((e.key === "-" || e.key === "_") && selectedTool === "annotate") {
+      // Track Alt key for negative prompts in annotate mode
+      if (e.key === "Alt" && selectedTool === "annotate") {
         setIsNegativePrompt(true);
         toast({
           title: "Negative prompt mode",
@@ -268,8 +268,8 @@ const Index = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      // Release "-" key for negative prompts
-      if ((e.key === "-" || e.key === "_") && selectedTool === "annotate") {
+      // Release Alt key for negative prompts
+      if (e.key === "Alt" && selectedTool === "annotate") {
         setIsNegativePrompt(false);
       }
     };
