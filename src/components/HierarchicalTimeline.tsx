@@ -163,16 +163,6 @@ export function HierarchicalTimeline({
         {/* Column 3: Title and metadata in label space */}
         <div className="min-w-[80px] flex items-center gap-2 flex-shrink-0">
           <h3 className="text-sm font-semibold">Timeline</h3>
-          {selectedScene && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClearScene}
-              className="h-6 text-xs px-2"
-            >
-              Reset View
-            </Button>
-          )}
         </div>
         
         {/* Column 4: Main timeline ruler */}
