@@ -120,14 +120,7 @@ export function VideoPlayer({
     canvas.height = video.videoHeight || 720;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Apply inverse zoom transform to canvas context so UI elements maintain constant screen size
     ctx.save();
-    ctx.scale(1 / zoom, 1 / zoom);
-
-    // Scale factor: everything is now in "zoomed canvas space"
-    // Multiply coordinates by zoom to convert from percentage to this space
-    const zoomScale = zoom;
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
@@ -138,8 +131,8 @@ export function VideoPlayer({
         ctx.fillStyle = color + "40"; // 25% opacity
         ctx.beginPath();
         annotation.points.forEach((point, i) => {
-          const x = ((point.x / 100) * canvas.width) * zoomScale;
-          const y = ((point.y / 100) * canvas.height) * zoomScale;
+          const x = (point.x / 100) * canvas.width;
+          const y = (point.y / 100) * canvas.height;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
@@ -150,26 +143,26 @@ export function VideoPlayer({
       // Draw bounding box
       if (overlays.bboxes && annotation.bbox) {
         const bbox = annotation.bbox;
-        const x = ((bbox.x / 100) * canvas.width) * zoomScale;
-        const y = ((bbox.y / 100) * canvas.height) * zoomScale;
-        const w = ((bbox.w / 100) * canvas.width) * zoomScale;
-        const h = ((bbox.h / 100) * canvas.height) * zoomScale;
+        const x = (bbox.x / 100) * canvas.width;
+        const y = (bbox.y / 100) * canvas.height;
+        const w = (bbox.w / 100) * canvas.width;
+        const h = (bbox.h / 100) * canvas.height;
 
         ctx.strokeStyle = color;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
 
-        // Draw label above bbox (zoom-independent size)
+        // Draw label above bbox (scaled inversely to zoom for fixed size)
         if (showLabels) {
           const instance = instances.find(i => i.id === annotation.instanceId);
           const cls = classes.find(c => c.id === instance?.classId);
           if (instance && cls) {
             const label = `${cls.name}#${instance.instanceNumber}`;
             
-            // Fixed size in screen pixels
-            const fontSize = 20;
-            const padding = 10;
-            const labelHeight = 32;
+            // Scale inversely to zoom to maintain fixed screen size
+            const fontSize = 20 / zoom;
+            const padding = 10 / zoom;
+            const labelHeight = 32 / zoom;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
@@ -186,9 +179,9 @@ export function VideoPlayer({
           }
         }
 
-        // Draw resize handles if selected and in edit mode (zoom-independent)
+        // Draw resize handles if selected and in edit mode (scaled inversely to zoom)
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 12;
+          const handleSize = 12 / zoom;
           
           // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
@@ -197,7 +190,7 @@ export function VideoPlayer({
             ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
             // Black border
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2 / zoom;
             ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
           });
         }
@@ -207,8 +200,8 @@ export function VideoPlayer({
       if (overlays.points && annotation.points.length > 0) {
         const centerX = annotation.points.reduce((sum, p) => sum + p.x, 0) / annotation.points.length;
         const centerY = annotation.points.reduce((sum, p) => sum + p.y, 0) / annotation.points.length;
-        const x = ((centerX / 100) * canvas.width) * zoomScale;
-        const y = ((centerY / 100) * canvas.height) * zoomScale;
+        const x = (centerX / 100) * canvas.width;
+        const y = (centerY / 100) * canvas.height;
 
         ctx.fillStyle = color;
         ctx.beginPath();
