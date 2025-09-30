@@ -97,10 +97,7 @@ export function VideoPlayer({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom and pan transformation
-    ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
+    // No transformation here - will use CSS transform on canvas element instead
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
@@ -157,9 +154,6 @@ export function VideoPlayer({
         ctx.fill();
       }
     });
-    
-    // Restore canvas state after zoom/pan
-    ctx.restore();
   };
 
   const getResizeHandle = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
@@ -391,7 +385,9 @@ export function VideoPlayer({
               ? "grabbing" 
               : selectedTool === "edit" && selectedAnnotationId 
                 ? "move" 
-                : "crosshair" 
+                : "crosshair",
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'top left',
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
