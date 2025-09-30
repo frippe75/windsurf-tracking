@@ -498,7 +498,7 @@ export function VideoPlayer({
 
     onContextMenu(e.clientX, e.clientY, {
       type: clickedAnnotation ? "annotation" : "empty",
-      id: clickedAnnotation?.id,
+      id: clickedAnnotation?.instanceId,
     });
   };
 
