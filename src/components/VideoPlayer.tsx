@@ -157,7 +157,7 @@ export function VideoPlayer({
         const h = (bbox.h / 100) * canvas.height;
 
         ctx.strokeStyle = color;
-        ctx.lineWidth = (isSelected ? 3 : 2) / zoom;
+        ctx.lineWidth = (isSelected ? 3 : 2) * dpr;
         ctx.strokeRect(x, y, w, h);
 
         // Draw label above bbox (scaled inversely to zoom for fixed size)
@@ -167,10 +167,10 @@ export function VideoPlayer({
           if (instance && cls) {
             const label = `${cls.name}#${instance.instanceNumber}`;
             
-            // Scale inversely to zoom to maintain fixed screen size
-            const fontSize = 24 / zoom;
-            const padding = 12 / zoom;
-            const labelHeight = 36 / zoom;
+            // Fixed screen size using device pixel ratio
+            const fontSize = 24 * dpr;
+            const padding = 12 * dpr;
+            const labelHeight = 36 * dpr;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
@@ -189,7 +189,7 @@ export function VideoPlayer({
 
         // Draw resize handles if selected and in edit mode (scaled inversely to zoom)
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 16 / zoom;
+          const handleSize = 16 * dpr;
           
           // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
@@ -198,7 +198,7 @@ export function VideoPlayer({
             ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
             // Black border
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 2 / zoom;
+            ctx.lineWidth = 2 * dpr;
             ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
           });
         }
@@ -213,7 +213,7 @@ export function VideoPlayer({
 
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.arc(x, y, 5 * dpr, 0, Math.PI * 2);
         ctx.fill();
       }
     });
