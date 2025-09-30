@@ -157,7 +157,7 @@ export function VideoPlayer({
         const h = (bbox.h / 100) * canvas.height;
 
         ctx.strokeStyle = color;
-        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.lineWidth = (isSelected ? 3 : 2) / zoom;
         ctx.strokeRect(x, y, w, h);
 
         // Draw label above bbox (scaled inversely to zoom for fixed size)
@@ -168,9 +168,9 @@ export function VideoPlayer({
             const label = `${cls.name}#${instance.instanceNumber}`;
             
             // Scale inversely to zoom to maintain fixed screen size
-            const fontSize = 20 / zoom;
-            const padding = 10 / zoom;
-            const labelHeight = 32 / zoom;
+            const fontSize = 24 / zoom;
+            const padding = 12 / zoom;
+            const labelHeight = 36 / zoom;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
@@ -189,7 +189,7 @@ export function VideoPlayer({
 
         // Draw resize handles if selected and in edit mode (scaled inversely to zoom)
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 12 / zoom;
+          const handleSize = 16 / zoom;
           
           // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
