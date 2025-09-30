@@ -87,7 +87,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     drawAnnotations();
-  }, [annotations, overlays, currentFrame, zoom, pan]);
+  }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool]);
 
   // Track container size so we can align canvas to the video's rendered box (object-contain)
   useEffect(() => {
