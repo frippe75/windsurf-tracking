@@ -104,7 +104,7 @@ export function ClassManager({
       <div className="mb-4 p-3 bg-muted/30 rounded-lg space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="segments-toggle" className="text-xs">
-            Show Segments (1)
+            Show Segments <span className="text-muted-foreground/60">(1)</span>
           </Label>
           <Switch
             id="segments-toggle"
@@ -115,7 +115,7 @@ export function ClassManager({
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor="bboxes-toggle" className="text-xs">
-            Show BBoxes (2)
+            Show BBoxes <span className="text-muted-foreground/60">(2)</span>
           </Label>
           <Switch
             id="bboxes-toggle"
@@ -126,7 +126,7 @@ export function ClassManager({
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor="points-toggle" className="text-xs">
-            Show Points (3)
+            Show Points <span className="text-muted-foreground/60">(3)</span>
           </Label>
           <Switch
             id="points-toggle"
@@ -137,7 +137,7 @@ export function ClassManager({
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor="labels-toggle" className="text-xs">
-            Show BBox Labels (4)
+            Show BBox Labels <span className="text-muted-foreground/60">(4)</span>
           </Label>
           <Switch
             id="labels-toggle"
