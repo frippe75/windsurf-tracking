@@ -926,7 +926,7 @@ const Index = () => {
         ) : (
           <div className="grid grid-cols-12 gap-4">
             {/* Left sidebar - Controls */}
-            <div className="col-span-2 space-y-4">
+            <div className="col-span-3 space-y-4">
               <Toolbox
                 selectedTool={selectedTool}
                 onToolChange={setSelectedTool}
@@ -958,7 +958,7 @@ const Index = () => {
             </div>
 
             {/* Center - Video player & Timeline */}
-            <div className="col-span-8 space-y-4">
+            <div className="col-span-6 space-y-4">
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
@@ -1009,7 +1009,7 @@ const Index = () => {
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
-            <div className="col-span-2">
+            <div className="col-span-3">
               <Tabs defaultValue="tracking" className="h-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
