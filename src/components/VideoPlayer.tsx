@@ -168,9 +168,9 @@ export function VideoPlayer({
             const label = `${cls.name}#${instance.instanceNumber}`;
             
             // Fixed screen size using device pixel ratio
-            const fontSize = 24 * dpr;
-            const padding = 12 * dpr;
-            const labelHeight = 36 * dpr;
+            const fontSize = 18 * dpr;
+            const padding = 9 * dpr;
+            const labelHeight = 27 * dpr;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
