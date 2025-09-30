@@ -63,7 +63,7 @@ export function Toolbox({
           </div>
         </div>
 
-        <div className="border-t border-border pt-3 space-y-2">
+        <div className="p-3 bg-muted/30 rounded-lg space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="use-sam2" className="text-xs cursor-pointer">
               Use SAM2 on click
