@@ -253,10 +253,10 @@ export function KeyframeManager({
                   style={{ backgroundColor: getKeyframeColor(group.type) }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">{group.type}</span>
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-medium mt-0.5">{group.type}</span>
                     {group.type !== "SKIP" && (
-                      <span className="text-xs text-muted-foreground">Frame {group.displayText}</span>
+                      <span className="text-xs text-muted-foreground mt-0.5">Frame {group.displayText}</span>
                     )}
                     
                     {/* SKIP ranges as pills */}
