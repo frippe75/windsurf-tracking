@@ -282,13 +282,14 @@ const Index = () => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Create bbox: 5-15% of canvas width and height
-    const bboxWidth = canvasWidth * (0.05 + Math.random() * 0.10);
-    const bboxHeight = canvasHeight * (0.05 + Math.random() * 0.10);
+    // Create bbox: 5-15% of canvas in PERCENTAGE UNITS (0-100 scale)
+    // Note: x and y are already in percentage units from the click handler
+    const bboxWidth = 5 + Math.random() * 10; // 5-15% width
+    const bboxHeight = 5 + Math.random() * 10; // 5-15% height
     
-    // Position bbox around click point (ensure it stays within canvas)
-    const bboxX = Math.max(0, Math.min(canvasWidth - bboxWidth, x - bboxWidth / 2));
-    const bboxY = Math.max(0, Math.min(canvasHeight - bboxHeight, y - bboxHeight / 2));
+    // Position bbox around click point (ensure it stays within 0-100 range)
+    const bboxX = Math.max(0, Math.min(100 - bboxWidth, x - bboxWidth / 2));
+    const bboxY = Math.max(0, Math.min(100 - bboxHeight, y - bboxHeight / 2));
     
     // Create 3-6 point polygon within the bbox
     const numPoints = 3 + Math.floor(Math.random() * 4); // 3-6 points
