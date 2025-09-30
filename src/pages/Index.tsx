@@ -963,55 +963,59 @@ const Index = () => {
               />
             </div>
 
-            {/* Center - Video player & Timeline */}
-            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-8 space-y-4"}>
-              <VideoPlayer
-                videoUrl={videoUrl}
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-                frameRange={frameRange}
-                onFrameChange={setCurrentFrame}
-                onVideoMetadata={(metadata) => {
-                  setTotalFrames(metadata.totalFrames);
-                  toast({
-                    title: "Video loaded",
-                    description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
-                  });
-                }}
-                onCanvasClick={handleCanvasClick}
-                classes={classes}
-                instances={instances}
-                annotations={annotations}
-                onAnnotationUpdate={(id, updates) => {
-                  setAnnotations(prev => 
-                    prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
-                  );
-                }}
-                onAnnotationSelect={setSelectedAnnotationId}
-                overlays={overlays}
-                selectedTool={selectedTool}
-                selectedAnnotationId={selectedAnnotationId}
-                onContextMenu={handleContextMenu}
-                showLabels={showLabels}
-              />
-              <HierarchicalTimeline
-                classes={classes}
-                instances={instances}
-                annotations={annotations}
-                keyframes={keyframes}
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-                frameRange={frameRange}
-                onFrameChange={setCurrentFrame}
-                selectedScene={selectedScene}
-                onClearScene={() => {
-                  setSelectedScene(null);
-                  toast({
-                    title: "Timeline reset",
-                    description: "Showing full video range",
-                  });
-                }}
-              />
+            {/* Center - Video player & Timeline side by side */}
+            <div className={maximizeVideo ? "col-span-12 flex gap-3" : "col-span-8 flex gap-3"}>
+              <div className="flex-1">
+                <VideoPlayer
+                  videoUrl={videoUrl}
+                  currentFrame={currentFrame}
+                  totalFrames={totalFrames}
+                  frameRange={frameRange}
+                  onFrameChange={setCurrentFrame}
+                  onVideoMetadata={(metadata) => {
+                    setTotalFrames(metadata.totalFrames);
+                    toast({
+                      title: "Video loaded",
+                      description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
+                    });
+                  }}
+                  onCanvasClick={handleCanvasClick}
+                  classes={classes}
+                  instances={instances}
+                  annotations={annotations}
+                  onAnnotationUpdate={(id, updates) => {
+                    setAnnotations(prev => 
+                      prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
+                    );
+                  }}
+                  onAnnotationSelect={setSelectedAnnotationId}
+                  overlays={overlays}
+                  selectedTool={selectedTool}
+                  selectedAnnotationId={selectedAnnotationId}
+                  onContextMenu={handleContextMenu}
+                  showLabels={showLabels}
+                />
+              </div>
+              <div className="w-80">
+                <HierarchicalTimeline
+                  classes={classes}
+                  instances={instances}
+                  annotations={annotations}
+                  keyframes={keyframes}
+                  currentFrame={currentFrame}
+                  totalFrames={totalFrames}
+                  frameRange={frameRange}
+                  onFrameChange={setCurrentFrame}
+                  selectedScene={selectedScene}
+                  onClearScene={() => {
+                    setSelectedScene(null);
+                    toast({
+                      title: "Timeline reset",
+                      description: "Showing full video range",
+                    });
+                  }}
+                />
+              </div>
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
