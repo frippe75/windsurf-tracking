@@ -61,45 +61,51 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
           jobs.map((job) => (
             <div
               key={job.id}
-              className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors space-y-1.5"
+              className="p-2.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors space-y-2"
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Badge variant={getStatusColor(job.status)} className="text-xs px-1.5 py-0">
-                    {getStatusIcon(job.status)}
-                  </Badge>
-                  <span className="text-xs font-medium">
-                    {job.startFrame}→{job.stopFrame}
-                  </span>
-                </div>
-                <div className="flex gap-0.5">
+              {/* Top row: Status and actions */}
+              <div className="flex items-center justify-between">
+                <Badge variant={getStatusColor(job.status)} className="text-xs">
+                  {getStatusIcon(job.status)}
+                  <span className="ml-1">{job.status}</span>
+                </Badge>
+                <div className="flex gap-1">
                   {job.status === "pending" && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-7 w-7"
                       onClick={() => onProcessJob(job.id)}
                     >
-                      <Play className="h-3 w-3" />
+                      <Play className="h-3.5 w-3.5" />
                     </Button>
                   )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-7 w-7"
                     onClick={() => onDeleteJob(job.id)}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
+              
+              {/* Frame range */}
+              <div className="text-xs font-medium">
+                Frames {job.startFrame} → {job.stopFrame}
+              </div>
+              
+              {/* Object count */}
               <div className="text-xs text-muted-foreground">
                 {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
               </div>
+              
+              {/* Progress bar */}
               {job.status === "processing" && job.progress !== undefined && (
-                <div className="w-full bg-muted rounded-full h-1">
+                <div className="w-full bg-muted rounded-full h-1.5">
                   <div
-                    className="bg-primary h-1 rounded-full transition-all"
+                    className="bg-primary h-1.5 rounded-full transition-all"
                     style={{ width: `${job.progress}%` }}
                   />
                 </div>
