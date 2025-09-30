@@ -4,6 +4,15 @@ import { ChevronDown, ChevronRight, Flag } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 
+export interface TrackingJob {
+  id: string;
+  startFrame: number;
+  stopFrame: number;
+  objectIds: string[];
+  status: "pending" | "processing" | "completed" | "failed";
+  progress?: number;
+}
+
 interface HierarchicalTimelineProps {
   classes: Class[];
   instances: Instance[];
@@ -15,6 +24,7 @@ interface HierarchicalTimelineProps {
   onFrameChange: (frame: number) => void;
   selectedScene: Scene | null;
   onClearScene: () => void;
+  trackingJobs: TrackingJob[];
 }
 
 export function HierarchicalTimeline({
@@ -28,6 +38,7 @@ export function HierarchicalTimeline({
   onFrameChange,
   selectedScene,
   onClearScene,
+  trackingJobs,
 }: HierarchicalTimelineProps) {
   const [expanded, setExpanded] = useState(true);
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
@@ -179,16 +190,29 @@ export function HierarchicalTimeline({
             
             if (displayEndPos <= displayStartPos) return null;
             
+            // Find the corresponding tracking job for this segment
+            const job = trackingJobs.find(
+              j => j.startFrame === seg.start && j.stopFrame === seg.end
+            );
+            
             return (
               <div
                 key={`segment-${idx}`}
-                className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40"
+                className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40 overflow-hidden"
                 style={{
                   left: `${displayStartPos}%`,
                   width: `${displayEndPos - displayStartPos}%`,
                 }}
-                title={`Tracking segment: ${seg.start} → ${seg.end}`}
-              />
+                title={`Tracking segment: ${seg.start} → ${seg.end}${job ? ` (${job.status}${job.progress ? `: ${job.progress}%` : ''})` : ''}`}
+              >
+                {/* Progress bar for processing jobs */}
+                {job?.status === "processing" && job.progress !== undefined && (
+                  <div
+                    className="absolute bottom-0 left-0 h-[3px] bg-primary transition-all"
+                    style={{ width: `${job.progress}%` }}
+                  />
+                )}
+              </div>
             );
           })}
 

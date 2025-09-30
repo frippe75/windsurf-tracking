@@ -1090,6 +1090,7 @@ const Index = () => {
                 frameRange={frameRange}
                 onFrameChange={setCurrentFrame}
                 selectedScene={selectedScene}
+                trackingJobs={trackingJobs}
                 onClearScene={() => {
                   setSelectedScene(null);
                   toast({
