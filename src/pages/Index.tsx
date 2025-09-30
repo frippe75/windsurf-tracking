@@ -17,6 +17,7 @@ interface Annotation {
   id: string;
   color: string;
   colorName: string;
+  name?: string; // Custom user-provided name (overrides colorName for display)
   points: Array<{ x: number; y: number }>;
   bbox?: { x: number; y: number; w: number; h: number };
   frameCreated: number;
@@ -487,6 +488,13 @@ const Index = () => {
     });
   };
 
+  const handleRenameAnnotation = (id: string, newName: string) => {
+    const trimmedName = newName.trim();
+    setAnnotations((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, name: trimmedName || undefined } : a))
+    );
+  };
+
   const handleAddKeyframe = (type: "START" | "STOP" | "SKIP") => {
     const newKeyframe: Keyframe = {
       frame: currentFrame,
@@ -634,6 +642,7 @@ const Index = () => {
                 overlays={overlays}
                 onToggleOverlay={handleToggleOverlay}
                 onDeleteAnnotation={handleDeleteAnnotation}
+                onRenameAnnotation={handleRenameAnnotation}
                 onSelectAnnotation={setSelectedAnnotationId}
                 selectedAnnotationId={selectedAnnotationId}
               />

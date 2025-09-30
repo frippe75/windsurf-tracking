@@ -1,14 +1,17 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Trash2, Circle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Trash2, Circle, Check, X } from "lucide-react";
 
 interface Annotation {
   id: string;
   color: string;
   colorName: string;
+  name?: string;
   points: Array<{ x: number; y: number }>;
   bbox?: { x: number; y: number; w: number; h: number };
   frameCreated: number;
@@ -24,6 +27,7 @@ interface AnnotationControlsProps {
   };
   onToggleOverlay: (key: "segments" | "bboxes" | "points") => void;
   onDeleteAnnotation: (id: string) => void;
+  onRenameAnnotation: (id: string, newName: string) => void;
   onSelectAnnotation: (id: string) => void;
   selectedAnnotationId?: string;
 }
@@ -34,9 +38,29 @@ export function AnnotationControls({
   overlays,
   onToggleOverlay,
   onDeleteAnnotation,
+  onRenameAnnotation,
   onSelectAnnotation,
   selectedAnnotationId,
 }: AnnotationControlsProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const startEditing = (annotation: Annotation) => {
+    setEditingId(annotation.id);
+    setEditValue(annotation.name || annotation.colorName);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditValue("");
+  };
+
+  const saveEdit = (id: string) => {
+    onRenameAnnotation(id, editValue);
+    setEditingId(null);
+    setEditValue("");
+  };
+
   return (
     <Card className="p-4 bg-card border-border space-y-4">
       <div>
@@ -89,12 +113,11 @@ export function AnnotationControls({
             annotations.map((annotation) => (
               <div
                 key={annotation.id}
-                className={`flex items-center gap-2 p-2 rounded-lg border transition-colors cursor-pointer ${
+                className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
                   selectedAnnotationId === annotation.id
                     ? "bg-accent border-accent"
                     : "bg-secondary border-transparent hover:border-border"
                 }`}
-                onClick={() => onSelectAnnotation(annotation.id)}
               >
                 <Circle
                   className="h-4 w-4 flex-shrink-0"
@@ -102,22 +125,63 @@ export function AnnotationControls({
                   fill={annotation.color}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{annotation.colorName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Frame {annotation.frameCreated}
-                  </div>
+                  {editingId === annotation.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit(annotation.id);
+                          if (e.key === "Escape") cancelEditing();
+                        }}
+                        className="h-7 text-sm"
+                        autoFocus
+                        maxLength={50}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={() => saveEdit(annotation.id)}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={cancelEditing}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className="text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => startEditing(annotation)}
+                      >
+                        {annotation.name || annotation.colorName}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Frame {annotation.frameCreated}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 flex-shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteAnnotation(annotation.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {editingId !== annotation.id && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 flex-shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteAnnotation(annotation.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))
           )}

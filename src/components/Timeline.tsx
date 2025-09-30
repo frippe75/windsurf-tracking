@@ -7,6 +7,7 @@ interface Annotation {
   id: string;
   color: string;
   colorName: string;
+  name?: string;
   frameCreated: number;
   trackedFrames?: Array<[number, number]>;
 }
@@ -204,7 +205,7 @@ export function Timeline({
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: ann.color }}
                     />
-                    <div className="text-xs text-muted-foreground min-w-[60px]">{ann.colorName}</div>
+                    <div className="text-xs text-muted-foreground min-w-[60px]">{ann.name || ann.colorName}</div>
                     <div className="flex-1 h-4 bg-muted/30 rounded relative">
                       {/* Creation point marker (bright) */}
                       {creationPos >= 0 && creationPos <= 100 && (
