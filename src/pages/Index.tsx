@@ -402,17 +402,17 @@ const Index = () => {
       // If clicking on existing annotation, add SAM2 prompt to it
       if (clickedAnnotation) {
         const promptType: 'positive' | 'negative' = isNegativePrompt ? 'negative' : 'positive';
-        const existingPrompts = clickedAnnotation.sam2Prompts || [];
-        const updatedPrompts = [...existingPrompts, { x, y, type: promptType }];
         
-        setAnnotations(prev => prev.map(ann => 
-          ann.id === clickedAnnotation.id 
-            ? { ...ann, sam2Prompts: updatedPrompts }
-            : ann
-        ));
+        setAnnotations(prev => prev.map(ann => {
+          if (ann.id === clickedAnnotation.id) {
+            const existingPrompts = ann.sam2Prompts || [];
+            return { ...ann, sam2Prompts: [...existingPrompts, { x, y, type: promptType }] };
+          }
+          return ann;
+        }));
 
         toast({
-          title: `${promptType === 'positive' ? 'Positive' : 'Negative'} prompt added`,
+          title: `${promptType === 'positive' ? '+' : '-'} prompt added`,
           description: `Click added to existing annotation`,
         });
         return;
