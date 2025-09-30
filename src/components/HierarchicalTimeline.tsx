@@ -285,7 +285,7 @@ export function HierarchicalTimeline({
                             <div key={instance.id} className="flex items-center gap-2">
                               <div className="h-5 w-5 flex-shrink-0" />
                               <div
-                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: cls.color }}
                               />
                               <div className="text-xs text-muted-foreground min-w-[80px]">
