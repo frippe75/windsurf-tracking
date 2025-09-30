@@ -164,35 +164,17 @@ const Index = () => {
         case "s":
         case "S":
           e.preventDefault();
-          // Toggle START keyframe
-          const existingStart = keyframes.find(k => k.frame === currentFrame && k.type === "START");
-          if (existingStart) {
-            handleDeleteKeyframe(currentFrame);
-          } else {
-            handleAddKeyframe("START");
-          }
+          handleAddKeyframe("START");
           break;
         case "e":
         case "E":
           e.preventDefault();
-          // Toggle STOP keyframe
-          const existingStop = keyframes.find(k => k.frame === currentFrame && k.type === "STOP");
-          if (existingStop) {
-            handleDeleteKeyframe(currentFrame);
-          } else {
-            handleAddKeyframe("STOP");
-          }
+          handleAddKeyframe("STOP");
           break;
         case "x":
         case "X":
           e.preventDefault();
-          // Toggle SKIP keyframe
-          const existingSkip = keyframes.find(k => k.frame === currentFrame && k.type === "SKIP");
-          if (existingSkip) {
-            handleDeleteKeyframe(currentFrame);
-          } else {
-            handleAddKeyframe("SKIP");
-          }
+          handleAddKeyframe("SKIP");
           break;
         case "v":
           e.preventDefault();
@@ -395,8 +377,8 @@ const Index = () => {
 
           // Auto-create START keyframe if auto-track is enabled
           if (autoTrack) {
-            const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
-            if (!existingKeyframe || existingKeyframe.type !== "START") {
+            const existingStart = keyframes.find(k => k.frame === currentFrame && k.type === "START");
+            if (!existingStart) {
               handleAddKeyframe("START");
             }
           }
@@ -462,8 +444,8 @@ const Index = () => {
 
       // Auto-create START keyframe if auto-track is enabled
       if (autoTrack) {
-        const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
-        if (!existingKeyframe || existingKeyframe.type !== "START") {
+        const existingStart = keyframes.find(k => k.frame === currentFrame && k.type === "START");
+        if (!existingStart) {
           handleAddKeyframe("START");
           toast({
             title: "Instance created with START keyframe",
@@ -745,16 +727,29 @@ const Index = () => {
   };
 
   const handleAddKeyframe = (type: "START" | "STOP" | "SKIP") => {
-    const newKeyframe: Keyframe = {
-      frame: currentFrame,
-      type,
-      timestamp: new Date().toISOString(),
-    };
-    setKeyframes((prev) => [...prev, newKeyframe]);
-    toast({
-      title: `${type} keyframe added`,
-      description: `Frame ${currentFrame}`,
-    });
+    // Check if keyframe of this type already exists at current frame
+    const existingKeyframe = keyframes.find(k => k.frame === currentFrame && k.type === type);
+    
+    if (existingKeyframe) {
+      // Toggle off: remove the keyframe
+      setKeyframes((prev) => prev.filter((k) => !(k.frame === currentFrame && k.type === type)));
+      toast({
+        title: `${type} keyframe removed`,
+        description: `Frame ${currentFrame}`,
+      });
+    } else {
+      // Toggle on: add the keyframe
+      const newKeyframe: Keyframe = {
+        frame: currentFrame,
+        type,
+        timestamp: new Date().toISOString(),
+      };
+      setKeyframes((prev) => [...prev, newKeyframe]);
+      toast({
+        title: `${type} keyframe added`,
+        description: `Frame ${currentFrame}`,
+      });
+    }
   };
 
   const handleDeleteKeyframe = (frame: number) => {
