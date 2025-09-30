@@ -164,12 +164,24 @@ const Index = () => {
         case "s":
         case "S":
           e.preventDefault();
-          handleAddKeyframe("START");
+          // Toggle START keyframe
+          const existingStart = keyframes.find(k => k.frame === currentFrame && k.type === "START");
+          if (existingStart) {
+            handleDeleteKeyframe(currentFrame);
+          } else {
+            handleAddKeyframe("START");
+          }
           break;
         case "e":
         case "E":
           e.preventDefault();
-          handleAddKeyframe("STOP");
+          // Toggle STOP keyframe
+          const existingStop = keyframes.find(k => k.frame === currentFrame && k.type === "STOP");
+          if (existingStop) {
+            handleDeleteKeyframe(currentFrame);
+          } else {
+            handleAddKeyframe("STOP");
+          }
           break;
         case "x":
         case "X":
