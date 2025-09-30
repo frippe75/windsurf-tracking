@@ -142,20 +142,26 @@ export function HierarchicalTimeline({
 
   return (
     <Card className="p-4 bg-card border-border">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setExpanded(!expanded)}
-            className="h-6 w-6 p-0"
-          >
-            {expanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </Button>
+      <div className="flex items-center gap-2 mb-3">
+        {/* Column 1: Toggle button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded(!expanded)}
+          className="h-6 w-6 p-0 flex-shrink-0"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+        
+        {/* Column 2: Spacer for dot indicator */}
+        <div className="w-3 h-3 flex-shrink-0" />
+        
+        {/* Column 3: Title and metadata in label space */}
+        <div className="min-w-[80px] flex items-center gap-2 flex-shrink-0">
           <h3 className="text-sm font-semibold">Timeline</h3>
           {selectedScene && (
             <Button
@@ -168,7 +174,92 @@ export function HierarchicalTimeline({
             </Button>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">
+        
+        {/* Column 4: Main timeline ruler */}
+        <div className="relative flex-1 h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
+          {/* Tracking segments background */}
+          {trackingSegments.map((seg, idx) => {
+            const startPos = frameToPosition(seg.start);
+            const endPos = frameToPosition(seg.end);
+            
+            if (startPos < 0 && endPos < 0) return null;
+            
+            const displayStartPos = Math.max(0, startPos);
+            const displayEndPos = Math.min(100, endPos);
+            
+            if (displayEndPos <= displayStartPos) return null;
+            
+            return (
+              <div
+                key={`segment-${idx}`}
+                className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40"
+                style={{
+                  left: `${displayStartPos}%`,
+                  width: `${displayEndPos - displayStartPos}%`,
+                }}
+                title={`Tracking segment: ${seg.start} → ${seg.end}`}
+              />
+            );
+          })}
+
+          {/* Skip segments background */}
+          {skipSegments.map((seg, idx) => {
+            const startPos = frameToPosition(seg.start);
+            const endPos = frameToPosition(seg.end);
+            
+            if (startPos < 0 && endPos < 0) return null;
+            
+            const displayStartPos = Math.max(0, startPos);
+            const displayEndPos = Math.min(100, endPos);
+            
+            if (displayEndPos <= displayStartPos) return null;
+            
+            return (
+              <div
+                key={`skip-segment-${idx}`}
+                className="absolute top-0 bottom-0 bg-sail-yellow/20 border-l-2 border-r-2 border-sail-yellow/40"
+                style={{
+                  left: `${displayStartPos}%`,
+                  width: `${displayEndPos - displayStartPos}%`,
+                }}
+                title={`Skip segment: ${seg.start} → ${seg.end}`}
+              />
+            );
+          })}
+
+          {/* Current frame indicator */}
+          {currentFrame >= startFrame && currentFrame <= endFrame && (
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-primary z-10"
+              style={{ left: `${frameToPosition(currentFrame)}%` }}
+            >
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary rounded-full" />
+            </div>
+          )}
+
+          {/* Keyframe markers */}
+          {keyframes.map((kf, idx) => {
+            const position = frameToPosition(kf.frame);
+            if (position < 0) return null;
+            
+            return (
+              <div
+                key={`${kf.frame}-${kf.type}-${idx}`}
+                className="absolute top-0 bottom-0 w-1 hover:w-2 transition-all"
+                style={{
+                  left: `${position}%`,
+                  backgroundColor: getKeyframeColor(kf.type),
+                }}
+                title={`${kf.type} at frame ${kf.frame}`}
+              >
+                <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Info text */}
+        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
           {selectedScene 
             ? `Frames ${startFrame}-${endFrame}` 
             : `${classes.length} classes • ${instances.length} instances`}
@@ -177,93 +268,6 @@ export function HierarchicalTimeline({
 
       {expanded && (
         <div className="space-y-2">
-          {/* Main timeline ruler */}
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-5 flex-shrink-0" />
-            <div className="w-3 h-3 flex-shrink-0" />
-            <div className="min-w-[80px]" />
-            <div className="relative flex-1 h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
-              {/* Tracking segments background */}
-              {trackingSegments.map((seg, idx) => {
-                const startPos = frameToPosition(seg.start);
-                const endPos = frameToPosition(seg.end);
-                
-                if (startPos < 0 && endPos < 0) return null;
-                
-                const displayStartPos = Math.max(0, startPos);
-                const displayEndPos = Math.min(100, endPos);
-                
-                if (displayEndPos <= displayStartPos) return null;
-                
-                return (
-                  <div
-                    key={`segment-${idx}`}
-                    className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40"
-                    style={{
-                      left: `${displayStartPos}%`,
-                      width: `${displayEndPos - displayStartPos}%`,
-                    }}
-                    title={`Tracking segment: ${seg.start} → ${seg.end}`}
-                  />
-                );
-              })}
-
-              {/* Skip segments background */}
-              {skipSegments.map((seg, idx) => {
-                const startPos = frameToPosition(seg.start);
-                const endPos = frameToPosition(seg.end);
-                
-                if (startPos < 0 && endPos < 0) return null;
-                
-                const displayStartPos = Math.max(0, startPos);
-                const displayEndPos = Math.min(100, endPos);
-                
-                if (displayEndPos <= displayStartPos) return null;
-                
-                return (
-                  <div
-                    key={`skip-segment-${idx}`}
-                    className="absolute top-0 bottom-0 bg-sail-yellow/20 border-l-2 border-r-2 border-sail-yellow/40"
-                    style={{
-                      left: `${displayStartPos}%`,
-                      width: `${displayEndPos - displayStartPos}%`,
-                    }}
-                    title={`Skip segment: ${seg.start} → ${seg.end}`}
-                  />
-                );
-              })}
-
-              {/* Current frame indicator */}
-              {currentFrame >= startFrame && currentFrame <= endFrame && (
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-primary z-10"
-                  style={{ left: `${frameToPosition(currentFrame)}%` }}
-                >
-                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary rounded-full" />
-                </div>
-              )}
-
-              {/* Keyframe markers */}
-              {keyframes.map((kf, idx) => {
-                const position = frameToPosition(kf.frame);
-                if (position < 0) return null;
-                
-                return (
-                  <div
-                    key={`${kf.frame}-${kf.type}-${idx}`}
-                    className="absolute top-0 bottom-0 w-1 hover:w-2 transition-all"
-                    style={{
-                      left: `${position}%`,
-                      backgroundColor: getKeyframeColor(kf.type),
-                    }}
-                    title={`${kf.type} at frame ${kf.frame}`}
-                  >
-                    <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
           {/* Classes and Instances timeline */}
           {classes.length > 0 && (
