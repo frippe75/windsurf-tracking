@@ -41,60 +41,48 @@ export function KeyframeManager({
     }
   };
 
-  // Group keyframes for display (group consecutive SKIP frames into ranges)
+  // Group keyframes for display (collect all SKIP frames into one group)
   const groupedKeyframes: Array<{
     type: "START" | "STOP" | "SKIP";
     frames: number[];
     displayText: string;
   }> = [];
 
-  for (let i = 0; i < sortedKeyframes.length; i++) {
-    const kf = sortedKeyframes[i];
+  // Separate SKIP frames from others
+  const skipFrames = sortedKeyframes.filter(kf => kf.type === "SKIP").map(kf => kf.frame);
+  const nonSkipKeyframes = sortedKeyframes.filter(kf => kf.type !== "SKIP");
+
+  // Add all non-SKIP keyframes individually
+  nonSkipKeyframes.forEach(kf => {
+    groupedKeyframes.push({
+      type: kf.type,
+      frames: [kf.frame],
+      displayText: `${kf.frame}`,
+    });
+  });
+
+  // Group all SKIP frames into one item with ranges
+  if (skipFrames.length > 0) {
+    const ranges: string[] = [];
+    let rangeStart = skipFrames[0];
+    let rangeEnd = skipFrames[0];
     
-    if (kf.type === "SKIP") {
-      // Start a new SKIP group
-      const skipFrames = [kf.frame];
-      let j = i + 1;
-      
-      // Collect consecutive SKIP frames
-      while (j < sortedKeyframes.length && 
-             sortedKeyframes[j].type === "SKIP" && 
-             sortedKeyframes[j].frame === skipFrames[skipFrames.length - 1] + 1) {
-        skipFrames.push(sortedKeyframes[j].frame);
-        j++;
+    for (let i = 1; i < skipFrames.length; i++) {
+      if (skipFrames[i] === rangeEnd + 1) {
+        rangeEnd = skipFrames[i];
+      } else {
+        ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+        rangeStart = skipFrames[i];
+        rangeEnd = skipFrames[i];
       }
-      
-      // Create display text for ranges
-      const ranges: string[] = [];
-      let rangeStart = skipFrames[0];
-      let rangeEnd = skipFrames[0];
-      
-      for (let k = 1; k < skipFrames.length; k++) {
-        if (skipFrames[k] === rangeEnd + 1) {
-          rangeEnd = skipFrames[k];
-        } else {
-          ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
-          rangeStart = skipFrames[k];
-          rangeEnd = skipFrames[k];
-        }
-      }
-      ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
-      
-      groupedKeyframes.push({
-        type: "SKIP",
-        frames: skipFrames,
-        displayText: ranges.join(", "),
-      });
-      
-      i = j - 1; // Skip processed frames
-    } else {
-      // START and STOP remain individual
-      groupedKeyframes.push({
-        type: kf.type,
-        frames: [kf.frame],
-        displayText: `${kf.frame}`,
-      });
     }
+    ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+    
+    groupedKeyframes.push({
+      type: "SKIP",
+      frames: skipFrames,
+      displayText: ranges.join(", "),
+    });
   }
 
   const handleDeleteGroup = (frames: number[]) => {
