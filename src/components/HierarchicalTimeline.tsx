@@ -276,13 +276,14 @@ export function HierarchicalTimeline({
 
                     {/* Instance-level tracks (when expanded) */}
                     {isExpanded && (
-                      <div className="ml-7 space-y-0.5">
+                      <div className="space-y-0.5">
                         {classInstances.map((instance) => {
                           const instanceAnnotations = getAnnotationsForInstance(instance.id);
                           const displayName = instance.name || `${cls.name}#${instance.instanceNumber}`;
 
                           return (
                             <div key={instance.id} className="flex items-center gap-2">
+                              <div className="h-5 w-5 flex-shrink-0" />
                               <div
                                 className="w-2 h-2 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: cls.color }}
