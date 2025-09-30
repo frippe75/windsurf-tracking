@@ -58,6 +58,9 @@ export function VideoPlayer({
   };
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [videoDims, setVideoDims] = useState<{ width: number; height: number }>({ width: 1280, height: 720 });
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps] = useState(30); // Default FPS
   const [zoom, setZoom] = useState(1); // Zoom level (1 = 100%)
@@ -174,13 +177,19 @@ export function VideoPlayer({
     return null;
   };
 
-  // Transform screen coordinates to canvas coordinates accounting for zoom and pan
+  // Transform screen coordinates to canvas coordinates accounting for zoom, pan and CSS scaling
   const screenToCanvas = (screenX: number, screenY: number, rect: DOMRect) => {
-    const x = (screenX - rect.left - pan.x) / zoom;
-    const y = (screenY - rect.top - pan.y) / zoom;
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    // Map CSS pixels to canvas internal pixels
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const x = ((screenX - rect.left) * scaleX - pan.x) / zoom;
+    const y = ((screenY - rect.top) * scaleY - pan.y) / zoom;
     return { x, y };
   };
-
   const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
