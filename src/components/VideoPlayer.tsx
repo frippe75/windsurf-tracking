@@ -606,9 +606,10 @@ export function VideoPlayer({
       <div className="space-y-4">
         {/* Frame slider */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground min-w-[100px]">
-            {currentFrame} / {frameRange[1]}
-          </span>
+          {/* Spacers to align with timeline columns below */}
+          <div className="h-5 w-5 flex-shrink-0" />
+          <div className="w-3 h-3 flex-shrink-0" />
+          <div className="min-w-[80px]" />
           <Slider
             value={[currentFrame]}
             onValueChange={(value) => onFrameChange(value[0])}
