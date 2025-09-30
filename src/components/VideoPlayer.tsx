@@ -525,7 +525,8 @@ export function VideoPlayer({
     const y = (canvasY / canvas.height) * 100;
     const videoWidth = video.videoWidth || 1280;
     const videoHeight = video.videoHeight || 720;
-    onCanvasClick(x, y, videoWidth, videoHeight, e.ctrlKey || e.metaKey, e.altKey);
+    const isAltLike = e.altKey || e.getModifierState?.('AltGraph') === true;
+    onCanvasClick(x, y, videoWidth, videoHeight, e.ctrlKey || e.metaKey, isAltLike);
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
