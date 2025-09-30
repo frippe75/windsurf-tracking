@@ -27,6 +27,7 @@ interface ClassManagerProps {
   onRenameInstance: (instanceId: string, newName: string) => void;
   onDeleteInstance: (instanceId: string) => void;
   onUpdateMetadata: (instanceId: string, metadata: Record<string, string>) => void;
+  onAutoDetect: () => void;
 }
 
 export function ClassManager({
@@ -44,6 +45,7 @@ export function ClassManager({
   onRenameInstance,
   onDeleteInstance,
   onUpdateMetadata,
+  onAutoDetect,
 }: ClassManagerProps) {
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
   const [editingClassId, setEditingClassId] = useState<string>();
@@ -274,8 +276,17 @@ export function ClassManager({
       </div>
 
       {classes.length === 0 && (
-        <div className="text-center py-4 text-sm text-muted-foreground">
-          No classes yet. Create one to start annotating.
+        <div className="text-center py-6 space-y-3">
+          <div className="text-sm text-muted-foreground">
+            No classes yet. Create one manually or auto-detect objects.
+          </div>
+          <Button 
+            onClick={onAutoDetect}
+            variant="outline"
+            size="sm"
+          >
+            Auto-Detect Objects (SAM2)
+          </Button>
         </div>
       )}
 

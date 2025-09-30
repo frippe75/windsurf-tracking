@@ -469,6 +469,83 @@ const Index = () => {
     setOverlays((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleAutoDetect = async () => {
+    try {
+      toast({
+        title: "Detecting objects...",
+        description: "Running SAM2 detection",
+      });
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/detect-objects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          frameWidth: 1920,
+          frameHeight: 1080,
+        }),
+      });
+
+      const { detections } = await response.json();
+
+      // Create classes for each detected object
+      const newClasses: Class[] = [];
+      const newInstances: Instance[] = [];
+      const newAnnotations: Annotation[] = [];
+
+      detections.forEach((detection: any, idx: number) => {
+        // Check if class already exists
+        let cls = classes.find(c => c.name === detection.className);
+        
+        if (!cls) {
+          cls = {
+            id: `class-${Date.now()}-${idx}`,
+            name: detection.className,
+            color: detection.color,
+            colorName: detection.colorName,
+          };
+          newClasses.push(cls);
+        }
+
+        // Create instance
+        const instance: Instance = {
+          id: `instance-${Date.now()}-${idx}`,
+          classId: cls.id,
+          instanceNumber: instances.filter(i => i.classId === cls!.id).length + 1,
+          metadata: {},
+        };
+        newInstances.push(instance);
+
+        // Create annotation
+        const annotation: Annotation = {
+          id: `annotation-${Date.now()}-${idx}`,
+          instanceId: instance.id,
+          frameCreated: currentFrame,
+          points: detection.points,
+          bbox: detection.bbox,
+        };
+        newAnnotations.push(annotation);
+      });
+
+      setClasses(prev => [...prev, ...newClasses]);
+      setInstances(prev => [...prev, ...newInstances]);
+      setAnnotations(prev => [...prev, ...newAnnotations]);
+
+      toast({
+        title: "Detection complete",
+        description: `Found ${detections.length} objects`,
+      });
+    } catch (error) {
+      console.error('Auto-detect error:', error);
+      toast({
+        title: "Detection failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCreateClass = (name: string) => {
     const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
     const newClass: Class = {
@@ -690,6 +767,7 @@ const Index = () => {
                 onRenameInstance={handleRenameInstance}
                 onDeleteInstance={handleDeleteInstance}
                 onUpdateMetadata={handleUpdateMetadata}
+                onAutoDetect={handleAutoDetect}
               />
             </div>
 

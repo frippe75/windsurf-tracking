@@ -1,0 +1,2 @@
+[functions.detect-objects]
+verify_jwt = false
