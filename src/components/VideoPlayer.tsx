@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import type { ToolMode } from "./Toolbox";
 
 interface VideoPlayerProps {
@@ -79,6 +79,8 @@ export function VideoPlayer({
     startY: number;
     originalBbox: { x: number; y: number; w: number; h: number };
   } | null>(null);
+  const [showZoomOverlay, setShowZoomOverlay] = useState(false);
+  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -298,6 +300,15 @@ export function VideoPlayer({
       y: mouseY - (mouseY - pan.y) * scale,
     });
     setZoom(newZoom);
+
+    // Show zoom overlay and reset fade timer
+    setShowZoomOverlay(true);
+    if (zoomTimeoutRef.current) {
+      clearTimeout(zoomTimeoutRef.current);
+    }
+    zoomTimeoutRef.current = setTimeout(() => {
+      setShowZoomOverlay(false);
+    }, 5000);
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -565,30 +576,34 @@ export function VideoPlayer({
           onContextMenu={handleCanvasContextMenu}
           onWheel={handleCanvasWheel}
         />
+        
+        {/* Zoom percentage overlay - bottom left */}
+        {showZoomOverlay && (
+          <div className="absolute bottom-4 left-4 bg-black/80 text-white px-3 py-1.5 rounded text-sm font-medium pointer-events-none transition-opacity duration-300">
+            {Math.round(zoom * 100)}%
+          </div>
+        )}
+        
+        {/* Reset view button - top right */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="absolute top-4 right-4 bg-black/50 border-white/20 hover:bg-black/70"
+          onClick={() => {
+            setZoom(1);
+            setPan({ x: 0, y: 0 });
+            setShowZoomOverlay(false);
+            if (zoomTimeoutRef.current) {
+              clearTimeout(zoomTimeoutRef.current);
+            }
+          }}
+          disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
+        >
+          <Maximize2 className="h-4 w-4 text-white" />
+        </Button>
       </div>
 
       <div className="space-y-4">
-        {/* Zoom controls */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="min-w-[100px]">
-            Zoom: {Math.round(zoom * 100)}%
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setZoom(1);
-              setPan({ x: 0, y: 0 });
-            }}
-            disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
-          >
-            Reset View
-          </Button>
-          <span className="text-xs">
-            (Scroll to zoom, Shift+Drag to pan)
-          </span>
-        </div>
-
         {/* Frame slider */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground min-w-[100px]">
