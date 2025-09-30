@@ -129,8 +129,12 @@ export function Timeline({
 
       {expanded && (
         <div className="space-y-2">
-          {/* Main timeline ruler */}
-          <div className="relative h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
+          {/* Main timeline ruler - aligned with annotation timelines */}
+          <div className="flex items-center gap-2">
+            {/* Spacer to align with annotation rows */}
+            <div className="w-3 h-3 flex-shrink-0" />
+            <div className="min-w-[60px]" />
+            <div className="relative flex-1 h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
             {/* Tracking segments background */}
             {trackingSegments.map((seg, idx) => {
               const startPos = frameToPosition(seg.start);
@@ -185,6 +189,7 @@ export function Timeline({
                 </div>
               );
             })}
+            </div>
           </div>
 
           {/* Annotations timeline */}
