@@ -72,6 +72,7 @@ export function Toolbox({
               id="use-sam2"
               checked={useSAM2}
               onCheckedChange={onUseSAM2Change}
+              className="scale-75"
             />
           </div>
           
@@ -83,6 +84,7 @@ export function Toolbox({
               id="auto-detect"
               checked={autoDetect}
               onCheckedChange={onAutoDetectChange}
+              className="scale-75"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -93,6 +95,7 @@ export function Toolbox({
               id="auto-track"
               checked={autoTrack}
               onCheckedChange={onAutoTrackChange}
+              className="scale-75"
             />
           </div>
         </div>

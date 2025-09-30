@@ -110,6 +110,7 @@ export function ClassManager({
             id="segments-toggle"
             checked={overlays.segments}
             onCheckedChange={() => onToggleOverlay("segments")}
+            className="scale-75"
           />
         </div>
         <div className="flex items-center justify-between">
@@ -120,6 +121,7 @@ export function ClassManager({
             id="bboxes-toggle"
             checked={overlays.bboxes}
             onCheckedChange={() => onToggleOverlay("bboxes")}
+            className="scale-75"
           />
         </div>
         <div className="flex items-center justify-between">
@@ -130,6 +132,7 @@ export function ClassManager({
             id="points-toggle"
             checked={overlays.points}
             onCheckedChange={() => onToggleOverlay("points")}
+            className="scale-75"
           />
         </div>
         <div className="flex items-center justify-between">
@@ -140,6 +143,7 @@ export function ClassManager({
             id="labels-toggle"
             checked={showLabels}
             onCheckedChange={onShowLabelsChange}
+            className="scale-75"
           />
         </div>
       </div>
