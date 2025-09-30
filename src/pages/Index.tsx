@@ -43,6 +43,7 @@ const Index = () => {
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
   const [autoTrack, setAutoTrack] = useState(true);
   const [autoDetect, setAutoDetect] = useState(true);
+  const [useSAM2, setUseSAM2] = useState(true);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -273,7 +274,10 @@ const Index = () => {
   };
 
   // Mock SAM2 segmentation - simulates backend call
-  const mockSAM2Segmentation = async (x: number, y: number): Promise<Array<{ x: number; y: number }>> => {
+  const mockSAM2Segmentation = async (x: number, y: number): Promise<{
+    points: Array<{ x: number; y: number }>;
+    className: string;
+  }> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 300));
     
@@ -292,11 +296,99 @@ const Index = () => {
       });
     }
     
-    return points;
+    // Random class name from predefined options
+    const classNames = ["Sail", "Board", "Windsurfer"];
+    const className = classNames[Math.floor(Math.random() * classNames.length)];
+    
+    return { points, className };
   };
 
   const handleCanvasClick = useCallback(
     async (x: number, y: number) => {
+      // If SAM2 is enabled, use it regardless of class selection
+      if (useSAM2) {
+        // Show loading toast
+        toast({
+          title: "Running SAM2 segmentation...",
+          description: "Detecting object boundary and class",
+        });
+
+        try {
+          // Call mock SAM2 backend
+          const { points, className } = await mockSAM2Segmentation(x, y);
+
+          // Find or create class
+          let classData = classes.find(c => c.name === className);
+          if (!classData) {
+            const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
+            classData = {
+              id: `class-${Date.now()}`,
+              name: className,
+              color: color.hex,
+              colorName: color.name,
+            };
+            setClasses(prev => [...prev, classData!]);
+            setColorIndex(prev => prev + 1);
+          }
+
+          // Calculate bounding box from segmentation points
+          const xs = points.map(p => p.x);
+          const ys = points.map(p => p.y);
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+          const minY = Math.min(...ys);
+          const maxY = Math.max(...ys);
+
+          // Create new instance for this class
+          const classInstances = instances.filter(inst => inst.classId === classData.id);
+          const instanceNumber = classInstances.length + 1;
+          const newInstance: Instance = {
+            id: `inst-${Date.now()}`,
+            classId: classData.id,
+            instanceNumber,
+            metadata: {},
+          };
+
+          // Create annotation for this instance
+          const newAnnotation: Annotation = {
+            id: `ann-${Date.now()}`,
+            instanceId: newInstance.id,
+            points,
+            bbox: {
+              x: minX,
+              y: minY,
+              w: maxX - minX,
+              h: maxY - minY,
+            },
+            frameCreated: currentFrame,
+          };
+
+          setInstances((prev) => [...prev, newInstance]);
+          setAnnotations((prev) => [...prev, newAnnotation]);
+
+          toast({
+            title: "Segmentation complete",
+            description: `${className}#${instanceNumber} detected and created`,
+          });
+
+          // Auto-create START keyframe if auto-track is enabled
+          if (autoTrack) {
+            const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
+            if (!existingKeyframe || existingKeyframe.type !== "START") {
+              handleAddKeyframe("START");
+            }
+          }
+        } catch (error) {
+          toast({
+            title: "Segmentation failed",
+            description: "Could not segment object",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      // Original flow: require class selection when SAM2 is off
       if (!selectedClassId) {
         toast({
           title: "No class selected",
@@ -308,25 +400,18 @@ const Index = () => {
       const selectedClass = classes.find(c => c.id === selectedClassId);
       if (!selectedClass) return;
 
-      // Show loading toast
-      toast({
-        title: "Running SAM2 segmentation...",
-        description: "Detecting object boundary",
-      });
+      // Create mock annotation with SAM2 click-prompt
+      const points = [];
+      const radius = 5;
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        points.push({
+          x: x + Math.cos(angle) * radius,
+          y: y + Math.sin(angle) * radius,
+        });
+      }
 
-      try {
-        // Call mock SAM2 backend
-        const points = await mockSAM2Segmentation(x, y);
-
-        // Calculate bounding box from segmentation points
-        const xs = points.map(p => p.x);
-        const ys = points.map(p => p.y);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-
-        // Create new instance for this class
+      // Create new instance for this class
       const classInstances = instances.filter(inst => inst.classId === selectedClassId);
       const instanceNumber = classInstances.length + 1;
       const newInstance: Instance = {
@@ -336,44 +421,46 @@ const Index = () => {
         metadata: {},
       };
 
-        // Create annotation for this instance
-        const newAnnotation: Annotation = {
-          id: `ann-${Date.now()}`,
-          instanceId: newInstance.id,
-          points,
-          bbox: {
-            x: minX,
-            y: minY,
-            w: maxX - minX,
-            h: maxY - minY,
-          },
-          frameCreated: currentFrame,
-        };
+      // Create annotation for this instance
+      const newAnnotation: Annotation = {
+        id: `ann-${Date.now()}`,
+        instanceId: newInstance.id,
+        points,
+        bbox: {
+          x: x - radius,
+          y: y - radius,
+          w: radius * 2,
+          h: radius * 2,
+        },
+        frameCreated: currentFrame,
+      };
 
-        setInstances((prev) => [...prev, newInstance]);
-        setAnnotations((prev) => [...prev, newAnnotation]);
+      setInstances((prev) => [...prev, newInstance]);
+      setAnnotations((prev) => [...prev, newAnnotation]);
 
-        toast({
-          title: "Segmentation complete",
-          description: `${selectedClass.name}#${instanceNumber} created`,
-        });
-
-        // Auto-create START keyframe if auto-track is enabled
-        if (autoTrack) {
-          const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
-          if (!existingKeyframe || existingKeyframe.type !== "START") {
-            handleAddKeyframe("START");
-          }
+      // Auto-create START keyframe if auto-track is enabled
+      if (autoTrack) {
+        const existingKeyframe = keyframes.find(k => k.frame === currentFrame);
+        if (!existingKeyframe || existingKeyframe.type !== "START") {
+          handleAddKeyframe("START");
+          toast({
+            title: "Instance created with START keyframe",
+            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
+          });
+        } else {
+          toast({
+            title: "Instance created",
+            description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
+          });
         }
-      } catch (error) {
+      } else {
         toast({
-          title: "Segmentation failed",
-          description: "Could not segment object",
-          variant: "destructive",
+          title: "Instance created",
+          description: `${selectedClass.name}#${instanceNumber} at frame ${currentFrame}`,
         });
       }
     },
-    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
@@ -779,7 +866,8 @@ const Index = () => {
                 onAutoTrackChange={setAutoTrack}
                 autoDetect={autoDetect}
                 onAutoDetectChange={setAutoDetect}
-                onAutoDetect={handleAutoDetect}
+                useSAM2={useSAM2}
+                onUseSAM2Change={setUseSAM2}
               />
               <ClassManager
                 classes={classes}

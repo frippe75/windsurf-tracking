@@ -13,7 +13,8 @@ interface ToolboxProps {
   onAutoTrackChange: (enabled: boolean) => void;
   autoDetect: boolean;
   onAutoDetectChange: (enabled: boolean) => void;
-  onAutoDetect: () => void;
+  useSAM2: boolean;
+  onUseSAM2Change: (enabled: boolean) => void;
 }
 
 export function Toolbox({
@@ -23,7 +24,8 @@ export function Toolbox({
   onAutoTrackChange,
   autoDetect,
   onAutoDetectChange,
-  onAutoDetect,
+  useSAM2,
+  onUseSAM2Change,
 }: ToolboxProps) {
   return (
     <Card className="p-3 bg-card border-border">
@@ -62,14 +64,16 @@ export function Toolbox({
         </div>
 
         <div className="border-t border-border pt-3 space-y-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onAutoDetect}
-            className="w-full"
-          >
-            Auto-Detect (SAM2)
-          </Button>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="use-sam2" className="text-xs cursor-pointer">
+              Use SAM2 on click
+            </Label>
+            <Switch
+              id="use-sam2"
+              checked={useSAM2}
+              onCheckedChange={onUseSAM2Change}
+            />
+          </div>
           
           <div className="flex items-center justify-between">
             <Label htmlFor="auto-detect" className="text-xs cursor-pointer">
