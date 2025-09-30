@@ -168,13 +168,14 @@ export function VideoPlayer({
     return null;
   };
 
-  // Transform screen coordinates to canvas coordinates accounting for zoom and pan
-  const screenToCanvas = (screenX: number, screenY: number, rect: DOMRect) => {
-    const x = (screenX - rect.left - pan.x) / zoom;
-    const y = (screenY - rect.top - pan.y) / zoom;
+  // Transform screen coordinates to percentage coordinates based on transformed element
+  const screenToPercent = (screenX: number, screenY: number, rect: DOMRect, canvas: HTMLCanvasElement) => {
+    const relX = screenX - rect.left;
+    const relY = screenY - rect.top;
+    const x = (relX / rect.width) * 100;
+    const y = (relY / rect.height) * 100;
     return { x, y };
   };
-
   const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -210,9 +211,7 @@ export function VideoPlayer({
       return;
     }
 
-    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    const x = (canvasX / canvas.width) * 100;
-    const y = (canvasY / canvas.height) * 100;
+    const { x, y } = screenToPercent(e.clientX, e.clientY, rect, canvas);
 
     // Edit mode: check for resize handles
     if (selectedTool === "edit" && selectedAnnotationId) {
@@ -262,9 +261,7 @@ export function VideoPlayer({
     if (!dragState) return;
 
     const rect = canvas.getBoundingClientRect();
-    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    const x = (canvasX / canvas.width) * 100;
-    const y = (canvasY / canvas.height) * 100;
+    const { x, y } = screenToPercent(e.clientX, e.clientY, rect, canvas);
 
     const dx = x - dragState.startX;
     const dy = y - dragState.startY;
@@ -312,9 +309,7 @@ export function VideoPlayer({
     if (!canvas || !video) return;
 
     const rect = canvas.getBoundingClientRect();
-    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    const x = (canvasX / canvas.width) * 100;
-    const y = (canvasY / canvas.height) * 100;
+    const { x, y } = screenToPercent(e.clientX, e.clientY, rect, canvas);
     const videoWidth = video.videoWidth || 1280;
     const videoHeight = video.videoHeight || 720;
     onCanvasClick(x, y, videoWidth, videoHeight);
@@ -326,9 +321,7 @@ export function VideoPlayer({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    const x = (canvasX / canvas.width) * 100;
-    const y = (canvasY / canvas.height) * 100;
+    const { x, y } = screenToPercent(e.clientX, e.clientY, rect, canvas);
 
     // Check if click is on an annotation
     const clickedAnnotation = annotations.find(ann => {
