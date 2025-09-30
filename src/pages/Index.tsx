@@ -1042,7 +1042,7 @@ const Index = () => {
             </div>
 
             {/* Center - Video player & Timeline */}
-            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-7 space-y-4"}>
+            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-8 space-y-4"}>
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
@@ -1093,7 +1093,7 @@ const Index = () => {
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
-            <div className={maximizeVideo ? "hidden" : "col-span-3"}>
+            <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
               <Tabs defaultValue="tracking" className="h-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
