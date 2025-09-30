@@ -168,9 +168,9 @@ export function VideoPlayer({
             const label = `${cls.name}#${instance.instanceNumber}`;
             
             // Fixed screen size using device pixel ratio
-            const fontSize = 18 * dpr;
-            const padding = 9 * dpr;
-            const labelHeight = 27 * dpr;
+            const fontSize = 21.6 * dpr;
+            const padding = 10.8 * dpr;
+            const labelHeight = 32.4 * dpr;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
@@ -189,7 +189,7 @@ export function VideoPlayer({
 
         // Draw resize handles if selected and in edit mode (scaled inversely to zoom)
         if (isSelected && selectedTool === "edit") {
-          const handleSize = 16 * dpr;
+          const handleSize = 12.8 * dpr;
           
           // Corner handles with white fill and black border
           [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
