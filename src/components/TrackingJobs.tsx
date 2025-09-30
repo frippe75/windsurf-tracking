@@ -61,14 +61,13 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
           jobs.map((job) => (
             <div
               key={job.id}
-              className="p-2.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors space-y-2"
+              className="p-2.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors space-y-1.5"
             >
-              {/* Top row: Status and actions */}
+              {/* Top row: Frame range and actions */}
               <div className="flex items-center justify-between">
-                <Badge variant={getStatusColor(job.status)} className="text-xs">
-                  {getStatusIcon(job.status)}
-                  <span className="ml-1">{job.status}</span>
-                </Badge>
+                <div className="text-sm font-medium">
+                  Frames {job.startFrame} → {job.stopFrame}
+                </div>
                 <div className="flex gap-1">
                   {job.status === "pending" && (
                     <Button
@@ -91,14 +90,15 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
                 </div>
               </div>
               
-              {/* Frame range */}
-              <div className="text-xs font-medium">
-                Frames {job.startFrame} → {job.stopFrame}
-              </div>
-              
-              {/* Object count */}
-              <div className="text-xs text-muted-foreground">
-                {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
+              {/* Second row: Status and object count in light grey */}
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Badge variant={getStatusColor(job.status)} className="text-xs">
+                  {getStatusIcon(job.status)}
+                  <span className="ml-1">{job.status}</span>
+                </Badge>
+                <span className="text-xs">
+                  {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
+                </span>
               </div>
               
               {/* Progress bar */}
