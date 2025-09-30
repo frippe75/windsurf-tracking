@@ -238,13 +238,21 @@ const Index = () => {
     }, 2000);
   };
 
-  const handleSceneSelect = (scene: Scene) => {
+  const handleSceneSelect = (scene: Scene | null) => {
     setSelectedScene(scene);
-    setCurrentFrame(scene.startFrame);
-    toast({
-      title: "Scene selected",
-      description: `Timeline zoomed to frames ${scene.startFrame}-${scene.endFrame}`,
-    });
+    if (scene) {
+      setCurrentFrame(scene.startFrame);
+      toast({
+        title: "Scene selected",
+        description: `Timeline zoomed to frames ${scene.startFrame}-${scene.endFrame}`,
+      });
+    } else {
+      setCurrentFrame(0);
+      toast({
+        title: "Full video view",
+        description: `Showing all frames`,
+      });
+    }
   };
 
   const handleSceneQualityChange = (sceneId: string, quality: "good" | "bad" | "unknown") => {
@@ -614,6 +622,8 @@ const Index = () => {
                   <ScenesManager
                     scenes={scenes}
                     currentFrame={currentFrame}
+                    totalFrames={totalFrames}
+                    selectedScene={selectedScene}
                     onDetectScenes={handleDetectScenes}
                     onSceneSelect={handleSceneSelect}
                     onSceneQualityChange={handleSceneQualityChange}

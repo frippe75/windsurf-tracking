@@ -89,25 +89,23 @@ export function KeyframeManager({
             sortedKeyframes.map((keyframe) => (
               <div
                 key={keyframe.frame}
-                className="flex items-center gap-2 p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                className="flex items-center gap-2 p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <div
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: getKeyframeColor(keyframe.type) }}
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{keyframe.type}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Frame {keyframe.frame}
-                  </div>
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="text-xs font-medium">{keyframe.type}</span>
+                  <span className="text-xs text-muted-foreground">Frame {keyframe.frame}</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 flex-shrink-0"
+                  className="h-6 w-6 flex-shrink-0"
                   onClick={() => onDeleteKeyframe(keyframe.frame)}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3 w-3" />
                 </Button>
               </div>
             ))

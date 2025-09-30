@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Scan, CheckCircle, XCircle, Circle } from "lucide-react";
+import { Scan, CheckCircle, XCircle, Circle, Film } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -15,8 +15,10 @@ interface Scene {
 interface ScenesManagerProps {
   scenes: Scene[];
   currentFrame: number;
+  totalFrames: number;
+  selectedScene: Scene | null;
   onDetectScenes: () => void;
-  onSceneSelect: (scene: Scene) => void;
+  onSceneSelect: (scene: Scene | null) => void;
   onSceneQualityChange: (sceneId: string, quality: "good" | "bad" | "unknown") => void;
   isDetecting?: boolean;
 }
@@ -24,6 +26,8 @@ interface ScenesManagerProps {
 export function ScenesManager({
   scenes,
   currentFrame,
+  totalFrames,
+  selectedScene,
   onDetectScenes,
   onSceneSelect,
   onSceneQualityChange,
@@ -36,6 +40,14 @@ export function ScenesManager({
     toast({
       title: "Scene selected",
       description: `Frames ${scene.startFrame} - ${scene.endFrame}`,
+    });
+  };
+
+  const handleFullVideoClick = () => {
+    onSceneSelect(null);
+    toast({
+      title: "Full video view",
+      description: `Showing all ${totalFrames} frames`,
     });
   };
 
@@ -70,19 +82,38 @@ export function ScenesManager({
       </div>
 
       <ScrollArea className="flex-1">
-        {scenes.length === 0 ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            <Scan className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No scenes detected yet.</p>
-            <p className="text-xs mt-1">Click "Detect Scenes" to analyze the video.</p>
+        <div className="space-y-2">
+          {/* Full Video Option */}
+          <div
+            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+              !selectedScene
+                ? "bg-primary/10 border-primary"
+                : "bg-muted/30 border-border hover:bg-muted/50"
+            }`}
+            onClick={handleFullVideoClick}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Film className="h-4 w-4" />
+              <Badge variant="secondary" className="text-xs">Full Video</Badge>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Frames 0 - {totalFrames}
+              <span className="ml-2">({totalFrames} frames)</span>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {scenes.map((scene, index) => (
+
+          {/* Scenes List */}
+          {scenes.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground ml-4">
+              <Scan className="h-6 w-6 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No scenes detected yet.</p>
+            </div>
+          ) : (
+            scenes.map((scene, index) => (
               <div
                 key={scene.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  isSceneActive(scene)
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ml-4 ${
+                  selectedScene?.id === scene.id
                     ? "bg-primary/10 border-primary"
                     : "bg-muted/30 border-border hover:bg-muted/50"
                 }`}
@@ -122,9 +153,9 @@ export function ScenesManager({
                   <span className="ml-2">({scene.endFrame - scene.startFrame + 1} frames)</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </ScrollArea>
     </Card>
   );
