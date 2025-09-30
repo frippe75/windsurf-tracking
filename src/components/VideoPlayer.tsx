@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   totalFrames: number;
   frameRange: [number, number];
   onFrameChange: (frame: number) => void;
+  onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number }) => void;
   onCanvasClick: (x: number, y: number) => void;
   annotations: Array<{
     id: string;
@@ -35,6 +36,7 @@ export function VideoPlayer({
   totalFrames,
   frameRange,
   onFrameChange,
+  onVideoMetadata,
   onCanvasClick,
   annotations,
   onAnnotationUpdate,
@@ -288,9 +290,14 @@ export function VideoPlayer({
           src={videoUrl}
           className="w-full h-full object-contain"
           onLoadedMetadata={() => {
-            if (videoRef.current) {
+            if (videoRef.current && onVideoMetadata) {
               const duration = videoRef.current.duration;
-              // totalFrames would be duration * fps
+              const calculatedFrames = Math.floor(duration * fps);
+              onVideoMetadata({
+                duration,
+                totalFrames: calculatedFrames,
+                fps,
+              });
             }
           }}
         />

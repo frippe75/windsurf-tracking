@@ -581,6 +581,13 @@ const Index = () => {
                 totalFrames={totalFrames}
                 frameRange={frameRange}
                 onFrameChange={setCurrentFrame}
+                onVideoMetadata={(metadata) => {
+                  setTotalFrames(metadata.totalFrames);
+                  toast({
+                    title: "Video loaded",
+                    description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
+                  });
+                }}
                 onCanvasClick={handleCanvasClick}
                 annotations={annotations}
                 onAnnotationUpdate={(id, updates) => {
