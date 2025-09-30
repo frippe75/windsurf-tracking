@@ -137,10 +137,13 @@ const Index = () => {
       // Track Alt key for negative prompts in annotate mode
       if (e.key === "Alt" && selectedTool === "annotate") {
         setIsNegativePrompt(true);
-        toast({
-          title: "Negative prompt mode",
-          description: "Click to add negative point (exclude area)",
-        });
+        // Only show toast on initial press, not on repeated keydown events
+        if (!e.repeat) {
+          toast({
+            title: "Negative prompt mode",
+            description: "Click to add negative point (exclude area)",
+          });
+        }
         return;
       }
 
