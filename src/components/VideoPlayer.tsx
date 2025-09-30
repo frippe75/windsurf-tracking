@@ -154,7 +154,7 @@ export function VideoPlayer({
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
 
-        // Draw label above bbox
+        // Draw label at top-left of bbox
         if (showLabels) {
           const instance = instances.find(i => i.id === annotation.instanceId);
           const cls = classes.find(c => c.id === instance?.classId);
@@ -162,20 +162,20 @@ export function VideoPlayer({
             const label = `${cls.name}#${instance.instanceNumber}`;
             
             // Measure text for background
-            ctx.font = "14px sans-serif";
+            ctx.font = "bold 16px sans-serif";
             const metrics = ctx.measureText(label);
-            const padding = 6;
+            const padding = 8;
             const labelWidth = metrics.width + padding * 2;
-            const labelHeight = 20;
+            const labelHeight = 26;
             
-            // Draw background (slightly above bbox)
+            // Draw background (aligned with top-left of bbox)
             ctx.fillStyle = color;
-            ctx.fillRect(x, y - labelHeight - 4, labelWidth, labelHeight);
+            ctx.fillRect(x, y, labelWidth, labelHeight);
             
             // Draw text
             ctx.fillStyle = "white";
             ctx.textBaseline = "middle";
-            ctx.fillText(label, x + padding, y - labelHeight / 2 - 4);
+            ctx.fillText(label, x + padding, y + labelHeight / 2);
           }
         }
 
