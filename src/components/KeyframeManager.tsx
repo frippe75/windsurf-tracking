@@ -253,33 +253,33 @@ export function KeyframeManager({
                   style={{ backgroundColor: getKeyframeColor(group.type) }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{group.type}</span>
                     {group.type !== "SKIP" && (
                       <span className="text-xs text-muted-foreground">Frame {group.displayText}</span>
                     )}
-                  </div>
-                  
-                  {/* SKIP ranges as pills */}
-                  {group.type === "SKIP" && group.ranges && (
-                    <div className="flex flex-wrap gap-1">
-                      {group.ranges.map((range, rangeIdx) => (
-                        <div
-                          key={rangeIdx}
-                          className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-1 text-foreground hover:bg-muted/80 transition-all"
-                        >
-                          <span>{range.text}</span>
-                          <button
-                            onClick={() => handleDeleteGroup(range.frames)}
-                            className="w-0 opacity-0 group-hover:w-3 group-hover:opacity-100 transition-all hover:text-destructive overflow-hidden flex items-center justify-center"
-                            title={`Delete frames ${range.text}`}
+                    
+                    {/* SKIP ranges as pills */}
+                    {group.type === "SKIP" && group.ranges && (
+                      <div className="flex flex-wrap gap-1 ml-2">
+                        {group.ranges.map((range, rangeIdx) => (
+                          <div
+                            key={rangeIdx}
+                            className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-1 text-foreground hover:bg-muted/80 transition-all"
                           >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            <span>{range.text}</span>
+                            <button
+                              onClick={() => handleDeleteGroup(range.frames)}
+                              className="w-0 opacity-0 group-hover:w-3 group-hover:opacity-100 transition-all hover:text-destructive overflow-hidden flex items-center justify-center"
+                              title={`Delete frames ${range.text}`}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Delete button for all types */}
