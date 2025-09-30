@@ -310,8 +310,8 @@ export function VideoPlayer({
       <div className="space-y-4">
         {/* Frame slider */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground min-w-[80px]">
-            {currentFrame} / {totalFrames}
+          <span className="text-sm text-muted-foreground min-w-[100px]">
+            {currentFrame} / {frameRange[1]}
           </span>
           <Slider
             value={[currentFrame]}
