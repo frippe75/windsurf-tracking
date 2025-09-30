@@ -282,18 +282,16 @@ export function KeyframeManager({
                   )}
                 </div>
                 
-                {/* Delete button for START/STOP only */}
-                {group.type !== "SKIP" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 flex-shrink-0"
-                    onClick={() => handleDeleteGroup(group.frames)}
-                    title="Delete keyframe"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
+                {/* Delete button for all types */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={() => handleDeleteGroup(group.frames)}
+                  title={group.type === "SKIP" ? `Delete all ${group.frames.length} skip frames` : "Delete keyframe"}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
               </div>
             ))
           )}
