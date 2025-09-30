@@ -79,7 +79,7 @@ const Index = () => {
   // Auto-create tracking jobs from START->STOP keyframe pairs
   useEffect(() => {
     const sortedKeyframes = [...keyframes].sort((a, b) => a.frame - b.frame);
-    const newJobs: TrackingJob[] = [];
+    const updatedJobs = new Map(trackingJobs.map(job => [job.id, job]));
     
     for (let i = 0; i < sortedKeyframes.length; i++) {
       if (sortedKeyframes[i].type === "START") {
@@ -89,16 +89,22 @@ const Index = () => {
         if (stopKeyframe) {
           const jobId = `segment-${startFrame}-${stopKeyframe.frame}`;
           
-          // Check if job already exists
-          const jobExists = trackingJobs.some(job => job.id === jobId);
+          // Find all annotations that exist in this segment
+          const segmentAnnotations = annotations
+            .filter(ann => ann.frameCreated >= startFrame && ann.frameCreated <= stopKeyframe.frame)
+            .map(ann => ann.id);
           
-          if (!jobExists) {
-            // Find annotations created in this segment
-            const segmentAnnotations = annotations
-              .filter(ann => ann.frameCreated >= startFrame && ann.frameCreated <= stopKeyframe.frame)
-              .map(ann => ann.id);
-            
-            newJobs.push({
+          // Update existing job or create new one
+          const existingJob = updatedJobs.get(jobId);
+          if (existingJob) {
+            // Update objectIds if new annotations were added
+            updatedJobs.set(jobId, {
+              ...existingJob,
+              objectIds: segmentAnnotations,
+            });
+          } else {
+            // Create new job
+            updatedJobs.set(jobId, {
               id: jobId,
               startFrame,
               stopFrame: stopKeyframe.frame,
@@ -110,10 +116,28 @@ const Index = () => {
       }
     }
     
-    if (newJobs.length > 0) {
-      setTrackingJobs(prev => [...prev, ...newJobs]);
+    // Remove jobs for segments that no longer have START->STOP pairs
+    const validJobIds = new Set<string>();
+    for (let i = 0; i < sortedKeyframes.length; i++) {
+      if (sortedKeyframes[i].type === "START") {
+        const startFrame = sortedKeyframes[i].frame;
+        const stopKeyframe = sortedKeyframes.slice(i + 1).find(kf => kf.type === "STOP");
+        if (stopKeyframe) {
+          validJobIds.add(`segment-${startFrame}-${stopKeyframe.frame}`);
+        }
+      }
     }
-  }, [keyframes, annotations]);
+    
+    // Filter out invalid jobs (keep only valid ones and those that are processing/completed)
+    const finalJobs = Array.from(updatedJobs.values()).filter(
+      job => validJobIds.has(job.id) || job.status !== "pending"
+    );
+    
+    // Only update state if jobs actually changed
+    if (JSON.stringify(finalJobs) !== JSON.stringify(trackingJobs)) {
+      setTrackingJobs(finalJobs);
+    }
+  }, [keyframes, annotations, trackingJobs]);
 
   // Auto-detect DINO on frame change
   useEffect(() => {
