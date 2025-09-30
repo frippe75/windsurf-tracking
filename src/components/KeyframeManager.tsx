@@ -41,6 +41,66 @@ export function KeyframeManager({
     }
   };
 
+  // Group keyframes for display (group consecutive SKIP frames into ranges)
+  const groupedKeyframes: Array<{
+    type: "START" | "STOP" | "SKIP";
+    frames: number[];
+    displayText: string;
+  }> = [];
+
+  for (let i = 0; i < sortedKeyframes.length; i++) {
+    const kf = sortedKeyframes[i];
+    
+    if (kf.type === "SKIP") {
+      // Start a new SKIP group
+      const skipFrames = [kf.frame];
+      let j = i + 1;
+      
+      // Collect consecutive SKIP frames
+      while (j < sortedKeyframes.length && 
+             sortedKeyframes[j].type === "SKIP" && 
+             sortedKeyframes[j].frame === skipFrames[skipFrames.length - 1] + 1) {
+        skipFrames.push(sortedKeyframes[j].frame);
+        j++;
+      }
+      
+      // Create display text for ranges
+      const ranges: string[] = [];
+      let rangeStart = skipFrames[0];
+      let rangeEnd = skipFrames[0];
+      
+      for (let k = 1; k < skipFrames.length; k++) {
+        if (skipFrames[k] === rangeEnd + 1) {
+          rangeEnd = skipFrames[k];
+        } else {
+          ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+          rangeStart = skipFrames[k];
+          rangeEnd = skipFrames[k];
+        }
+      }
+      ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+      
+      groupedKeyframes.push({
+        type: "SKIP",
+        frames: skipFrames,
+        displayText: ranges.join(", "),
+      });
+      
+      i = j - 1; // Skip processed frames
+    } else {
+      // START and STOP remain individual
+      groupedKeyframes.push({
+        type: kf.type,
+        frames: [kf.frame],
+        displayText: `${kf.frame}`,
+      });
+    }
+  }
+
+  const handleDeleteGroup = (frames: number[]) => {
+    frames.forEach(frame => onDeleteKeyframe(frame));
+  };
+
   return (
     <Card className="p-4 bg-card border-border space-y-4">
       <div className="flex items-center justify-between">
@@ -86,24 +146,29 @@ export function KeyframeManager({
               No keyframes added yet
             </p>
           ) : (
-            sortedKeyframes.map((keyframe) => (
+            groupedKeyframes.map((group, idx) => (
               <div
-                key={keyframe.frame}
+                key={`${group.type}-${idx}`}
                 className="flex items-center gap-2 p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <div
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: getKeyframeColor(keyframe.type) }}
+                  style={{ backgroundColor: getKeyframeColor(group.type) }}
                 />
                 <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <span className="text-xs font-medium">{keyframe.type}</span>
-                  <span className="text-xs text-muted-foreground">Frame {keyframe.frame}</span>
+                  <span className="text-xs font-medium">{group.type}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {group.type === "SKIP" && group.frames.length > 1 
+                      ? `Frames ${group.displayText}` 
+                      : `Frame ${group.displayText}`}
+                  </span>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 flex-shrink-0"
-                  onClick={() => onDeleteKeyframe(keyframe.frame)}
+                  onClick={() => handleDeleteGroup(group.frames)}
+                  title={group.frames.length > 1 ? `Delete ${group.frames.length} keyframes` : `Delete keyframe`}
                 >
                   <X className="h-3 w-3" />
                 </Button>
