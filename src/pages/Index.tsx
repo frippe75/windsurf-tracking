@@ -1102,7 +1102,7 @@ const Index = () => {
 
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
-              <Tabs defaultValue="tracking" className="h-full">
+              <Tabs defaultValue="scenes" className="h-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
