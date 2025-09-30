@@ -142,9 +142,8 @@ export function HierarchicalTimeline({
 
   return (
     <Card className="p-4 bg-card border-border">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        {/* Left controls: expand toggle, label, reset */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -169,35 +168,41 @@ export function HierarchicalTimeline({
             </Button>
           )}
         </div>
-
-        {/* Right meta */}
-        <span className="text-xs text-muted-foreground flex-shrink-0">
-          {selectedScene ? `Frames ${startFrame}-${endFrame}` : `${classes.length} classes • ${instances.length} instances`}
+        <span className="text-xs text-muted-foreground">
+          {selectedScene 
+            ? `Frames ${startFrame}-${endFrame}` 
+            : `${classes.length} classes • ${instances.length} instances`}
         </span>
       </div>
 
       {expanded && (
         <div className="space-y-2">
-          {/* Main timeline ruler aligned with tracks (under header) */}
-          <div className="flex items-center gap-2 mb-2">
-            {/* Spacers to align with class/instance rows */}
+          {/* Main timeline ruler */}
+          <div className="flex items-center gap-2">
             <div className="h-5 w-5 flex-shrink-0" />
             <div className="w-3 h-3 flex-shrink-0" />
             <div className="min-w-[80px]" />
-            <div className="relative h-8 bg-muted/30 rounded cursor-pointer flex-1" onClick={handleTimelineClick}>
+            <div className="relative flex-1 h-8 bg-muted/30 rounded cursor-pointer" onClick={handleTimelineClick}>
               {/* Tracking segments background */}
               {trackingSegments.map((seg, idx) => {
                 const startPos = frameToPosition(seg.start);
                 const endPos = frameToPosition(seg.end);
+                
                 if (startPos < 0 && endPos < 0) return null;
+                
                 const displayStartPos = Math.max(0, startPos);
                 const displayEndPos = Math.min(100, endPos);
+                
                 if (displayEndPos <= displayStartPos) return null;
+                
                 return (
                   <div
                     key={`segment-${idx}`}
                     className="absolute top-0 bottom-0 bg-primary/20 border-l-2 border-r-2 border-primary/40"
-                    style={{ left: `${displayStartPos}%`, width: `${displayEndPos - displayStartPos}%` }}
+                    style={{
+                      left: `${displayStartPos}%`,
+                      width: `${displayEndPos - displayStartPos}%`,
+                    }}
                     title={`Tracking segment: ${seg.start} → ${seg.end}`}
                   />
                 );
@@ -207,15 +212,22 @@ export function HierarchicalTimeline({
               {skipSegments.map((seg, idx) => {
                 const startPos = frameToPosition(seg.start);
                 const endPos = frameToPosition(seg.end);
+                
                 if (startPos < 0 && endPos < 0) return null;
+                
                 const displayStartPos = Math.max(0, startPos);
                 const displayEndPos = Math.min(100, endPos);
+                
                 if (displayEndPos <= displayStartPos) return null;
+                
                 return (
                   <div
                     key={`skip-segment-${idx}`}
                     className="absolute top-0 bottom-0 bg-sail-yellow/20 border-l-2 border-r-2 border-sail-yellow/40"
-                    style={{ left: `${displayEndPos <= displayStartPos ? 0 : displayStartPos}%`, width: `${Math.max(0, displayEndPos - displayStartPos)}%` }}
+                    style={{
+                      left: `${displayStartPos}%`,
+                      width: `${displayEndPos - displayStartPos}%`,
+                    }}
                     title={`Skip segment: ${seg.start} → ${seg.end}`}
                   />
                 );
@@ -235,11 +247,15 @@ export function HierarchicalTimeline({
               {keyframes.map((kf, idx) => {
                 const position = frameToPosition(kf.frame);
                 if (position < 0) return null;
+                
                 return (
                   <div
                     key={`${kf.frame}-${kf.type}-${idx}`}
                     className="absolute top-0 bottom-0 w-1 hover:w-2 transition-all"
-                    style={{ left: `${position}%`, backgroundColor: getKeyframeColor(kf.type) }}
+                    style={{
+                      left: `${position}%`,
+                      backgroundColor: getKeyframeColor(kf.type),
+                    }}
                     title={`${kf.type} at frame ${kf.frame}`}
                   >
                     <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
@@ -248,6 +264,8 @@ export function HierarchicalTimeline({
               })}
             </div>
           </div>
+
+          {/* Classes and Instances timeline */}
           {classes.length > 0 && (
             <div className="space-y-1">
               {classes.map((cls) => {

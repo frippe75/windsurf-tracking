@@ -963,40 +963,37 @@ const Index = () => {
               />
             </div>
 
-            {/* Center - Video player & Timeline side by side */}
-            <div className={maximizeVideo ? "col-span-12" : "col-span-8"}>
-              <div className="mb-3">
-                <VideoPlayer
-                  videoUrl={videoUrl}
-                  currentFrame={currentFrame}
-                  totalFrames={totalFrames}
-                  frameRange={frameRange}
-                  onFrameChange={setCurrentFrame}
-                  onVideoMetadata={(metadata) => {
-                    setTotalFrames(metadata.totalFrames);
-                    toast({
-                      title: "Video loaded",
-                      description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
-                    });
-                  }}
-                  onCanvasClick={handleCanvasClick}
-                  classes={classes}
-                  instances={instances}
-                  annotations={annotations}
-                  onAnnotationUpdate={(id, updates) => {
-                    setAnnotations(prev => 
-                      prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
-                    );
-                  }}
-                  onAnnotationSelect={setSelectedAnnotationId}
-                  overlays={overlays}
-                  selectedTool={selectedTool}
-                  selectedAnnotationId={selectedAnnotationId}
-                  onContextMenu={handleContextMenu}
-                  showLabels={showLabels}
-                />
-              </div>
-
+            {/* Center - Video player & Timeline */}
+            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-8 space-y-4"}>
+              <VideoPlayer
+                videoUrl={videoUrl}
+                currentFrame={currentFrame}
+                totalFrames={totalFrames}
+                frameRange={frameRange}
+                onFrameChange={setCurrentFrame}
+                onVideoMetadata={(metadata) => {
+                  setTotalFrames(metadata.totalFrames);
+                  toast({
+                    title: "Video loaded",
+                    description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
+                  });
+                }}
+                onCanvasClick={handleCanvasClick}
+                classes={classes}
+                instances={instances}
+                annotations={annotations}
+                onAnnotationUpdate={(id, updates) => {
+                  setAnnotations(prev => 
+                    prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
+                  );
+                }}
+                onAnnotationSelect={setSelectedAnnotationId}
+                overlays={overlays}
+                selectedTool={selectedTool}
+                selectedAnnotationId={selectedAnnotationId}
+                onContextMenu={handleContextMenu}
+                showLabels={showLabels}
+              />
               <HierarchicalTimeline
                 classes={classes}
                 instances={instances}

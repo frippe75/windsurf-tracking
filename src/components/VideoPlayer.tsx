@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ToolMode } from "./Toolbox";
 
 interface VideoPlayerProps {
@@ -79,8 +79,6 @@ export function VideoPlayer({
     startY: number;
     originalBbox: { x: number; y: number; w: number; h: number };
   } | null>(null);
-  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
-  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -300,15 +298,6 @@ export function VideoPlayer({
       y: mouseY - (mouseY - pan.y) * scale,
     });
     setZoom(newZoom);
-    
-    // Show zoom indicator and schedule fade out
-    setShowZoomIndicator(true);
-    if (zoomTimeoutRef.current) {
-      clearTimeout(zoomTimeoutRef.current);
-    }
-    zoomTimeoutRef.current = setTimeout(() => {
-      setShowZoomIndicator(false);
-    }, 5000);
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -526,8 +515,8 @@ export function VideoPlayer({
 
   const displayed = getDisplayedRect();
   return (
-    <Card className="p-2 bg-card border-border">
-      <div ref={containerRef} className="relative aspect-video bg-black rounded-lg overflow-hidden">
+    <Card className="p-4 bg-card border-border">
+      <div ref={containerRef} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-4">
         <video
           ref={videoRef}
           src={videoUrl}
@@ -576,93 +565,91 @@ export function VideoPlayer({
           onContextMenu={handleCanvasContextMenu}
           onWheel={handleCanvasWheel}
         />
-        
-        {/* Zoom indicator overlay - bottom left */}
-        <div 
-          className={`absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded text-sm font-medium transition-opacity duration-300 ${
-            showZoomIndicator ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {Math.round(zoom * 100)}%
-        </div>
-        
-        {/* Reset view button overlay - top right */}
-        <div className="absolute top-4 right-4">
+      </div>
+
+      <div className="space-y-4">
+        {/* Zoom controls */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="min-w-[100px]">
+            Zoom: {Math.round(zoom * 100)}%
+          </span>
           <Button
-            variant="secondary"
-            size="icon"
+            variant="outline"
+            size="sm"
             onClick={() => {
               setZoom(1);
               setPan({ x: 0, y: 0 });
             }}
             disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
-            title="Fit to view (100%)"
-            className="bg-black/70 hover:bg-black/90 border-white/20"
           >
-            <Maximize2 className="h-4 w-4 text-white" />
+            Reset View
+          </Button>
+          <span className="text-xs">
+            (Scroll to zoom, Shift+Drag to pan)
+          </span>
+        </div>
+
+        {/* Frame slider */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground min-w-[100px]">
+            {currentFrame} / {frameRange[1]}
+          </span>
+          <Slider
+            value={[currentFrame]}
+            onValueChange={(value) => onFrameChange(value[0])}
+            min={frameRange[0]}
+            max={frameRange[1]}
+            step={1}
+            className="flex-1"
+          />
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 30))}
+            title="Back 1 sec (Shift+Left)"
+          >
+            <SkipBack className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 1))}
+            title="Previous frame (Left)"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={togglePlayPause}
+            title="Play/Pause (Space)"
+          >
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 1))}
+            title="Next frame (Right)"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 30))}
+            title="Forward 1 sec (Shift+Right)"
+          >
+            <SkipForward className="h-4 w-4" />
           </Button>
         </div>
-      </div>
 
-      {/* Compact controls */}
-      <div className="flex items-center gap-3 mt-2 px-2">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {currentFrame} / {frameRange[1]}
-        </span>
-        <Slider
-          value={[currentFrame]}
-          onValueChange={(value) => onFrameChange(value[0])}
-          min={frameRange[0]}
-          max={frameRange[1]}
-          step={1}
-          className="flex-1"
-        />
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 30))}
-            title="Back 1 sec"
-          >
-            <SkipBack className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onFrameChange(Math.max(frameRange[0], currentFrame - 1))}
-            title="Previous"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={togglePlayPause}
-            title="Play/Pause"
-          >
-            {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 1))}
-            title="Next"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onFrameChange(Math.min(frameRange[1], currentFrame + 30))}
-            title="Forward 1 sec"
-          >
-            <SkipForward className="h-3.5 w-3.5" />
-          </Button>
+        <div className="text-xs text-muted-foreground text-center">
+          Space: Play/Pause • Arrows: Frame • Shift+Arrows: 1 sec • M: Edit mode • Tab/Shift+Tab: Cycle annotations
         </div>
       </div>
     </Card>
