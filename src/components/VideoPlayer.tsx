@@ -168,15 +168,33 @@ export function VideoPlayer({
     return null;
   };
 
-  // Transform screen coordinates to percentage coordinates based on transformed element
-  const screenToPercent = (screenX: number, screenY: number, rect: DOMRect, canvas: HTMLCanvasElement) => {
-    const relX = screenX - rect.left;
-    const relY = screenY - rect.top;
-    const x = (relX / rect.width) * 100;
-    const y = (relY / rect.height) * 100;
-    return { x, y };
+  // Compute displayed video metrics inside the container (object-contain)
+  const getDisplayMetrics = () => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return null;
+    const rect = canvas.getBoundingClientRect();
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    const scale = Math.min(rect.width / vw, rect.height / vh);
+    const displayW = vw * scale;
+    const displayH = vh * scale;
+    const offsetX = (rect.width - displayW) / 2;
+    const offsetY = (rect.height - displayH) / 2;
+    return { rect, vw, vh, scale, displayW, displayH, offsetX, offsetY };
   };
-  const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+
+  // Map screen coordinates to video percentage (0-100) within displayed region
+  const screenToPercent = (screenX: number, screenY: number) => {
+    const m = getDisplayMetrics();
+    if (!m) return { x: 0, y: 0 };
+    const relX = screenX - m.rect.left - m.offsetX;
+    const relY = screenY - m.rect.top - m.offsetY;
+    const nx = Math.min(Math.max(relX / m.displayW, 0), 1);
+    const ny = Math.min(Math.max(relY / m.displayH, 0), 1);
+    return { x: nx * 100, y: ny * 100 };
+  };
+  const handleCanvasWheel = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
