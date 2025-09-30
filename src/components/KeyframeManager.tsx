@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, StopCircle, X, Save, Download } from "lucide-react";
+import { Flag, StopCircle, X, Save, Download, Trash2 } from "lucide-react";
 
 interface Keyframe {
   frame: number;
@@ -46,7 +46,21 @@ export function KeyframeManager({
     type: "START" | "STOP" | "SKIP";
     frames: number[];
     displayText: string;
+    ranges?: Array<{ text: string; frames: number[] }>; // For SKIP pills
   }> = [];
+
+  // Helper to convert range text to frames
+  const rangeToFrames = (rangeText: string): number[] => {
+    if (rangeText.includes('-')) {
+      const [start, end] = rangeText.split('-').map(Number);
+      const frames: number[] = [];
+      for (let i = start; i <= end; i++) {
+        frames.push(i);
+      }
+      return frames;
+    }
+    return [Number(rangeText)];
+  };
 
   let i = 0;
   while (i < sortedKeyframes.length) {
@@ -94,10 +108,17 @@ export function KeyframeManager({
         }
         ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
         
+        // Create ranges array with frame mapping
+        const rangesWithFrames = ranges.map(rangeText => ({
+          text: rangeText,
+          frames: rangeToFrames(rangeText),
+        }));
+        
         groupedKeyframes.push({
           type: "SKIP",
           frames: skipFrames,
           displayText: ranges.join(", "),
+          ranges: rangesWithFrames,
         });
       }
       
@@ -159,10 +180,17 @@ export function KeyframeManager({
     }
     ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
     
+    // Create ranges array with frame mapping
+    const rangesWithFrames = ranges.map(rangeText => ({
+      text: rangeText,
+      frames: rangeToFrames(rangeText),
+    }));
+    
     groupedKeyframes.push({
       type: "SKIP",
       frames: orphanSkips,
       displayText: ranges.join(", "),
+      ranges: rangesWithFrames,
     });
   }
 
@@ -218,29 +246,57 @@ export function KeyframeManager({
             groupedKeyframes.map((group, idx) => (
               <div
                 key={`${group.type}-${idx}`}
-                className="flex items-center gap-2 p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                className="flex items-start gap-2 p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  className="w-2 h-2 rounded-full flex-shrink-0 mt-1"
                   style={{ backgroundColor: getKeyframeColor(group.type) }}
                 />
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <span className="text-xs font-medium">{group.type}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {group.type === "SKIP" && group.frames.length > 1 
-                      ? `Frames ${group.displayText}` 
-                      : `Frame ${group.displayText}`}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium">{group.type}</span>
+                    {group.type !== "SKIP" && (
+                      <span className="text-xs text-muted-foreground">Frame {group.displayText}</span>
+                    )}
+                  </div>
+                  
+                  {/* SKIP ranges as pills */}
+                  {group.type === "SKIP" && group.ranges && (
+                    <div className="flex flex-wrap gap-1">
+                      {group.ranges.map((range, rangeIdx) => (
+                        <Badge
+                          key={rangeIdx}
+                          variant="secondary"
+                          className="h-5 px-1.5 text-xs flex items-center gap-1 bg-sail-yellow/20 hover:bg-sail-yellow/30 border-sail-yellow/40"
+                        >
+                          <span>{range.text}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-3 w-3 p-0 hover:bg-transparent"
+                            onClick={() => handleDeleteGroup(range.frames)}
+                            title={`Delete frames ${range.text}`}
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 flex-shrink-0"
-                  onClick={() => handleDeleteGroup(group.frames)}
-                  title={group.frames.length > 1 ? `Delete ${group.frames.length} keyframes` : `Delete keyframe`}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+                
+                {/* Delete button for START/STOP only */}
+                {group.type !== "SKIP" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 flex-shrink-0"
+                    onClick={() => handleDeleteGroup(group.frames)}
+                    title="Delete keyframe"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             ))
           )}
