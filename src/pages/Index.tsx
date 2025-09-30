@@ -372,11 +372,15 @@ const Index = () => {
       // If in edit mode or select mode, don't handle canvas clicks
       if (selectedTool !== "annotate") return;
 
-      // Require Ctrl for positive prompts or Alt for negative prompts
+      // Determine prompt type: Alt (or Alt-Gr) = negative, Ctrl only = positive
+      // Note: Alt-Gr registers as both ctrlKey and altKey on many keyboards
+      const promptType: 'positive' | 'negative' = altKey ? 'negative' : 'positive';
+      
+      // Require at least one modifier key
       if (!ctrlKey && !altKey) {
         toast({
           title: "Hold modifier key",
-          description: "Hold Ctrl for + prompt or Alt for - prompt while clicking",
+          description: "Hold Ctrl for + prompt or Alt/Alt-Gr for - prompt while clicking",
         });
         return;
       }
@@ -390,7 +394,6 @@ const Index = () => {
 
       // If clicking on existing annotation, add SAM2 prompt to it
       if (clickedAnnotation) {
-        const promptType: 'positive' | 'negative' = altKey ? 'negative' : 'positive';
         
         setAnnotations(prev => prev.map(ann => {
           if (ann.id === clickedAnnotation.id) {
