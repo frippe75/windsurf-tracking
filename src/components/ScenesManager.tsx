@@ -67,7 +67,7 @@ export function ScenesManager({
   };
 
   return (
-    <Card className="p-4 bg-card border-border h-full flex flex-col">
+    <Card className="p-4 bg-card border-border h-full flex flex-col max-h-[600px]">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold">Scene Detection</h3>
         <Button
@@ -81,8 +81,9 @@ export function ScenesManager({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="space-y-2">
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-[calc(100vh-300px)] pr-2">
+          <div className="space-y-2">
           {/* Full Video Option */}
           <div
             className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -164,6 +165,7 @@ export function ScenesManager({
           )}
         </div>
       </ScrollArea>
+    </div>
     </Card>
   );
 }
