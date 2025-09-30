@@ -157,7 +157,7 @@ export function VideoPlayer({
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeRect(x, y, w, h);
 
-        // Draw label at top-left of bbox (zoom-independent)
+        // Draw label above bbox (zoom-independent)
         if (showLabels) {
           const instance = instances.find(i => i.id === annotation.instanceId);
           const cls = classes.find(c => c.id === instance?.classId);
@@ -165,22 +165,22 @@ export function VideoPlayer({
             const label = `${cls.name}#${instance.instanceNumber}`;
             
             // Scale font and dimensions inversely to zoom for consistent size
-            const fontSize = 16 * invZoom;
-            const padding = 8 * invZoom;
-            const labelHeight = 26 * invZoom;
+            const fontSize = 20 * invZoom;
+            const padding = 10 * invZoom;
+            const labelHeight = 32 * invZoom;
             
             ctx.font = `bold ${fontSize}px sans-serif`;
             const metrics = ctx.measureText(label);
             const labelWidth = metrics.width + padding * 2;
             
-            // Draw background (aligned with top-left of bbox)
+            // Draw background above bbox (bottom of label = top of bbox)
             ctx.fillStyle = color;
-            ctx.fillRect(x, y, labelWidth, labelHeight);
+            ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
             
             // Draw text
             ctx.fillStyle = "white";
             ctx.textBaseline = "middle";
-            ctx.fillText(label, x + padding, y + labelHeight / 2);
+            ctx.fillText(label, x + padding, y - labelHeight / 2);
           }
         }
 
