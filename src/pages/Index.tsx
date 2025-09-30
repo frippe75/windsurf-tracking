@@ -132,9 +132,16 @@ const Index = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Close context menu on ESC
-      if (e.key === "Escape" && contextMenu) {
-        setContextMenu(null);
-        return;
+      if (e.key === "Escape") {
+        if (contextMenu) {
+          setContextMenu(null);
+          return;
+        }
+        // Deselect annotation in edit mode
+        if (selectedAnnotationId) {
+          setSelectedAnnotationId(undefined);
+          return;
+        }
       }
       // Ignore if typing in input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {

@@ -188,7 +188,7 @@ export function VideoPlayer({
   };
 
   const getResizeHandle = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
-    const threshold = 3; // percentage units - larger threshold for easier grabbing
+    const threshold = 4; // percentage units - larger threshold for easier grabbing
     const { x: bx, y: by, w: bw, h: bh } = bbox;
     
     if (Math.abs(x - bx) < threshold && Math.abs(y - by) < threshold) return "nw";
@@ -197,6 +197,19 @@ export function VideoPlayer({
     if (Math.abs(x - (bx + bw)) < threshold && Math.abs(y - (by + bh)) < threshold) return "se";
     
     return null;
+  };
+
+  const isNearBboxEdge = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
+    const edgeThreshold = 3; // percentage units for edge detection
+    const { x: bx, y: by, w: bw, h: bh } = bbox;
+    
+    // Check if near any edge
+    const nearLeft = Math.abs(x - bx) < edgeThreshold && y >= by - edgeThreshold && y <= by + bh + edgeThreshold;
+    const nearRight = Math.abs(x - (bx + bw)) < edgeThreshold && y >= by - edgeThreshold && y <= by + bh + edgeThreshold;
+    const nearTop = Math.abs(y - by) < edgeThreshold && x >= bx - edgeThreshold && x <= bx + bw + edgeThreshold;
+    const nearBottom = Math.abs(y - (by + bh)) < edgeThreshold && x >= bx - edgeThreshold && x <= bx + bw + edgeThreshold;
+    
+    return nearLeft || nearRight || nearTop || nearBottom;
   };
 
   // Transform screen coordinates to canvas coordinates accounting for zoom, pan and CSS scaling
@@ -272,7 +285,7 @@ export function VideoPlayer({
 
     // Edit mode: check for resize handles or selection
     if (selectedTool === "edit") {
-      // First check if we're interacting with the currently selected annotation
+      // First check if we're interacting with the currently selected annotation's handles
       if (selectedAnnotationId) {
         const annotation = annotations.find(a => a.id === selectedAnnotationId);
         if (annotation?.bbox) {
@@ -287,32 +300,44 @@ export function VideoPlayer({
             });
             return;
           }
-          
-          // Check if clicking inside selected bbox for move
-          const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
-          if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-            setDragState({
-              annotationId: selectedAnnotationId,
-              handle: "move",
-              startX: x,
-              startY: y,
-              originalBbox: { ...annotation.bbox },
-            });
-            return;
-          }
         }
       }
       
-      // Check if clicking on any annotation to select it
-      const clickedAnnotation = annotations.find(ann => {
+      // Check if clicking on/near any annotation to select it
+      // Priority: exact click inside > near edge > any overlap
+      let clickedAnnotation = annotations.find(ann => {
         if (!ann.bbox) return false;
         const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
+        // Check if clicking inside bbox
         return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
       });
       
+      // If not inside any bbox, check if near edges
+      if (!clickedAnnotation) {
+        clickedAnnotation = annotations.find(ann => {
+          if (!ann.bbox) return false;
+          return isNearBboxEdge(x, y, ann.bbox);
+        });
+      }
+      
       if (clickedAnnotation) {
         onAnnotationSelect?.(clickedAnnotation.id);
+        
+        // If clicking inside the selected bbox, allow moving
+        if (clickedAnnotation.bbox) {
+          const { x: bx, y: by, w: bw, h: bh } = clickedAnnotation.bbox;
+          if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+            setDragState({
+              annotationId: clickedAnnotation.id,
+              handle: "move",
+              startX: x,
+              startY: y,
+              originalBbox: { ...clickedAnnotation.bbox },
+            });
+          }
+        }
       } else {
+        // Clicking on empty space deselects
         onAnnotationSelect?.(undefined);
       }
     }
