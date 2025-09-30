@@ -19,7 +19,9 @@ interface ClassManagerProps {
     points: boolean;
   };
   selectedClassId?: string;
+  showLabels: boolean;
   onToggleOverlay: (key: "segments" | "bboxes" | "points") => void;
+  onShowLabelsChange: (enabled: boolean) => void;
   onSelectClass: (classId: string) => void;
   onCreateClass: (name: string) => void;
   onRenameClass: (classId: string, newName: string) => void;
@@ -36,7 +38,9 @@ export function ClassManager({
   currentFrame,
   overlays,
   selectedClassId,
+  showLabels,
   onToggleOverlay,
+  onShowLabelsChange,
   onSelectClass,
   onCreateClass,
   onRenameClass,
@@ -126,6 +130,16 @@ export function ClassManager({
             id="points-toggle"
             checked={overlays.points}
             onCheckedChange={() => onToggleOverlay("points")}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="labels-toggle" className="text-xs">
+            Show BBoxes (4)
+          </Label>
+          <Switch
+            id="labels-toggle"
+            checked={showLabels}
+            onCheckedChange={onShowLabelsChange}
           />
         </div>
       </div>

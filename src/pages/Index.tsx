@@ -247,6 +247,10 @@ const Index = () => {
           const overlayKey = ["segments", "bboxes", "points"][parseInt(e.key) - 1] as keyof typeof overlays;
           handleToggleOverlay(overlayKey);
           break;
+        case "4":
+          e.preventDefault();
+          setShowLabels(prev => !prev);
+          break;
       }
 
       // Save project
@@ -1016,8 +1020,6 @@ const Index = () => {
                 onAutoDetectChange={setAutoDetect}
                 useSAM2={useSAM2}
                 onUseSAM2Change={setUseSAM2}
-                showLabels={showLabels}
-                onShowLabelsChange={setShowLabels}
               />
               <ClassManager
                 classes={classes}
@@ -1026,7 +1028,9 @@ const Index = () => {
                 currentFrame={currentFrame}
                 overlays={overlays}
                 selectedClassId={selectedClassId}
+                showLabels={showLabels}
                 onToggleOverlay={handleToggleOverlay}
+                onShowLabelsChange={setShowLabels}
                 onSelectClass={setSelectedClassId}
                 onCreateClass={handleCreateClass}
                 onRenameClass={handleRenameClass}
