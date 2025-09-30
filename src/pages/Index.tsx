@@ -20,6 +20,7 @@ interface Annotation {
   points: Array<{ x: number; y: number }>;
   bbox?: { x: number; y: number; w: number; h: number };
   frameCreated: number;
+  trackedFrames?: Array<[number, number]>; // Array of [start, end] ranges where object is tracked
 }
 
 interface Keyframe {
@@ -371,6 +372,9 @@ const Index = () => {
   };
 
   const handleProcessJob = (jobId: string) => {
+    const job = trackingJobs.find(j => j.id === jobId);
+    if (!job) return;
+
     setTrackingJobs(jobs =>
       jobs.map(job =>
         job.id === jobId ? { ...job, status: "processing" as const, progress: 0 } : job
@@ -393,9 +397,25 @@ const Index = () => {
             job.id === jobId ? { ...job, status: "completed" as const } : job
           )
         );
+        
+        // Update annotations with tracked frames
+        setAnnotations(prevAnnotations =>
+          prevAnnotations.map(ann => {
+            if (job.objectIds.includes(ann.id)) {
+              const trackedFrames = ann.trackedFrames || [];
+              const newRange: [number, number] = [job.startFrame, job.stopFrame];
+              return {
+                ...ann,
+                trackedFrames: [...trackedFrames, newRange],
+              };
+            }
+            return ann;
+          })
+        );
+        
         toast({
           title: "Tracking completed",
-          description: "SAM2 tracking job finished",
+          description: `Tracked ${job.objectIds.length} object(s) from frame ${job.startFrame} to ${job.stopFrame}`,
         });
       }
     }, 500);

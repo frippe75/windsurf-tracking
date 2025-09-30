@@ -8,6 +8,7 @@ interface Annotation {
   color: string;
   colorName: string;
   frameCreated: number;
+  trackedFrames?: Array<[number, number]>;
 }
 
 interface Keyframe {
@@ -190,11 +191,7 @@ export function Timeline({
           {annotations.length > 0 && (
             <div className="space-y-1">
               {annotations.map((ann) => {
-                const startPos = frameToPosition(ann.frameCreated);
-                if (startPos < 0 && ann.frameCreated > endFrame) return null;
-                
-                const displayStartPos = Math.max(0, startPos);
-                const displayEndPos = 100;
+                const creationPos = frameToPosition(ann.frameCreated);
                 
                 return (
                   <div key={ann.id} className="flex items-center gap-2">
@@ -204,15 +201,59 @@ export function Timeline({
                     />
                     <div className="text-xs text-muted-foreground min-w-[60px]">{ann.colorName}</div>
                     <div className="flex-1 h-4 bg-muted/30 rounded relative">
-                      {/* Show annotation presence from its creation frame onwards */}
-                      {ann.frameCreated <= endFrame && (
+                      {/* Creation point marker (bright) */}
+                      {creationPos >= 0 && creationPos <= 100 && (
                         <div
-                          className="absolute top-0 bottom-0 rounded opacity-50"
+                          className="absolute top-0 bottom-0 w-1 rounded z-10"
                           style={{
-                            left: `${displayStartPos}%`,
-                            width: `${displayEndPos - displayStartPos}%`,
+                            left: `${creationPos}%`,
                             backgroundColor: ann.color,
                           }}
+                          title={`Created at frame ${ann.frameCreated}`}
+                        >
+                          <div
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+                            style={{ backgroundColor: ann.color }}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Tracked segments (solid bars) */}
+                      {ann.trackedFrames?.map((range, idx) => {
+                        const [rangeStart, rangeEnd] = range;
+                        const trackStartPos = frameToPosition(rangeStart);
+                        const trackEndPos = frameToPosition(rangeEnd);
+                        
+                        if (trackEndPos < 0 || trackStartPos > 100) return null;
+                        
+                        const displayStart = Math.max(0, trackStartPos);
+                        const displayEnd = Math.min(100, trackEndPos);
+                        
+                        return (
+                          <div
+                            key={`${ann.id}-track-${idx}`}
+                            className="absolute top-0 bottom-0 rounded"
+                            style={{
+                              left: `${displayStart}%`,
+                              width: `${displayEnd - displayStart}%`,
+                              backgroundColor: ann.color,
+                              opacity: 0.6,
+                            }}
+                            title={`Tracked: frames ${rangeStart}-${rangeEnd}`}
+                          />
+                        );
+                      })}
+                      
+                      {/* Untracked region indicator (very dim) - only if no tracked frames yet */}
+                      {(!ann.trackedFrames || ann.trackedFrames.length === 0) && ann.frameCreated <= endFrame && (
+                        <div
+                          className="absolute top-0 bottom-0 rounded opacity-15"
+                          style={{
+                            left: `${Math.max(0, creationPos)}%`,
+                            width: `${100 - Math.max(0, creationPos)}%`,
+                            backgroundColor: ann.color,
+                          }}
+                          title="Untracked - needs tracking job"
                         />
                       )}
                     </div>
