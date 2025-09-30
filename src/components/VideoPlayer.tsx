@@ -97,10 +97,10 @@ export function VideoPlayer({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom and pan transformation
+    // Apply zoom and pan transformation - SAME as video CSS transform
     ctx.save();
-    ctx.translate(pan.x, pan.y);
     ctx.scale(zoom, zoom);
+    ctx.translate(pan.x / zoom, pan.y / zoom);
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
