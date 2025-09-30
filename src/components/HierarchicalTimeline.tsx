@@ -256,14 +256,14 @@ export function HierarchicalTimeline({
               </div>
             );
           })}
+          
+          {/* Info text overlaid on bottom border */}
+          <span className="absolute -bottom-2 left-2 text-[10px] text-muted-foreground bg-background px-1 z-20">
+            {selectedScene 
+              ? `Frames ${startFrame}-${endFrame}` 
+              : `${classes.length} classes • ${instances.length} instances`}
+          </span>
         </div>
-        
-        {/* Info text */}
-        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-          {selectedScene 
-            ? `Frames ${startFrame}-${endFrame}` 
-            : `${classes.length} classes • ${instances.length} instances`}
-        </span>
       </div>
 
       {expanded && (
