@@ -134,7 +134,7 @@ export function ClassManager({
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor="labels-toggle" className="text-xs">
-            Show BBoxes (4)
+            Show BBox Labels (4)
           </Label>
           <Switch
             id="labels-toggle"
