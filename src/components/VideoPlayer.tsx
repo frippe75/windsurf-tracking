@@ -367,6 +367,10 @@ export function VideoPlayer({
           ref={videoRef}
           src={videoUrl}
           className="w-full h-full object-contain"
+          style={{
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'top left',
+          }}
           onLoadedMetadata={() => {
             if (videoRef.current && onVideoMetadata) {
               const duration = videoRef.current.duration;
