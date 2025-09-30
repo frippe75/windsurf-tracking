@@ -274,18 +274,26 @@ const Index = () => {
   };
 
   // Mock SAM2 segmentation - simulates backend call
-  const mockSAM2Segmentation = async (x: number, y: number): Promise<{
+  // Returns objects sized at 5-15% of screen area (proportional to canvas size)
+  const mockSAM2Segmentation = async (x: number, y: number, canvasWidth: number = 1280, canvasHeight: number = 720): Promise<{
     points: Array<{ x: number; y: number }>;
     className: string;
   }> => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 300));
     
+    // Generate object sized at 5-15% of screen area
+    // Size factor: 0.05-0.15 of total canvas area, converted to radius proportion
+    const sizeFactor = 0.05 + Math.random() * 0.10; // 5-15% of area
+    const areaSize = Math.sqrt(canvasWidth * canvasHeight * sizeFactor);
+    
+    // Convert area to radius (divide by ~3 to get a reasonable radius from area dimension)
+    const baseRadius = areaSize / 3;
+    const radiusX = baseRadius * (0.8 + Math.random() * 0.4); // Vary width 80-120%
+    const radiusY = baseRadius * (0.8 + Math.random() * 0.4); // Vary height 80-120%
+    
     // Generate random organic polygon around click point
     const numPoints = 12 + Math.floor(Math.random() * 12); // 12-24 points
-    const radiusX = 40 + Math.random() * 80; // 40-120px width
-    const radiusY = 40 + Math.random() * 80; // 40-120px height
-    
     const points = [];
     for (let i = 0; i < numPoints; i++) {
       const angle = (i / numPoints) * Math.PI * 2;
