@@ -264,14 +264,19 @@ export function KeyframeManager({
                   {group.type === "SKIP" && group.ranges && (
                     <div className="flex flex-wrap gap-1">
                       {group.ranges.map((range, rangeIdx) => (
-                        <button
+                        <div
                           key={rangeIdx}
-                          onClick={() => handleDeleteGroup(range.frames)}
-                          className="h-5 px-2 text-[10px] font-medium rounded-full bg-sail-yellow/30 hover:bg-destructive hover:text-destructive-foreground border border-sail-yellow/50 hover:border-destructive transition-colors cursor-pointer"
-                          title={`Click to delete frames ${range.text}`}
+                          className="group relative h-5 px-2 text-[10px] font-medium rounded-full bg-sail-yellow/30 border border-sail-yellow/50 hover:border-destructive/50 transition-colors flex items-center"
                         >
-                          {range.text}
-                        </button>
+                          <span className="group-hover:opacity-60 transition-opacity">{range.text}</span>
+                          <button
+                            onClick={() => handleDeleteGroup(range.frames)}
+                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/90 rounded-full"
+                            title={`Delete frames ${range.text}`}
+                          >
+                            <X className="h-3 w-3 text-destructive-foreground" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
