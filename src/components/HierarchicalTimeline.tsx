@@ -258,7 +258,7 @@ export function HierarchicalTimeline({
           })}
           
           {/* Info text overlaid on bottom border */}
-          <span className="absolute -bottom-2 left-2 text-[10px] text-muted-foreground bg-background px-1 z-20">
+          <span className="absolute -bottom-2 right-2 text-[10px] text-muted-foreground bg-background px-1 z-20">
             {selectedScene 
               ? `Frames ${startFrame}-${endFrame}` 
               : `${classes.length} classes • ${instances.length} instances`}
