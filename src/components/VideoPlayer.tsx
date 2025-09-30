@@ -86,6 +86,22 @@ export function VideoPlayer({
     drawAnnotations();
   }, [annotations, overlays, currentFrame, zoom, pan]);
 
+  // Track container size so we can align canvas to the video's rendered box (object-contain)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const drawAnnotations = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -190,6 +206,22 @@ export function VideoPlayer({
     const y = ((screenY - rect.top) * scaleY - pan.y) / zoom;
     return { x, y };
   };
+  // Compute the displayed video rectangle within the container (object-contain)
+  const getDisplayedRect = () => {
+    const cw = containerSize.width;
+    const ch = containerSize.height;
+    const vw = videoDims.width;
+    const vh = videoDims.height;
+    if (!cw || !ch || !vw || !vh) return { width: 0, height: 0, left: 0, top: 0, scale: 1 };
+
+    const s = Math.min(cw / vw, ch / vh);
+    const width = vw * s;
+    const height = vh * s;
+    const left = (cw - width) / 2;
+    const top = (ch - height) / 2;
+    return { width, height, left, top, scale: s };
+  };
+
   const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -369,9 +401,10 @@ export function VideoPlayer({
     }
   };
 
+  const displayed = getDisplayedRect();
   return (
     <Card className="p-4 bg-card border-border">
-      <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-4">
+      <div ref={containerRef} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-4">
         <video
           ref={videoRef}
           src={videoUrl}
@@ -381,26 +414,38 @@ export function VideoPlayer({
             transformOrigin: 'top left',
           }}
           onLoadedMetadata={() => {
-            if (videoRef.current && onVideoMetadata) {
-              const duration = videoRef.current.duration;
-              const calculatedFrames = Math.floor(duration * fps);
-              onVideoMetadata({
-                duration,
-                totalFrames: calculatedFrames,
-                fps,
+            if (videoRef.current) {
+              // Report metadata to parent
+              if (onVideoMetadata) {
+                const duration = videoRef.current.duration;
+                const calculatedFrames = Math.floor(duration * fps);
+                onVideoMetadata({
+                  duration,
+                  totalFrames: calculatedFrames,
+                  fps,
+                });
+              }
+              // Track intrinsic video dimensions for object-contain math
+              setVideoDims({
+                width: videoRef.current.videoWidth || 1280,
+                height: videoRef.current.videoHeight || 720,
               });
             }
           }}
         />
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-          style={{ 
-            cursor: isPanning 
-              ? "grabbing" 
-              : selectedTool === "edit" && selectedAnnotationId 
-                ? "move" 
-                : "crosshair" 
+          className="absolute"
+          style={{
+            left: displayed.left,
+            top: displayed.top,
+            width: displayed.width,
+            height: displayed.height,
+            cursor: isPanning
+              ? "grabbing"
+              : selectedTool === "edit" && selectedAnnotationId
+                ? "move"
+                : "crosshair",
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
