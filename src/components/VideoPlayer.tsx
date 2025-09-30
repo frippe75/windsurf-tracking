@@ -60,6 +60,10 @@ export function VideoPlayer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps] = useState(30); // Default FPS
+  const [zoom, setZoom] = useState(1); // Zoom level (1 = 100%)
+  const [pan, setPan] = useState({ x: 0, y: 0 }); // Pan offset in pixels
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [dragState, setDragState] = useState<{
     annotationId: string;
     handle: "move" | "nw" | "ne" | "sw" | "se" | null;
@@ -77,7 +81,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     drawAnnotations();
-  }, [annotations, overlays, currentFrame]);
+  }, [annotations, overlays, currentFrame, zoom, pan]);
 
   const drawAnnotations = () => {
     const canvas = canvasRef.current;
@@ -92,6 +96,11 @@ export function VideoPlayer({
     canvas.height = video.videoHeight || 720;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Apply zoom and pan transformation
+    ctx.save();
+    ctx.translate(pan.x, pan.y);
+    ctx.scale(zoom, zoom);
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
@@ -148,6 +157,9 @@ export function VideoPlayer({
         ctx.fill();
       }
     });
+    
+    // Restore canvas state after zoom/pan
+    ctx.restore();
   };
 
   const getResizeHandle = (x: number, y: number, bbox: { x: number; y: number; w: number; h: number }) => {
@@ -162,13 +174,51 @@ export function VideoPlayer({
     return null;
   };
 
+  // Transform screen coordinates to canvas coordinates accounting for zoom and pan
+  const screenToCanvas = (screenX: number, screenY: number, rect: DOMRect) => {
+    const x = (screenX - rect.left - pan.x) / zoom;
+    const y = (screenY - rect.top - pan.y) / zoom;
+    return { x, y };
+  };
+
+  const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Zoom in/out with mouse wheel
+    const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.min(Math.max(0.1, zoom * zoomDelta), 10);
+
+    // Adjust pan to zoom towards mouse position
+    const scale = newZoom / zoom;
+    setPan({
+      x: mouseX - (mouseX - pan.x) * scale,
+      y: mouseY - (mouseY - pan.y) * scale,
+    });
+    setZoom(newZoom);
+  };
+
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    // Middle mouse button or space+left click for panning
+    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      return;
+    }
+
+    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
+    const x = (canvasX / canvas.width) * 100;
+    const y = (canvasY / canvas.height) * 100;
 
     // Edit mode: check for resize handles
     if (selectedTool === "edit" && selectedAnnotationId) {
@@ -203,14 +253,24 @@ export function VideoPlayer({
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!dragState) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Handle panning
+    if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+      return;
+    }
+
+    if (!dragState) return;
+
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
+    const x = (canvasX / canvas.width) * 100;
+    const y = (canvasY / canvas.height) * 100;
 
     const dx = x - dragState.startX;
     const dy = y - dragState.startY;
@@ -247,6 +307,7 @@ export function VideoPlayer({
 
   const handleCanvasMouseUp = () => {
     setDragState(null);
+    setIsPanning(false);
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -257,8 +318,9 @@ export function VideoPlayer({
     if (!canvas || !video) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
+    const x = (canvasX / canvas.width) * 100;
+    const y = (canvasY / canvas.height) * 100;
     const videoWidth = video.videoWidth || 1280;
     const videoHeight = video.videoHeight || 720;
     onCanvasClick(x, y, videoWidth, videoHeight);
@@ -270,8 +332,9 @@ export function VideoPlayer({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
+    const x = (canvasX / canvas.width) * 100;
+    const y = (canvasY / canvas.height) * 100;
 
     // Check if click is on an annotation
     const clickedAnnotation = annotations.find(ann => {
@@ -319,17 +382,45 @@ export function VideoPlayer({
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full"
-          style={{ cursor: selectedTool === "edit" && selectedAnnotationId ? "move" : "crosshair" }}
+          style={{ 
+            cursor: isPanning 
+              ? "grabbing" 
+              : selectedTool === "edit" && selectedAnnotationId 
+                ? "move" 
+                : "crosshair" 
+          }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
           onContextMenu={handleCanvasContextMenu}
+          onWheel={handleCanvasWheel}
         />
       </div>
 
       <div className="space-y-4">
+        {/* Zoom controls */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="min-w-[100px]">
+            Zoom: {Math.round(zoom * 100)}%
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
+          >
+            Reset View
+          </Button>
+          <span className="text-xs">
+            (Scroll to zoom, Shift+Drag to pan)
+          </span>
+        </div>
+
         {/* Frame slider */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground min-w-[100px]">
