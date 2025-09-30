@@ -22,6 +22,7 @@ interface VideoPlayerProps {
     bbox?: { x: number; y: number; w: number; h: number };
   }>;
   onAnnotationUpdate: (id: string, updates: { bbox?: { x: number; y: number; w: number; h: number }; points?: Array<{ x: number; y: number }> }) => void;
+  onAnnotationSelect?: (id: string | undefined) => void;
   overlays: {
     segments: boolean;
     bboxes: boolean;
@@ -44,6 +45,7 @@ export function VideoPlayer({
   instances,
   annotations,
   onAnnotationUpdate,
+  onAnnotationSelect,
   overlays,
   selectedTool,
   selectedAnnotationId,
@@ -262,34 +264,50 @@ export function VideoPlayer({
     const x = (canvasX / canvas.width) * 100;
     const y = (canvasY / canvas.height) * 100;
 
-    // Edit mode: check for resize handles
-    if (selectedTool === "edit" && selectedAnnotationId) {
-      const annotation = annotations.find(a => a.id === selectedAnnotationId);
-      if (annotation?.bbox) {
-        const handle = getResizeHandle(x, y, annotation.bbox);
-        if (handle) {
-          setDragState({
-            annotationId: selectedAnnotationId,
-            handle,
-            startX: x,
-            startY: y,
-            originalBbox: { ...annotation.bbox },
-          });
-          return;
+    // Edit mode: check for resize handles or selection
+    if (selectedTool === "edit") {
+      // First check if we're interacting with the currently selected annotation
+      if (selectedAnnotationId) {
+        const annotation = annotations.find(a => a.id === selectedAnnotationId);
+        if (annotation?.bbox) {
+          const handle = getResizeHandle(x, y, annotation.bbox);
+          if (handle) {
+            setDragState({
+              annotationId: selectedAnnotationId,
+              handle,
+              startX: x,
+              startY: y,
+              originalBbox: { ...annotation.bbox },
+            });
+            return;
+          }
+          
+          // Check if clicking inside selected bbox for move
+          const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
+          if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+            setDragState({
+              annotationId: selectedAnnotationId,
+              handle: "move",
+              startX: x,
+              startY: y,
+              originalBbox: { ...annotation.bbox },
+            });
+            return;
+          }
         }
-        
-        // Check if clicking inside bbox for move
-        const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
-        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-          setDragState({
-            annotationId: selectedAnnotationId,
-            handle: "move",
-            startX: x,
-            startY: y,
-            originalBbox: { ...annotation.bbox },
-          });
-          return;
-        }
+      }
+      
+      // Check if clicking on any annotation to select it
+      const clickedAnnotation = annotations.find(ann => {
+        if (!ann.bbox) return false;
+        const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
+        return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+      });
+      
+      if (clickedAnnotation) {
+        onAnnotationSelect?.(clickedAnnotation.id);
+      } else {
+        onAnnotationSelect?.(undefined);
       }
     }
   };

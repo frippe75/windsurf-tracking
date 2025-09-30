@@ -51,6 +51,7 @@ const Index = () => {
   } | null>(null);
   const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -928,8 +929,10 @@ const Index = () => {
                     prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
                   );
                 }}
+                onAnnotationSelect={setSelectedAnnotationId}
                 overlays={overlays}
                 selectedTool={selectedTool}
+                selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
               />
               <HierarchicalTimeline
