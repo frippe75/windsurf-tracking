@@ -115,12 +115,20 @@ export function VideoPlayer({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas size to match video
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    // High-DPI crisp rendering sized to displayed rect and current zoom
+    const dpr = window.devicePixelRatio || 1;
+    const displayed = getDisplayedRect();
+    // Internal bitmap accounts for zoom and DPR so CSS scaling stays sharp
+    canvas.width = Math.max(1, Math.round(displayed.width * dpr * zoom));
+    canvas.height = Math.max(1, Math.round(displayed.height * dpr * zoom));
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+
+    // Base scale in internal pixels that corresponds to un-zoomed CSS pixels
+    const baseX = canvas.width / zoom; // = displayed.width * dpr
+    const baseY = canvas.height / zoom; // = displayed.height * dpr
+    const invZoom = 1 / zoom;
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
