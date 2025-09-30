@@ -876,6 +876,20 @@ const Index = () => {
     setKeyframes((prev) => prev.filter((k) => k.frame !== frame));
   };
 
+  const handleDeletePrompt = (annotationId: string, promptIndex: number) => {
+    setAnnotations(prev => prev.map(ann => {
+      if (ann.id === annotationId && ann.sam2Prompts) {
+        const updatedPrompts = ann.sam2Prompts.filter((_, i) => i !== promptIndex);
+        return { ...ann, sam2Prompts: updatedPrompts.length > 0 ? updatedPrompts : undefined };
+      }
+      return ann;
+    }));
+    toast({
+      title: "Prompt deleted",
+      description: "SAM2 point removed from annotation",
+    });
+  };
+
   const handleSaveProject = () => {
     const project = {
       version: "0.3.0-hierarchical",
@@ -1131,6 +1145,7 @@ const Index = () => {
           onDeleteKeyframe={handleDeleteKeyframe}
           onAddKeyframe={handleAddKeyframe}
           onStartTracking={handleStartTracking}
+          onDeletePrompt={handleDeletePrompt}
         />
       )}
     </div>

@@ -8,15 +8,19 @@ interface ContextMenuProps {
   y: number;
   onClose: () => void;
   context: {
-    type: "annotation" | "keyframe" | "empty";
+    type: "annotation" | "keyframe" | "empty" | "prompt";
     id?: string;
     frame?: number;
     keyframeType?: "START" | "STOP" | "SKIP";
+    annotationId?: string;
+    promptIndex?: number;
+    promptType?: "positive" | "negative";
   };
   onDeleteAnnotation?: (id: string) => void;
   onDeleteKeyframe?: (frame: number) => void;
   onAddKeyframe?: (type: "START" | "STOP" | "SKIP") => void;
   onStartTracking?: (annotationId: string) => void;
+  onDeletePrompt?: (annotationId: string, promptIndex: number) => void;
 }
 
 export function ContextMenu({
@@ -28,6 +32,7 @@ export function ContextMenu({
   onDeleteKeyframe,
   onAddKeyframe,
   onStartTracking,
+  onDeletePrompt,
 }: ContextMenuProps) {
   const [position, setPosition] = useState({ x, y });
 
@@ -95,6 +100,23 @@ export function ContextMenu({
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete keyframe
+            </Button>
+          </div>
+        )}
+
+        {context.type === "prompt" && context.annotationId !== undefined && context.promptIndex !== undefined && (
+          <div className="space-y-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-destructive hover:text-destructive"
+              onClick={() => {
+                onDeletePrompt?.(context.annotationId!, context.promptIndex!);
+                onClose();
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete {context.promptType === 'positive' ? '+ prompt' : '- prompt'}
             </Button>
           </div>
         )}

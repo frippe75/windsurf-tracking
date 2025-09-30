@@ -538,6 +538,29 @@ export function VideoPlayer({
     const x = (canvasX / canvas.width) * 100;
     const y = (canvasY / canvas.height) * 100;
 
+    // First check if clicking on a SAM2 prompt (priority over annotation or empty)
+    for (const annotation of annotations) {
+      if (annotation.sam2Prompts) {
+        for (let i = 0; i < annotation.sam2Prompts.length; i++) {
+          const prompt = annotation.sam2Prompts[i];
+          const dx = Math.abs(x - prompt.x);
+          const dy = Math.abs(y - prompt.y);
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          // 1.5% threshold for clicking on prompt (larger than visual radius for easier clicking)
+          if (distance < 1.5) {
+            onContextMenu(e.clientX, e.clientY, {
+              type: "prompt",
+              annotationId: annotation.id,
+              promptIndex: i,
+              promptType: prompt.type,
+            });
+            return;
+          }
+        }
+      }
+    }
+
     // Check if click is on an annotation
     const clickedAnnotation = annotations.find(ann => {
       if (!ann.bbox) return false;
