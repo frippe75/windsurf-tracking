@@ -93,10 +93,17 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
                 
                 {/* Second row: Status and object count in light grey */}
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Badge variant={getStatusColor(job.status)} className="text-xs">
-                    {getStatusIcon(job.status)}
-                    <span className="ml-1">{job.status}</span>
-                  </Badge>
+                  {job.status === "processing" ? (
+                    <div className="flex items-center gap-1 text-xs">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>processing</span>
+                    </div>
+                  ) : (
+                    <Badge variant={getStatusColor(job.status)} className="text-xs">
+                      {getStatusIcon(job.status)}
+                      <span className="ml-1">{job.status}</span>
+                    </Badge>
+                  )}
                   <span className="text-xs">
                     {job.objectIds.length} object{job.objectIds.length !== 1 ? "s" : ""}
                   </span>
