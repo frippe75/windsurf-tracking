@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { AnnotationControls } from "@/components/AnnotationControls";
 import { KeyframeManager } from "@/components/KeyframeManager";
+import { Timeline } from "@/components/Timeline";
+import { ScenesManager } from "@/components/ScenesManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard } from "lucide-react";
 
@@ -22,6 +25,13 @@ interface Keyframe {
   timestamp: string;
 }
 
+interface Scene {
+  id: string;
+  startFrame: number;
+  endFrame: number;
+  quality: "good" | "bad" | "unknown";
+}
+
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
   { hex: "hsl(217, 91%, 60%)", name: "Blue" },
@@ -37,7 +47,9 @@ const Index = () => {
   const [totalFrames, setTotalFrames] = useState(3000);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
+  const [scenes, setScenes] = useState<Scene[]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
+  const [isDetectingScenes, setIsDetectingScenes] = useState(false);
   const [overlays, setOverlays] = useState({
     segments: true,
     bboxes: true,
@@ -118,7 +130,41 @@ const Index = () => {
         title: "Video loaded",
         description: "Ready to annotate",
       });
+      // Auto-detect scenes on load (mock implementation)
+      setTimeout(() => handleDetectScenes(), 1000);
     }
+  };
+
+  const handleDetectScenes = () => {
+    setIsDetectingScenes(true);
+    
+    // Mock scene detection - in real version, this would use PySceneDetect
+    setTimeout(() => {
+      const mockScenes: Scene[] = [
+        { id: "scene-1", startFrame: 0, endFrame: 450, quality: "unknown" },
+        { id: "scene-2", startFrame: 451, endFrame: 920, quality: "unknown" },
+        { id: "scene-3", startFrame: 921, endFrame: 1580, quality: "unknown" },
+        { id: "scene-4", startFrame: 1581, endFrame: 2100, quality: "unknown" },
+        { id: "scene-5", startFrame: 2101, endFrame: 3000, quality: "unknown" },
+      ];
+      
+      setScenes(mockScenes);
+      setIsDetectingScenes(false);
+      toast({
+        title: "Scenes detected",
+        description: `Found ${mockScenes.length} scenes`,
+      });
+    }, 2000);
+  };
+
+  const handleSceneSelect = (scene: Scene) => {
+    setCurrentFrame(scene.startFrame);
+  };
+
+  const handleSceneQualityChange = (sceneId: string, quality: "good" | "bad" | "unknown") => {
+    setScenes((prev) =>
+      prev.map((s) => (s.id === sceneId ? { ...s, quality } : s))
+    );
   };
 
   const handleCanvasClick = useCallback(
@@ -316,8 +362,8 @@ const Index = () => {
               />
             </div>
 
-            {/* Center - Video player */}
-            <div className="col-span-6">
+            {/* Center - Video player & Timeline */}
+            <div className="col-span-6 space-y-4">
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
@@ -327,18 +373,43 @@ const Index = () => {
                 annotations={annotations}
                 overlays={overlays}
               />
-            </div>
-
-            {/* Right sidebar - Keyframes */}
-            <div className="col-span-3 space-y-4">
-              <KeyframeManager
+              <Timeline
+                annotations={annotations}
                 keyframes={keyframes}
                 currentFrame={currentFrame}
-                onAddKeyframe={handleAddKeyframe}
-                onDeleteKeyframe={handleDeleteKeyframe}
-                onSaveProject={handleSaveProject}
-                onExportData={handleExportData}
+                totalFrames={totalFrames}
+                onFrameChange={setCurrentFrame}
               />
+            </div>
+
+            {/* Right sidebar - Scenes & Tracking tabs */}
+            <div className="col-span-3">
+              <Tabs defaultValue="tracking" className="h-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="scenes">Scenes</TabsTrigger>
+                  <TabsTrigger value="tracking">Tracking</TabsTrigger>
+                </TabsList>
+                <TabsContent value="scenes" className="mt-4">
+                  <ScenesManager
+                    scenes={scenes}
+                    currentFrame={currentFrame}
+                    onDetectScenes={handleDetectScenes}
+                    onSceneSelect={handleSceneSelect}
+                    onSceneQualityChange={handleSceneQualityChange}
+                    isDetecting={isDetectingScenes}
+                  />
+                </TabsContent>
+                <TabsContent value="tracking" className="mt-4">
+                  <KeyframeManager
+                    keyframes={keyframes}
+                    currentFrame={currentFrame}
+                    onAddKeyframe={handleAddKeyframe}
+                    onDeleteKeyframe={handleDeleteKeyframe}
+                    onSaveProject={handleSaveProject}
+                    onExportData={handleExportData}
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         )}
