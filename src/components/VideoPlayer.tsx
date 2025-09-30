@@ -116,10 +116,8 @@ export function VideoPlayer({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom and pan transformation - SAME as video CSS transform
+    // CSS transform is applied on the canvas element itself; no context transform needed
     ctx.save();
-    ctx.scale(zoom, zoom);
-    ctx.translate(pan.x / zoom, pan.y / zoom);
 
     annotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
@@ -198,12 +196,12 @@ export function VideoPlayer({
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
 
-    // Map CSS pixels to canvas internal pixels
+    // Map CSS pixels (post-transform) to canvas internal pixels
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const x = ((screenX - rect.left) * scaleX - pan.x) / zoom;
-    const y = ((screenY - rect.top) * scaleY - pan.y) / zoom;
+    const x = (screenX - rect.left) * scaleX;
+    const y = (screenY - rect.top) * scaleY;
     return { x, y };
   };
   // Compute the displayed video rectangle within the container (object-contain)
@@ -441,6 +439,8 @@ export function VideoPlayer({
             top: displayed.top,
             width: displayed.width,
             height: displayed.height,
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'top left',
             cursor: isPanning
               ? "grabbing"
               : selectedTool === "edit" && selectedAnnotationId
