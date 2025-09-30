@@ -86,6 +86,32 @@ export function HierarchicalTimeline({
     }
   }
 
+  // Calculate skip segments (consecutive SKIP keyframes)
+  const skipSegments: Array<{ start: number; end: number }> = [];
+  const skipKeyframes = sortedKeyframes.filter(kf => kf.type === "SKIP");
+  
+  let currentSkipStart = -1;
+  let currentSkipEnd = -1;
+  
+  for (let i = 0; i < skipKeyframes.length; i++) {
+    const frame = skipKeyframes[i].frame;
+    
+    if (currentSkipStart === -1) {
+      currentSkipStart = frame;
+      currentSkipEnd = frame;
+    } else if (frame === currentSkipEnd + 1) {
+      currentSkipEnd = frame;
+    } else {
+      skipSegments.push({ start: currentSkipStart, end: currentSkipEnd });
+      currentSkipStart = frame;
+      currentSkipEnd = frame;
+    }
+  }
+  
+  if (currentSkipStart !== -1) {
+    skipSegments.push({ start: currentSkipStart, end: currentSkipEnd });
+  }
+
   const getInstancesForClass = (classId: string) => {
     return instances.filter(inst => inst.classId === classId);
   };
@@ -178,6 +204,31 @@ export function HierarchicalTimeline({
                       width: `${displayEndPos - displayStartPos}%`,
                     }}
                     title={`Tracking segment: ${seg.start} → ${seg.end}`}
+                  />
+                );
+              })}
+
+              {/* Skip segments background */}
+              {skipSegments.map((seg, idx) => {
+                const startPos = frameToPosition(seg.start);
+                const endPos = frameToPosition(seg.end);
+                
+                if (startPos < 0 && endPos < 0) return null;
+                
+                const displayStartPos = Math.max(0, startPos);
+                const displayEndPos = Math.min(100, endPos);
+                
+                if (displayEndPos <= displayStartPos) return null;
+                
+                return (
+                  <div
+                    key={`skip-segment-${idx}`}
+                    className="absolute top-0 bottom-0 bg-sail-yellow/20 border-l-2 border-r-2 border-sail-yellow/40"
+                    style={{
+                      left: `${displayStartPos}%`,
+                      width: `${displayEndPos - displayStartPos}%`,
+                    }}
+                    title={`Skip segment: ${seg.start} → ${seg.end}`}
                   />
                 );
               })}
