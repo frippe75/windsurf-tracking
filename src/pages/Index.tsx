@@ -144,6 +144,18 @@ const Index = () => {
           return;
         }
       }
+      
+      // Delete key to delete selected annotation/instance
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {
+        e.preventDefault();
+        const annotation = annotations.find(ann => ann.id === selectedAnnotationId);
+        if (annotation) {
+          handleDeleteInstance(annotation.instanceId);
+          setSelectedAnnotationId(undefined);
+        }
+        return;
+      }
+      
       // Ignore if typing in input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
