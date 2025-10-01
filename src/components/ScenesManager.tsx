@@ -85,9 +85,9 @@ export function ScenesManager({
       case "pending":
         return scene.quality === "unknown";
       case "with-metadata":
-        return scene.metadata && Object.keys(scene.metadata).length > 0;
+        return scene.quality !== "bad" && scene.metadata && Object.keys(scene.metadata).length > 0;
       case "without-metadata":
-        return !scene.metadata || Object.keys(scene.metadata).length === 0;
+        return scene.quality !== "bad" && (!scene.metadata || Object.keys(scene.metadata).length === 0);
       case "all":
       default:
         return true;
