@@ -84,7 +84,7 @@ export function HierarchicalTimeline({
       case "STOP":
         return "hsl(var(--destructive))";
       case "SKIP":
-        return "hsl(var(--sail-purple))";
+        return "hsl(var(--sail-orange))";
       case "META":
         return "hsl(var(--chart-5))";
       default:
