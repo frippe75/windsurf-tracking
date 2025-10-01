@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
-import { Check, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -153,49 +152,49 @@ export const BackendSelector = () => {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Settings2 className="h-4 w-4 mr-2" />
-            Backend: {selectedBackend?.name || "None"}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56 bg-popover">
-          <DropdownMenuLabel>Select Backend</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {backends.map((backend) => (
-            <DropdownMenuItem
-              key={backend.id}
-              onClick={() => handleSelectBackend(backend)}
-              className="cursor-pointer"
-            >
-              <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-2">
+        <Select
+          value={selectedBackend?.id || ""}
+          onValueChange={(value) => {
+            const backend = backends.find(b => b.id === value);
+            if (backend) handleSelectBackend(backend);
+          }}
+        >
+          <SelectTrigger className="w-[200px] h-9">
+            <SelectValue placeholder="Select backend" />
+          </SelectTrigger>
+          <SelectContent>
+            {backends.map((backend) => (
+              <SelectItem key={backend.id} value={backend.id}>
                 <div className="flex flex-col">
                   <span className="font-medium">{backend.name}</span>
                   <span className="text-xs text-muted-foreground">{backend.url}</span>
                 </div>
-                {selectedBackend?.id === backend.id && (
-                  <Check className="h-4 w-4 ml-2" />
-                )}
-              </div>
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleAddBackend} className="cursor-pointer">
-            <Settings2 className="h-4 w-4 mr-2" />
-            Add Custom Backend
-          </DropdownMenuItem>
-          {selectedBackend && (
-            <DropdownMenuItem 
-              onClick={() => handleEditBackend(selectedBackend)}
-              className="cursor-pointer"
-            >
-              <Settings2 className="h-4 w-4 mr-2" />
-              Edit Current
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleAddBackend}
+          title="Add custom backend"
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
+        
+        {selectedBackend && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => handleEditBackend(selectedBackend)}
+            title="Edit current backend"
+          >
+            Edit
+          </Button>
+        )}
+      </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
