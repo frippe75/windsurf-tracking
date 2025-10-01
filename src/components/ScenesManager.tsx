@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags, Filter } from "lucide-react";
+import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags, Filter, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -196,7 +196,10 @@ export function ScenesManager({
                         <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
                       )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 items-center">
+                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                        <Flag className="h-4 w-4 mr-1" fill="hsl(var(--muted-foreground))" color="hsl(var(--muted-foreground))" />
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
