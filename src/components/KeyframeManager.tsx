@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, StopCircle, X, Trash2, BarChart3, Tags } from "lucide-react";
+import { Flag, StopCircle, X, Trash2, Tags } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -296,7 +296,7 @@ export function KeyframeManager({
           variant="outline"
           size="sm"
         >
-          <BarChart3 className="h-4 w-4 mr-1" />
+          <Flag className="h-4 w-4 mr-1" />
           META (T)
         </Button>
       </div>

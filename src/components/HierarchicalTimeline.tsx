@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, BarChart3, Trash2, Plus, Edit, Eraser } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, Trash2, Plus, Edit, Eraser } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import {
@@ -281,7 +281,7 @@ export function HierarchicalTimeline({
                 title={`${kf.type} at frame ${kf.frame}`}
               >
                 {kf.type === "META" && (
-                  <BarChart3 className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                  <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
                 )}
               </div>
             );
