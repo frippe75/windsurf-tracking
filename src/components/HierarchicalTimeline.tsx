@@ -1,8 +1,14 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Flag } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
+import {
+  ContextMenu as ContextMenuPrimitive,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 export interface TrackingJob {
   id: string;
@@ -25,6 +31,7 @@ interface HierarchicalTimelineProps {
   selectedScene: Scene | null;
   onClearScene: () => void;
   trackingJobs: TrackingJob[];
+  onDeleteKeyframe: (frame: number) => void;
 }
 
 export function HierarchicalTimeline({
@@ -39,6 +46,7 @@ export function HierarchicalTimeline({
   selectedScene,
   onClearScene,
   trackingJobs,
+  onDeleteKeyframe,
 }: HierarchicalTimelineProps) {
   const [expanded, setExpanded] = useState(true);
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
@@ -258,7 +266,7 @@ export function HierarchicalTimeline({
             const position = frameToPosition(kf.frame);
             if (position < 0) return null;
             
-            return (
+            const markerContent = (
               <div
                 key={`${kf.frame}-${kf.type}-${idx}`}
                 className="absolute top-0 bottom-0 w-1 hover:w-2 transition-all"
@@ -273,6 +281,28 @@ export function HierarchicalTimeline({
                 )}
               </div>
             );
+
+            // Wrap META keyframes in context menu
+            if (kf.type === "META") {
+              return (
+                <ContextMenuPrimitive key={`${kf.frame}-${kf.type}-${idx}`}>
+                  <ContextMenuTrigger asChild>
+                    {markerContent}
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onClick={() => onDeleteKeyframe(kf.frame)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete META keyframe
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenuPrimitive>
+              );
+            }
+
+            return markerContent;
           })}
           
           {/* Info text overlaid on bottom border */}

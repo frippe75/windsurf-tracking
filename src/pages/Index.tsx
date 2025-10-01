@@ -1106,6 +1106,7 @@ const Index = () => {
                     description: "Showing full video range",
                   });
                 }}
+                onDeleteKeyframe={handleDeleteKeyframe}
               />
             </div>
 
