@@ -175,20 +175,26 @@ export function ScenesManager({
           ) : (
             filteredScenes.map((scene, index) => {
               const isBad = scene.quality === "bad";
+              const isActive = isSceneActive(scene);
               return (
                 <div
                   key={scene.id}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-all ml-4 ${
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-all ml-4 relative ${
                     isBad 
                       ? "opacity-50 bg-muted/20 border-destructive/20 hover:opacity-60" 
                       : selectedScene?.id === scene.id
                       ? "bg-primary/10 border-primary"
+                      : isActive && !selectedScene
+                      ? "bg-primary/5 border-l-4 border-l-primary border-r border-t border-b border-border"
                       : "bg-muted/30 border-border hover:bg-muted/50"
                   }`}
                   onClick={() => !isBad && handleSceneClick(scene)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
+                      {isActive && !selectedScene && (
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      )}
                       <Badge variant="secondary" className="text-xs">
                         Scene {index + 1}
                       </Badge>
