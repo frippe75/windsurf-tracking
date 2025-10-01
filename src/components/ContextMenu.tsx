@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Flag, StopCircle, X as SkipIcon, Play, Eraser, Plus } from "lucide-react";
+import { Trash2, Flag, StopCircle, X as SkipIcon, Play, Eraser, Plus, Edit } from "lucide-react";
 
 interface Keyframe {
   frame: number;
@@ -107,20 +107,27 @@ export function ContextMenu({
               const hasMetadata = keyframe?.metadata && Object.keys(keyframe.metadata).length > 0;
               return (
                 <>
-                  {!hasMetadata && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        onAddMetadata?.(context.frame!);
-                        onClose();
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add metadata
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      onAddMetadata?.(context.frame!);
+                      onClose();
+                    }}
+                  >
+                    {hasMetadata ? (
+                      <>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit metadata
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add metadata
+                      </>
+                    )}
+                  </Button>
                   {hasMetadata && (
                     <Button
                       variant="ghost"

@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Flag, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, BarChart3, Trash2, Plus, Edit, Eraser } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import {
@@ -32,6 +32,8 @@ interface HierarchicalTimelineProps {
   onClearScene: () => void;
   trackingJobs: TrackingJob[];
   onDeleteKeyframe: (frame: number) => void;
+  onAddMetadata?: (frame: number) => void;
+  onClearMetadata?: (frame: number) => void;
 }
 
 export function HierarchicalTimeline({
@@ -47,6 +49,8 @@ export function HierarchicalTimeline({
   onClearScene,
   trackingJobs,
   onDeleteKeyframe,
+  onAddMetadata,
+  onClearMetadata,
 }: HierarchicalTimelineProps) {
   const [expanded, setExpanded] = useState(true);
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
@@ -80,7 +84,7 @@ export function HierarchicalTimeline({
       case "SKIP":
         return "hsl(var(--sail-yellow))";
       case "META":
-        return "hsl(var(--chart-5))";
+        return "hsl(var(--sail-purple))";
       default:
         return "hsl(var(--muted-foreground))";
     }
@@ -277,7 +281,7 @@ export function HierarchicalTimeline({
                 title={`${kf.type} at frame ${kf.frame}`}
               >
                 {kf.type === "META" && (
-                  <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                  <BarChart3 className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
                 )}
               </div>
             );
@@ -290,6 +294,29 @@ export function HierarchicalTimeline({
                     {markerContent}
                   </ContextMenuTrigger>
                   <ContextMenuContent>
+                    <ContextMenuItem
+                      onClick={() => onAddMetadata?.(kf.frame)}
+                    >
+                      {kf.metadata && Object.keys(kf.metadata).length > 0 ? (
+                        <>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit metadata
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add metadata
+                        </>
+                      )}
+                    </ContextMenuItem>
+                    {kf.metadata && Object.keys(kf.metadata).length > 0 && (
+                      <ContextMenuItem
+                        onClick={() => onClearMetadata?.(kf.frame)}
+                      >
+                        <Eraser className="mr-2 h-4 w-4" />
+                        Clear metadata
+                      </ContextMenuItem>
+                    )}
                     <ContextMenuItem
                       onClick={() => onDeleteKeyframe(kf.frame)}
                       className="text-destructive focus:text-destructive"

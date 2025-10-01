@@ -418,7 +418,9 @@ const Index = () => {
   };
 
   const handleAddMetadata = (frame: number) => {
-    setMetadataModal({ isOpen: true, frame, initialText: "" });
+    const keyframe = keyframes.find(kf => kf.frame === frame && kf.type === "META");
+    const existingText = keyframe?.metadata?.description || "";
+    setMetadataModal({ isOpen: true, frame, initialText: existingText });
   };
 
   const handleSaveMetadata = (text: string) => {
@@ -1213,6 +1215,8 @@ const Index = () => {
                   });
                 }}
                 onDeleteKeyframe={handleDeleteKeyframe}
+                onAddMetadata={handleAddMetadata}
+                onClearMetadata={handleClearMetadata}
               />
             </div>
 
