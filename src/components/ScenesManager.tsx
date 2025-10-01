@@ -86,7 +86,7 @@ export function ScenesManager({
           <div className="space-y-2">
           {/* Full Video Option */}
           <div
-            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+            className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
               !selectedScene
                 ? "bg-primary/10 border-primary"
                 : "bg-muted/30 border-border hover:bg-muted/50"
@@ -115,7 +115,7 @@ export function ScenesManager({
               return (
                 <div
                   key={scene.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ml-4 ${
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-all ml-4 ${
                     isBad 
                       ? "opacity-50 bg-muted/20 border-destructive/20 hover:opacity-60" 
                       : selectedScene?.id === scene.id
