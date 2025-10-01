@@ -268,8 +268,8 @@ export function HierarchicalTimeline({
                 className="absolute w-[1.5px] bg-white/40 z-10 pointer-events-none"
                 style={{ 
                   left: `${boundaryPos}%`,
-                  top: '-10px',
-                  height: 'calc(100% + 20px)'
+                  top: '0',
+                  height: 'calc(100% + 10px)'
                 }}
                 title={`Scene boundary at frame ${scene.endFrame}`}
               />
