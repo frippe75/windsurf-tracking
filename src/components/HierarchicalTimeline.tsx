@@ -34,6 +34,7 @@ interface HierarchicalTimelineProps {
   onDeleteKeyframe: (frame: number) => void;
   onAddMetadata?: (frame: number) => void;
   onClearMetadata?: (frame: number) => void;
+  scenes?: Scene[];
 }
 
 export function HierarchicalTimeline({
@@ -51,6 +52,7 @@ export function HierarchicalTimeline({
   onDeleteKeyframe,
   onAddMetadata,
   onClearMetadata,
+  scenes = [],
 }: HierarchicalTimelineProps) {
   const [expanded, setExpanded] = useState(true);
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
@@ -253,6 +255,21 @@ export function HierarchicalTimeline({
                   title={`Skip segment: ${seg.start} → ${seg.end}`}
                 />
               );
+          })}
+
+          {/* Scene boundary markers */}
+          {scenes.map((scene) => {
+            const boundaryPos = frameToPosition(scene.endFrame);
+            if (boundaryPos < 0 || boundaryPos > 100) return null;
+            
+            return (
+              <div
+                key={`scene-boundary-${scene.id}`}
+                className="absolute top-0 bottom-0 w-[1px] bg-border/60"
+                style={{ left: `${boundaryPos}%` }}
+                title={`Scene boundary at frame ${scene.endFrame}`}
+              />
+            );
           })}
 
           {/* Current frame indicator */}
