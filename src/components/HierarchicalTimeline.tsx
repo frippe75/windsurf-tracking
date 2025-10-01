@@ -287,8 +287,8 @@ export function HierarchicalTimeline({
                       viewBox="0 0 24 24"
                       aria-hidden="true"
                     >
-                      <rect x="3" y="3" width="1.5" height="18" fill={getKeyframeColor(kf.type)} />
-                      <path d="M6 5 L18 8 L6 11 Z" fill={getKeyframeColor(kf.type)} />
+                      <rect x="3" y="3" width="1.5" height="18" fill="hsl(var(--border))" />
+                      <path d="M6 5 L18 8 L6 11 Z" fill="hsl(var(--border))" />
                     </svg>
                   ) : (
                     <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
