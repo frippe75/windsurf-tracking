@@ -281,7 +281,7 @@ export function HierarchicalTimeline({
                 title={`${kf.type} at frame ${kf.frame}`}
               >
                 {kf.type === "META" && (
-                  (kf.metadata && Object.values(kf.metadata).some(v => String(v).trim().length > 0)) ? (
+                  (!kf.metadata || Object.values(kf.metadata).every(v => String(v ?? '').trim().length === 0)) ? (
                     <svg
                       className="absolute -top-1 left-0 h-3 w-3"
                       viewBox="0 0 24 24"
