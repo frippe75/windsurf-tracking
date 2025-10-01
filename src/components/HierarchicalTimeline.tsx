@@ -265,10 +265,11 @@ export function HierarchicalTimeline({
             return (
               <div
                 key={`scene-boundary-${scene.id}`}
-                className="absolute top-0 w-[2px] bg-border/30 z-0"
+                className="absolute w-[2px] bg-border/30 z-0"
                 style={{ 
                   left: `${boundaryPos}%`,
-                  height: 'calc(100% + 10px)'
+                  top: '-10px',
+                  height: 'calc(100% + 20px)'
                 }}
                 title={`Scene boundary at frame ${scene.endFrame}`}
               />
