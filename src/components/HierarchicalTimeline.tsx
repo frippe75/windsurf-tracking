@@ -282,14 +282,14 @@ export function HierarchicalTimeline({
               >
                 {kf.type === "META" && (
                   (!kf.metadata || Object.values(kf.metadata).every(v => String(v ?? '').trim().length === 0)) ? (
-                    <svg
+                    <Flag
                       className="absolute -top-1 left-0 h-3 w-3"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <rect x="3" y="3" width="1.5" height="18" fill="hsl(var(--border))" />
-                      <path d="M6 5 L18 8 L6 11 Z" fill="hsl(var(--border))" />
-                    </svg>
+                      style={{ color: "hsl(var(--border))", fill: "hsl(var(--border))" }}
+                      strokeWidth={2}
+                    />
+                      
+                      
+                    
                   ) : (
                     <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
                   )
