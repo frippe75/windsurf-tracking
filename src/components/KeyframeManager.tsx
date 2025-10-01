@@ -40,7 +40,7 @@ export function KeyframeManager({
       case "SKIP":
         return "hsl(var(--sail-yellow))";
       case "META":
-        return "hsl(var(--chart-5))";
+        return "hsl(var(--muted-foreground))";
       default:
         return "hsl(var(--muted))";
     }
@@ -333,7 +333,7 @@ export function KeyframeManager({
                                 <TooltipTrigger asChild>
                                   <div className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-1 text-foreground hover:bg-muted/80 transition-all">
                                     {hasMetadata && group.type === "META" && (
-                                      <Tags className="h-2.5 w-2.5 text-[hsl(var(--sail-purple))]" />
+                                      <Tags className="h-2.5 w-2.5 text-[hsl(var(--muted-foreground))]" />
                                     )}
                                     <span>{range.text}</span>
                                     <button
