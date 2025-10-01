@@ -284,7 +284,7 @@ export function HierarchicalTimeline({
                   (!kf.metadata || Object.values(kf.metadata).every(v => String(v ?? '').trim().length === 0)) ? (
                     <Flag
                       className="absolute -top-1 left-0 h-3 w-3"
-                      style={{ color: "hsl(var(--border))", fill: "hsl(var(--border))" }}
+                      style={{ color: "hsl(var(--muted-foreground))", fill: "hsl(var(--muted-foreground))" }}
                       strokeWidth={2}
                     />
                       
