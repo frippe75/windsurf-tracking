@@ -84,7 +84,7 @@ export function HierarchicalTimeline({
       case "STOP":
         return "hsl(var(--destructive))";
       case "SKIP":
-        return "hsl(var(--sail-orange))";
+        return "hsl(var(--sail-yellow))";
       case "META":
         return "hsl(var(--chart-5))";
       default:
@@ -247,7 +247,7 @@ export function HierarchicalTimeline({
               return (
                 <div
                   key={`skip-segment-${idx}`}
-                  className="absolute top-0 bottom-0 bg-[hsl(var(--sail-purple))]/20 border-l-2 border-r-2 border-[hsl(var(--sail-purple))]/40"
+                  className="absolute top-0 bottom-0 bg-[hsl(var(--sail-yellow))]/20 border-l-2 border-r-2 border-[hsl(var(--sail-yellow))]/40"
                   style={{
                     left: `${displayStartPos}%`,
                     width: `${displayEndPos - displayStartPos}%`,
