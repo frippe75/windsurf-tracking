@@ -38,7 +38,7 @@ export function KeyframeManager({
       case "STOP":
         return "hsl(var(--destructive))";
       case "SKIP":
-        return "hsl(var(--warning))";
+        return "hsl(var(--sail-purple))";
       case "META":
         return "hsl(var(--chart-5))";
       default:
