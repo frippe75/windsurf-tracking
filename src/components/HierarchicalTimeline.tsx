@@ -265,7 +265,7 @@ export function HierarchicalTimeline({
             return (
               <div
                 key={`scene-boundary-${scene.id}`}
-                className="absolute top-0 w-[1px] bg-border/50 z-0"
+                className="absolute top-0 w-[1px] bg-border/30 z-0"
                 style={{ 
                   left: `${boundaryPos}%`,
                   height: 'calc(100% + 12px)'
