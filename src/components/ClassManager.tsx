@@ -88,8 +88,30 @@ export function ClassManager({
     }
   };
 
+  // Check if an annotation is visible on the current frame
+  const isAnnotationVisibleOnFrame = (annotation: Annotation, frame: number): boolean => {
+    // Check if annotation was created on this frame
+    if (annotation.frameCreated === frame) {
+      return true;
+    }
+    
+    // Check if frame is within any tracked ranges
+    if (annotation.trackedFrames) {
+      return annotation.trackedFrames.some(([start, end]) => frame >= start && frame <= end);
+    }
+    
+    return false;
+  };
+
+  // Get instances for a class that are visible on the current frame
   const getInstancesForClass = (classId: string) => {
-    return instances.filter(inst => inst.classId === classId);
+    return instances.filter(inst => {
+      if (inst.classId !== classId) return false;
+      
+      // Check if any annotation for this instance is visible on current frame
+      const instanceAnnotations = annotations.filter(ann => ann.instanceId === inst.id);
+      return instanceAnnotations.some(ann => isAnnotationVisibleOnFrame(ann, currentFrame));
+    });
   };
 
   const getAnnotationsForInstance = (instanceId: string) => {
