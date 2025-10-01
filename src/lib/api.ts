@@ -230,4 +230,184 @@ export const uploadVideo = async (file: File): Promise<VideoUploadResponse> => {
   return await response.json();
 };
 
-// Add more API functions here as needed
+// ============= AI Endpoints =============
+
+// DINO Detection Types
+export interface DINODetectionRequest {
+  video_id: string;
+  frame_number: number;
+  confidence_threshold?: number;
+}
+
+export interface DINODetection {
+  label: string;
+  confidence: number;
+  bbox: { x: number; y: number; w: number; h: number };
+}
+
+export interface DINODetectionResponse {
+  video_id: string;
+  frame_number: number;
+  detections: DINODetection[];
+  model: string;
+  confidence_threshold: number;
+}
+
+// DINO object detection endpoint
+export const detectWithDINO = async (request: DINODetectionRequest): Promise<DINODetectionResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    return {
+      video_id: request.video_id,
+      frame_number: request.frame_number,
+      model: "DINO (mock)",
+      confidence_threshold: request.confidence_threshold || 0.3,
+      detections: [
+        {
+          label: "Sail",
+          confidence: 0.92,
+          bbox: { x: 120, y: 80, w: 200, h: 180 }
+        },
+        {
+          label: "Boat",
+          confidence: 0.87,
+          bbox: { x: 300, y: 200, w: 250, h: 150 }
+        }
+      ]
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/ai/dino/detect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`DINO detection failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// SAM2 Segmentation Types
+export interface SAM2ClickPrompt {
+  x: number;
+  y: number;
+  type: 'positive' | 'negative';
+}
+
+export interface SAM2SegmentationRequest {
+  video_id: string;
+  frame_number: number;
+  click_prompts: SAM2ClickPrompt[];
+}
+
+export interface SAM2SegmentationResponse {
+  video_id: string;
+  frame_number: number;
+  mask: number[][];  // 2D array of mask values
+  points: Array<{ x: number; y: number }>;  // Polygon points
+  bbox: { x: number; y: number; w: number; h: number };
+  model: string;
+}
+
+// SAM2 segmentation endpoint
+export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise<SAM2SegmentationResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Generate mock polygon around click prompts
+    const avgX = request.click_prompts.reduce((sum, p) => sum + p.x, 0) / request.click_prompts.length;
+    const avgY = request.click_prompts.reduce((sum, p) => sum + p.y, 0) / request.click_prompts.length;
+    
+    const points = [];
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      points.push({
+        x: avgX + Math.cos(angle) * 80,
+        y: avgY + Math.sin(angle) * 60
+      });
+    }
+    
+    return {
+      video_id: request.video_id,
+      frame_number: request.frame_number,
+      model: "SAM2 (mock)",
+      mask: [], // Mock empty mask
+      points,
+      bbox: {
+        x: avgX - 80,
+        y: avgY - 60,
+        w: 160,
+        h: 120
+      }
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/ai/sam2/segment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`SAM2 segmentation failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// AI Status Types
+export interface AIModelStatus {
+  name: string;
+  loaded: boolean;
+  memory_mb?: number;
+}
+
+export interface AIStatusResponse {
+  gpu_available: boolean;
+  gpu_memory?: {
+    total_gb: number;
+    allocated_gb: number;
+    available_gb: number;
+    utilization_percent: number;
+  };
+  models: AIModelStatus[];
+}
+
+// AI status endpoint
+export const getAIStatus = async (): Promise<AIStatusResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    return {
+      gpu_available: true,
+      gpu_memory: {
+        total_gb: 24.0,
+        allocated_gb: 8.5,
+        available_gb: 15.5,
+        utilization_percent: 35.4
+      },
+      models: [
+        { name: "DINO", loaded: true, memory_mb: 2048 },
+        { name: "SAM2", loaded: true, memory_mb: 4096 }
+      ]
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/ai/status`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI status check failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
