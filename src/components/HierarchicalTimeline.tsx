@@ -268,7 +268,9 @@ export function HierarchicalTimeline({
                 }}
                 title={`${kf.type} at frame ${kf.frame}`}
               >
-                <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                {kf.type === "META" && (
+                  <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                )}
               </div>
             );
           })}
