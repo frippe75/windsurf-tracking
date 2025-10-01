@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth } from "@/lib/api";
+import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -1166,6 +1167,7 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
             </div>
             <div className="flex items-center gap-2">
+              <BackendSelector />
               <Button variant="outline" size="sm" onClick={handleSaveProject}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Project

@@ -1,0 +1,245 @@
+import { useState, useEffect } from "react";
+import { Check, Settings2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export interface Backend {
+  id: string;
+  name: string;
+  url: string;
+}
+
+const DEFAULT_BACKENDS: Backend[] = [
+  { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
+  { id: "production", name: "Production", url: "https://lablebee.tclab.org" },
+  { id: "custom", name: "Custom", url: "" },
+];
+
+const STORAGE_KEY = "selected-backend";
+const CUSTOM_BACKENDS_KEY = "custom-backends";
+
+export const BackendSelector = () => {
+  const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
+  const [selectedBackend, setSelectedBackend] = useState<Backend | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingBackend, setEditingBackend] = useState<Backend | null>(null);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const storedBackendId = localStorage.getItem(STORAGE_KEY);
+    const storedCustomBackends = localStorage.getItem(CUSTOM_BACKENDS_KEY);
+    
+    let allBackends = [...DEFAULT_BACKENDS];
+    if (storedCustomBackends) {
+      try {
+        const customBackends = JSON.parse(storedCustomBackends);
+        allBackends = [...DEFAULT_BACKENDS, ...customBackends];
+      } catch (e) {
+        console.error("Failed to parse custom backends", e);
+      }
+    }
+    
+    setBackends(allBackends);
+    
+    if (storedBackendId) {
+      const backend = allBackends.find(b => b.id === storedBackendId);
+      if (backend) {
+        setSelectedBackend(backend);
+      }
+    } else {
+      // Default to local
+      setSelectedBackend(DEFAULT_BACKENDS[0]);
+    }
+  }, []);
+
+  // Update config when backend changes
+  useEffect(() => {
+    if (selectedBackend) {
+      // Store in localStorage
+      localStorage.setItem(STORAGE_KEY, selectedBackend.id);
+      
+      // Update the global config by reloading
+      // This is a simple approach - in production you might use a state manager
+      if (typeof window !== 'undefined') {
+        (window as any).__LOVABLE_BACKEND_URL__ = selectedBackend.url;
+      }
+    }
+  }, [selectedBackend]);
+
+  const handleSelectBackend = (backend: Backend) => {
+    setSelectedBackend(backend);
+  };
+
+  const handleEditBackend = (backend: Backend) => {
+    setEditingBackend({ ...backend });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveBackend = () => {
+    if (!editingBackend || !editingBackend.name || !editingBackend.url) {
+      return;
+    }
+
+    const updatedBackends = backends.map(b => 
+      b.id === editingBackend.id ? editingBackend : b
+    );
+
+    // If it's a custom backend (not in defaults), save to localStorage
+    const customBackends = updatedBackends.filter(
+      b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
+    );
+    localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+
+    setBackends(updatedBackends);
+    
+    if (selectedBackend?.id === editingBackend.id) {
+      setSelectedBackend(editingBackend);
+    }
+    
+    setIsEditDialogOpen(false);
+  };
+
+  const handleAddBackend = () => {
+    const newBackend: Backend = {
+      id: `custom-${Date.now()}`,
+      name: "New Backend",
+      url: "http://localhost:8000",
+    };
+    setEditingBackend(newBackend);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveNewBackend = () => {
+    if (!editingBackend || !editingBackend.name || !editingBackend.url) {
+      return;
+    }
+
+    const isNewBackend = !backends.find(b => b.id === editingBackend.id);
+    
+    if (isNewBackend) {
+      const updatedBackends = [...backends, editingBackend];
+      setBackends(updatedBackends);
+      
+      const customBackends = updatedBackends.filter(
+        b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
+      );
+      localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+      
+      setSelectedBackend(editingBackend);
+    } else {
+      handleSaveBackend();
+      return;
+    }
+    
+    setIsEditDialogOpen(false);
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Settings2 className="h-4 w-4 mr-2" />
+            Backend: {selectedBackend?.name || "None"}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56 bg-popover">
+          <DropdownMenuLabel>Select Backend</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {backends.map((backend) => (
+            <DropdownMenuItem
+              key={backend.id}
+              onClick={() => handleSelectBackend(backend)}
+              className="cursor-pointer"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex flex-col">
+                  <span className="font-medium">{backend.name}</span>
+                  <span className="text-xs text-muted-foreground">{backend.url}</span>
+                </div>
+                {selectedBackend?.id === backend.id && (
+                  <Check className="h-4 w-4 ml-2" />
+                )}
+              </div>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleAddBackend} className="cursor-pointer">
+            <Settings2 className="h-4 w-4 mr-2" />
+            Add Custom Backend
+          </DropdownMenuItem>
+          {selectedBackend && (
+            <DropdownMenuItem 
+              onClick={() => handleEditBackend(selectedBackend)}
+              className="cursor-pointer"
+            >
+              <Settings2 className="h-4 w-4 mr-2" />
+              Edit Current
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {backends.find(b => b.id === editingBackend?.id) ? "Edit" : "Add"} Backend
+            </DialogTitle>
+            <DialogDescription>
+              Configure backend URL for API connections
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={editingBackend?.name || ""}
+                onChange={(e) => setEditingBackend(prev => 
+                  prev ? { ...prev, name: e.target.value } : null
+                )}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="url">URL</Label>
+              <Input
+                id="url"
+                value={editingBackend?.url || ""}
+                onChange={(e) => setEditingBackend(prev => 
+                  prev ? { ...prev, url: e.target.value } : null
+                )}
+                placeholder="http://localhost:8000"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveNewBackend}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
