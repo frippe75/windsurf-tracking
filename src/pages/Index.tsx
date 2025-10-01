@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
+import { detectObjects } from "@/lib/api";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -837,18 +838,7 @@ const Index = () => {
         description: "Running SAM2 detection",
       });
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/detect-objects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          frameWidth: 1920,
-          frameHeight: 1080,
-        }),
-      });
-
-      const { detections } = await response.json();
+      const { detections } = await detectObjects(1920, 1080);
 
       // Create classes for each detected object
       const newClasses: Class[] = [];
