@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -39,6 +41,7 @@ export function ScenesManager({
   isGenerating = false,
 }: ScenesManagerProps) {
   const { toast } = useToast();
+  const [filter, setFilter] = useState<string>("all");
 
   const handleSceneClick = (scene: Scene) => {
     onSceneSelect(scene);
@@ -71,6 +74,26 @@ export function ScenesManager({
     return currentFrame >= scene.startFrame && currentFrame <= scene.endFrame;
   };
 
+  const filteredScenes = scenes.filter((scene) => {
+    switch (filter) {
+      case "approved":
+        return scene.quality === "good";
+      case "active":
+        return scene.quality !== "bad"; // good or unknown
+      case "rejected":
+        return scene.quality === "bad";
+      case "pending":
+        return scene.quality === "unknown";
+      case "with-metadata":
+        return scene.metadata && Object.keys(scene.metadata).length > 0;
+      case "without-metadata":
+        return !scene.metadata || Object.keys(scene.metadata).length === 0;
+      case "all":
+      default:
+        return true;
+    }
+  });
+
   return (
     <Card className="p-4 bg-card border-border h-full flex flex-col max-h-[600px]">
       <div className="space-y-2 mb-4">
@@ -96,6 +119,25 @@ export function ScenesManager({
           <Sparkles className="h-4 w-4 mr-2" />
           {isGenerating ? "Generating..." : "Generate Metadata"}
         </Button>
+        
+        {/* Filter Dropdown */}
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Filter scenes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Scenes</SelectItem>
+              <SelectItem value="approved">Approved Only</SelectItem>
+              <SelectItem value="active">Active Scenes</SelectItem>
+              <SelectItem value="pending">Pending Review</SelectItem>
+              <SelectItem value="rejected">Rejected Only</SelectItem>
+              <SelectItem value="with-metadata">With Metadata</SelectItem>
+              <SelectItem value="without-metadata">Without Metadata</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
@@ -125,8 +167,13 @@ export function ScenesManager({
               <Scan className="h-6 w-6 mx-auto mb-2 opacity-50" />
               <p className="text-xs">No scenes detected yet.</p>
             </div>
+          ) : filteredScenes.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground ml-4">
+              <Filter className="h-6 w-6 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">No scenes match the current filter.</p>
+            </div>
           ) : (
-            scenes.map((scene, index) => {
+            filteredScenes.map((scene, index) => {
               const isBad = scene.quality === "bad";
               return (
                 <div
