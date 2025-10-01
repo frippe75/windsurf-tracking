@@ -74,27 +74,43 @@ const Index = () => {
     ? [selectedScene.startFrame, selectedScene.endFrame]
     : [0, totalFrames];
 
-  // Check backend health on mount
+  // Check backend health periodically
   useEffect(() => {
     const checkHealth = async () => {
       const health = await checkBackendHealth();
-      if (health && health.status === "healthy") {
-        setBackendStatus("healthy");
-        toast({
-          title: "Backend connected",
-          description: `${health.message} v${health.version}`,
-        });
-      } else {
-        setBackendStatus("offline");
-        toast({
-          title: "Backend offline",
-          description: "Running in offline mode. Upload and scene detection unavailable.",
-          variant: "destructive",
-        });
-      }
+      const newStatus = health && health.status === "healthy" ? "healthy" : "offline";
+      
+      // Only show toast if status changed
+      setBackendStatus((prevStatus) => {
+        if (prevStatus !== "checking" && prevStatus !== newStatus) {
+          toast({
+            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+            description: newStatus === "healthy" 
+              ? `${health!.message} v${health!.version}`
+              : "Upload and scene detection unavailable.",
+            variant: newStatus === "healthy" ? "default" : "destructive",
+          });
+        } else if (prevStatus === "checking") {
+          // First check - always show status
+          toast({
+            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+            description: newStatus === "healthy" 
+              ? `${health!.message} v${health!.version}`
+              : "Running in offline mode.",
+            variant: newStatus === "healthy" ? "default" : "destructive",
+          });
+        }
+        return newStatus;
+      });
     };
     
+    // Initial check
     checkHealth();
+    
+    // Check every 30 seconds
+    const interval = setInterval(checkHealth, 30000);
+    
+    return () => clearInterval(interval);
   }, [toast]);
 
   // Auto-create tracking jobs from START->STOP keyframe pairs
