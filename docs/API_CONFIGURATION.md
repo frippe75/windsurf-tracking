@@ -42,22 +42,40 @@ The app will call the actual Supabase edge functions.
    VITE_USE_MOCK_API=true
    ```
 
-   **Option B: Local Supabase**
+   **Option B: Local FastAPI Development**
    ```env
    VITE_USE_MOCK_API=false
-   VITE_SUPABASE_URL=http://localhost:54321
+   # VITE_BACKEND_URL defaults to http://localhost:8000
    ```
 
-   **Option C: Production Supabase**
+   **Option C: Custom Backend URL**
    ```env
    VITE_USE_MOCK_API=false
-   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_BACKEND_URL=http://localhost:8000
+   # Or production:
+   # VITE_BACKEND_URL=https://lablebee.tclab.org
    ```
 
 4. **Start development**
    ```bash
    npm run dev
    ```
+
+## Backend Environments
+
+The app automatically detects the correct backend URL:
+
+- **Mock Mode**: Uses client-side mock data (no backend needed)
+- **Development**: `http://localhost:8000` (FastAPI default)
+- **Production**: `https://lablebee.tclab.org`
+- **Custom**: Set `VITE_BACKEND_URL` to override
+
+### Backend URLs by Feature
+
+| Feature | Endpoint | Backend |
+|---------|----------|---------|
+| Object Detection | `/functions/v1/detect-objects` | Supabase Edge Functions |
+| Scene Detection | `/api/videos/{id}/scenes/detect` | FastAPI Backend |
 
 ## Adding New API Endpoints
 

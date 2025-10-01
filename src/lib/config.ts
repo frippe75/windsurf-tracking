@@ -6,6 +6,11 @@ export const config = {
   // Base URL for Supabase functions
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321',
   
-  // Local backend URL (when developing locally)
-  localBackendUrl: import.meta.env.VITE_LOCAL_BACKEND_URL || 'http://localhost:3000',
+  // FastAPI Backend URL
+  // Priority: VITE_BACKEND_URL > defaults based on environment
+  backendUrl: import.meta.env.VITE_BACKEND_URL || 
+    (import.meta.env.PROD 
+      ? 'https://lablebee.tclab.org'  // Production
+      : 'http://localhost:8000'        // Local development
+    ),
 };

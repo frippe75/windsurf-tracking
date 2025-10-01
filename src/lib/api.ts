@@ -69,5 +69,96 @@ export const detectObjects = async (frameWidth: number, frameHeight: number) => 
   return await response.json();
 };
 
+// Scene Detection Types
+export interface Scene {
+  scene_id: number;
+  start_frame: number;
+  end_frame: number;
+  start_time: number;
+  end_time: number;
+  duration: number;
+  quality: string;
+}
+
+export interface SceneDetectionResponse {
+  video_id: string;
+  total_scenes: number;
+  detection_method: string;
+  threshold: number;
+  scenes: Scene[];
+}
+
+// Mock scene detection generator
+const generateMockScenes = (videoId: string): SceneDetectionResponse => {
+  const mockScenes: Scene[] = [
+    {
+      scene_id: 1,
+      start_frame: 0,
+      end_frame: 336,
+      start_time: 0.0,
+      end_time: 14.014,
+      duration: 14.014,
+      quality: "unknown"
+    },
+    {
+      scene_id: 2,
+      start_frame: 336,
+      end_frame: 1968,
+      start_time: 14.014,
+      end_time: 82.082,
+      duration: 68.068,
+      quality: "unknown"
+    },
+    {
+      scene_id: 3,
+      start_frame: 1968,
+      end_frame: 2544,
+      start_time: 82.082,
+      end_time: 106.106,
+      duration: 24.024,
+      quality: "unknown"
+    },
+    {
+      scene_id: 4,
+      start_frame: 2544,
+      end_frame: 3120,
+      start_time: 106.106,
+      end_time: 130.13,
+      duration: 24.024,
+      quality: "unknown"
+    }
+  ];
+
+  return {
+    video_id: videoId,
+    total_scenes: mockScenes.length,
+    detection_method: "Mock PySceneDetect ContentDetector",
+    threshold: 30.0,
+    scenes: mockScenes
+  };
+};
+
+// Scene detection endpoint
+export const detectScenes = async (videoId: string): Promise<SceneDetectionResponse> => {
+  if (config.useMockApi) {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return generateMockScenes(videoId);
+  }
+
+  // Real API call to FastAPI backend
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/scenes/detect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Scene detection failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Add more API functions here as needed
-// export const anotherEndpoint = async (...) => { ... }
