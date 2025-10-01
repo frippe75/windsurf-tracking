@@ -53,20 +53,10 @@ export const detectObjects = async (frameWidth: number, frameHeight: number) => 
     return generateMockDetections(frameWidth, frameHeight);
   }
 
-  // Real API call
-  const response = await fetch(`${config.supabaseUrl}/functions/v1/detect-objects`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ frameWidth, frameHeight }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Detection failed: ${response.statusText}`);
-  }
-
-  return await response.json();
+  // Real API call - FastAPI (not configured yet)
+  throw new Error(
+    'Object detection endpoint is not configured. Please implement it on FastAPI and update detectObjects in src/lib/api.ts.'
+  );
 };
 
 // Scene Detection Types

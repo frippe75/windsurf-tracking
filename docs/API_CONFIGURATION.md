@@ -20,7 +20,7 @@ For production or when developing with a real backend:
 VITE_USE_MOCK_API=false
 ```
 
-The app will call the actual Supabase edge functions.
+The app will call the FastAPI backend.
 
 ## Local Development Setup
 
@@ -74,7 +74,7 @@ The app automatically detects the correct backend URL:
 
 | Feature | Endpoint | Backend |
 |---------|----------|---------|
-| Object Detection | `/functions/v1/detect-objects` | Supabase Edge Functions |
+| Object Detection | TBD - needs implementation | FastAPI Backend |
 | Scene Detection | `/api/videos/{id}/scenes/detect` | FastAPI Backend |
 
 ## Adding New API Endpoints
@@ -90,7 +90,7 @@ export const yourNewEndpoint = async (params: any) => {
   }
 
   // Real API call
-  const response = await fetch(`${config.supabaseUrl}/functions/v1/your-endpoint`, {
+  const response = await fetch(`${config.backendUrl}/api/your-endpoint`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
