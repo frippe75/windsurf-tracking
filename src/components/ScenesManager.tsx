@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles } from "lucide-react";
+import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -21,7 +21,7 @@ interface ScenesManagerProps {
   onDetectScenes: () => void;
   onSceneSelect: (scene: Scene | null) => void;
   onSceneQualityChange: (sceneId: string, quality: "good" | "bad" | "unknown") => void;
-  onGenerateMetadata: (sceneId: string) => void;
+  onGenerateMetadata: () => void;
   isDetecting?: boolean;
 }
 
@@ -71,16 +71,27 @@ export function ScenesManager({
 
   return (
     <Card className="p-4 bg-card border-border h-full flex flex-col max-h-[600px]">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold">Scene Detection</h3>
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Scene Detection</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDetectScenes}
+            disabled={isDetecting}
+          >
+            <Scan className="h-4 w-4 mr-2" />
+            {isDetecting ? "Detecting..." : "Detect Scenes"}
+          </Button>
+        </div>
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
-          onClick={onDetectScenes}
-          disabled={isDetecting}
+          className="w-full"
+          onClick={onGenerateMetadata}
         >
-          <Scan className="h-4 w-4 mr-2" />
-          {isDetecting ? "Detecting..." : "Detect Scenes"}
+          <Sparkles className="h-4 w-4 mr-2" />
+          Generate Metadata
         </Button>
       </div>
 
@@ -127,9 +138,14 @@ export function ScenesManager({
                   onClick={() => !isBad && handleSceneClick(scene)}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary" className="text-xs">
-                      Scene {index + 1}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        Scene {index + 1}
+                      </Badge>
+                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                        <Database className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
+                      )}
+                    </div>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
@@ -160,18 +176,6 @@ export function ScenesManager({
                       <div className="text-xs text-muted-foreground mb-2">
                         {scene.endFrame - scene.startFrame + 1} frames
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full h-7 text-xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onGenerateMetadata(scene.id);
-                        }}
-                      >
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        Generate Metadata
-                      </Button>
                       {scene.metadata && Object.keys(scene.metadata).length > 0 && (
                         <div className="mt-2 p-2 bg-muted/40 rounded text-xs space-y-1">
                           {Object.entries(scene.metadata).slice(0, 2).map(([key, value]) => (

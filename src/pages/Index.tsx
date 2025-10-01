@@ -56,6 +56,7 @@ const Index = () => {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(false);
+  const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -332,14 +333,17 @@ const Index = () => {
     );
   };
 
-  const handleGenerateMetadata = async (sceneId: string) => {
+  const handleGenerateMetadata = async () => {
     toast({
       title: "Generating metadata",
-      description: "AI is analyzing the scene...",
+      description: "AI is analyzing the entire video hierarchically...",
     });
-    // TODO: Call edge function with META keyframe frames or sampled frames
+    // TODO: Call edge function to process entire video hierarchically:
+    // 1. Video-level metadata (overview, conditions, etc.)
+    // 2. Scene-level metadata (for each detected scene)
+    // 3. Frame-level metadata (for META keyframes)
     // For now, just a placeholder
-    console.log("Generate metadata for scene:", sceneId);
+    console.log("Generate metadata for entire video");
   };
 
   // Mock SAM2 segmentation - simulates backend call

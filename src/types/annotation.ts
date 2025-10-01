@@ -30,6 +30,7 @@ export interface Keyframe {
   frame: number;
   type: "START" | "STOP" | "SKIP" | "META";
   timestamp: string;
+  metadata?: Record<string, string>; // Frame-level metadata for META keyframes
 }
 
 export interface Scene {
