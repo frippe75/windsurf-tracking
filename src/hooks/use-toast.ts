@@ -5,6 +5,18 @@ import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
 
+// Calculate context-aware duration based on message length
+function calculateToastDuration(title?: React.ReactNode, description?: React.ReactNode): number {
+  const titleLength = typeof title === 'string' ? title.length : 0;
+  const descLength = typeof description === 'string' ? description.length : 0;
+  const totalLength = titleLength + descLength;
+  
+  // Base duration: 2 seconds
+  // Add 30ms per character, with min 2s and max 6s
+  const duration = Math.min(6000, Math.max(2000, 2000 + (totalLength * 30)));
+  return duration;
+}
+
 type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
@@ -155,6 +167,12 @@ function toast({ ...props }: Toast) {
       },
     },
   });
+
+  // Auto-dismiss after context-aware duration
+  const duration = calculateToastDuration(props.title, props.description);
+  setTimeout(() => {
+    dismiss();
+  }, duration);
 
   return {
     id: id,
