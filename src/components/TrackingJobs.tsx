@@ -26,7 +26,7 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
       case "processing":
         return <Loader2 className="h-3 w-3 animate-spin" />;
       case "completed":
-        return <CheckCircle2 className="h-3 w-3" />;
+        return <CheckCircle2 className="h-3 w-3 text-[hsl(var(--sail-green))]" />;
       case "failed":
         return <XCircle className="h-3 w-3" />;
     }
