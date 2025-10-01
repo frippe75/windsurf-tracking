@@ -8,6 +8,7 @@ import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
 import { MetadataEditor } from "@/components/MetadataEditor";
+import { MetadataModal } from "@/components/MetadataModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -58,6 +59,11 @@ const Index = () => {
   const [maximizeVideo, setMaximizeVideo] = useState(false);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
+  const [metadataModal, setMetadataModal] = useState<{
+    isOpen: boolean;
+    frame?: number;
+    initialText?: string;
+  }>({ isOpen: false });
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -409,6 +415,25 @@ const Index = () => {
       title: "Metadata cleared",
       description: `Frame ${frame} metadata removed`,
     });
+  };
+
+  const handleAddMetadata = (frame: number) => {
+    setMetadataModal({ isOpen: true, frame, initialText: "" });
+  };
+
+  const handleSaveMetadata = (text: string) => {
+    if (metadataModal.frame !== undefined) {
+      setKeyframes(prev => prev.map(kf => 
+        kf.frame === metadataModal.frame && kf.type === "META" 
+          ? { ...kf, metadata: { description: text } } 
+          : kf
+      ));
+      toast({
+        title: "Metadata saved",
+        description: `Frame ${metadataModal.frame} metadata added`,
+      });
+    }
+    setMetadataModal({ isOpen: false });
   };
 
   // Mock SAM2 segmentation - simulates backend call
@@ -1242,9 +1267,17 @@ const Index = () => {
           onStartTracking={handleStartTracking}
           onDeletePrompt={handleDeletePrompt}
           onClearMetadata={handleClearMetadata}
+          onAddMetadata={handleAddMetadata}
           keyframes={keyframes}
         />
       )}
+      <MetadataModal
+        isOpen={metadataModal.isOpen}
+        onClose={() => setMetadataModal({ isOpen: false })}
+        onSave={handleSaveMetadata}
+        initialText={metadataModal.initialText || ""}
+        frame={metadataModal.frame}
+      />
     </div>
   );
 };

@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Database } from "lucide-react";
+import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -146,7 +146,7 @@ export function ScenesManager({
                         Scene {index + 1}
                       </Badge>
                       {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <Database className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
+                        <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
                       )}
                     </div>
                     <div className="flex gap-1">
@@ -175,26 +175,9 @@ export function ScenesManager({
                     </div>
                   </div>
                   {!isBad && (
-                    <>
-                      <div className="text-xs text-muted-foreground mb-2">
-                        {scene.endFrame - scene.startFrame + 1} frames
-                      </div>
-                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <div className="mt-2 p-2 bg-muted/40 rounded text-xs space-y-1">
-                          {Object.entries(scene.metadata).slice(0, 2).map(([key, value]) => (
-                            <div key={key} className="flex gap-1">
-                              <span className="font-medium">{key}:</span>
-                              <span className="text-muted-foreground truncate">{value}</span>
-                            </div>
-                          ))}
-                          {Object.keys(scene.metadata).length > 2 && (
-                            <div className="text-muted-foreground italic">
-                              +{Object.keys(scene.metadata).length - 2} more
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
+                    <div className="text-xs text-muted-foreground">
+                      {scene.endFrame - scene.startFrame + 1} frames
+                    </div>
                   )}
                 </div>
               );

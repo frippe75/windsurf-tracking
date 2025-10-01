@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Flag, StopCircle, X as SkipIcon, Play, Eraser } from "lucide-react";
+import { Trash2, Flag, StopCircle, X as SkipIcon, Play, Eraser, Plus } from "lucide-react";
 
 interface Keyframe {
   frame: number;
@@ -29,6 +29,7 @@ interface ContextMenuProps {
   onStartTracking?: (annotationId: string) => void;
   onDeletePrompt?: (annotationId: string, promptIndex: number) => void;
   onClearMetadata?: (frame: number) => void;
+  onAddMetadata?: (frame: number) => void;
   keyframes?: Keyframe[];
 }
 
@@ -43,6 +44,7 @@ export function ContextMenu({
   onStartTracking,
   onDeletePrompt,
   onClearMetadata,
+  onAddMetadata,
   keyframes = [],
 }: ContextMenuProps) {
   const [position, setPosition] = useState({ x, y });
@@ -103,19 +105,37 @@ export function ContextMenu({
             {context.keyframeType === "META" && (() => {
               const keyframe = keyframes.find(kf => kf.frame === context.frame && kf.type === "META");
               const hasMetadata = keyframe?.metadata && Object.keys(keyframe.metadata).length > 0;
-              return hasMetadata && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    onClearMetadata?.(context.frame!);
-                    onClose();
-                  }}
-                >
-                  <Eraser className="h-4 w-4 mr-2" />
-                  Clear metadata
-                </Button>
+              return (
+                <>
+                  {!hasMetadata && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        onAddMetadata?.(context.frame!);
+                        onClose();
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add metadata
+                    </Button>
+                  )}
+                  {hasMetadata && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        onClearMetadata?.(context.frame!);
+                        onClose();
+                      }}
+                    >
+                      <Eraser className="h-4 w-4 mr-2" />
+                      Clear metadata
+                    </Button>
+                  )}
+                </>
               );
             })()}
             <Button
