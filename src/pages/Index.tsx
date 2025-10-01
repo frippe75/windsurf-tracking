@@ -290,30 +290,31 @@ const Index = () => {
         title: "Video loaded",
         description: "Ready to annotate",
       });
-      // Auto-detect scenes on load (mock implementation)
-      setTimeout(() => handleDetectScenes(), 1000);
+      // Scene detection will be triggered after video metadata loads
     }
   };
 
-  const handleDetectScenes = () => {
+  const handleDetectScenes = (framesToUse?: number) => {
     setIsDetectingScenes(true);
+    
+    const actualTotalFrames = framesToUse ?? totalFrames;
     
     // Mock scene detection - splits video into 3-5 realistic scenes based on video length
     setTimeout(() => {
-      const numScenes = Math.min(5, Math.max(3, Math.floor(totalFrames / 50)));
+      const numScenes = Math.min(5, Math.max(3, Math.floor(actualTotalFrames / 50)));
       const mockScenes: Scene[] = [];
-      const avgSceneLength = Math.floor(totalFrames / numScenes);
+      const avgSceneLength = Math.floor(actualTotalFrames / numScenes);
       
       for (let i = 0; i < numScenes; i++) {
         const startFrame = i === 0 ? 0 : mockScenes[i - 1].endFrame + 1;
         const endFrame = i === numScenes - 1 
-          ? totalFrames - 1 
+          ? actualTotalFrames - 1 
           : startFrame + avgSceneLength + Math.floor(Math.random() * 20 - 10); // Add slight variation
         
         mockScenes.push({
           id: `scene-${i + 1}`,
           startFrame,
-          endFrame: Math.min(endFrame, totalFrames - 1),
+          endFrame: Math.min(endFrame, actualTotalFrames - 1),
           quality: "unknown"
         });
       }
@@ -1189,6 +1190,8 @@ const Index = () => {
                     title: "Video loaded",
                     description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
                   });
+                  // Auto-detect scenes after metadata is loaded, passing actual frame count
+                  setTimeout(() => handleDetectScenes(metadata.totalFrames), 500);
                 }}
                 onCanvasClick={handleCanvasClick}
                 classes={classes}
