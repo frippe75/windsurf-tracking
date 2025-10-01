@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Flag, StopCircle, X as SkipIcon, Play } from "lucide-react";
+import { Trash2, Flag, StopCircle, X as SkipIcon, Play, Eraser } from "lucide-react";
+
+interface Keyframe {
+  frame: number;
+  type: "START" | "STOP" | "SKIP" | "META";
+  timestamp: string;
+  metadata?: Record<string, string>;
+}
 
 interface ContextMenuProps {
   x: number;
@@ -11,7 +18,7 @@ interface ContextMenuProps {
     type: "annotation" | "keyframe" | "empty" | "prompt";
     id?: string;
     frame?: number;
-    keyframeType?: "START" | "STOP" | "SKIP";
+    keyframeType?: "START" | "STOP" | "SKIP" | "META";
     annotationId?: string;
     promptIndex?: number;
     promptType?: "positive" | "negative";
@@ -21,6 +28,8 @@ interface ContextMenuProps {
   onAddKeyframe?: (type: "START" | "STOP" | "SKIP") => void;
   onStartTracking?: (annotationId: string) => void;
   onDeletePrompt?: (annotationId: string, promptIndex: number) => void;
+  onClearMetadata?: (frame: number) => void;
+  keyframes?: Keyframe[];
 }
 
 export function ContextMenu({
@@ -33,6 +42,8 @@ export function ContextMenu({
   onAddKeyframe,
   onStartTracking,
   onDeletePrompt,
+  onClearMetadata,
+  keyframes = [],
 }: ContextMenuProps) {
   const [position, setPosition] = useState({ x, y });
 
@@ -89,6 +100,24 @@ export function ContextMenu({
 
         {context.type === "keyframe" && context.frame !== undefined && (
           <div className="space-y-1">
+            {context.keyframeType === "META" && (() => {
+              const keyframe = keyframes.find(kf => kf.frame === context.frame && kf.type === "META");
+              const hasMetadata = keyframe?.metadata && Object.keys(keyframe.metadata).length > 0;
+              return hasMetadata && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    onClearMetadata?.(context.frame!);
+                    onClose();
+                  }}
+                >
+                  <Eraser className="h-4 w-4 mr-2" />
+                  Clear metadata
+                </Button>
+              );
+            })()}
             <Button
               variant="ghost"
               size="sm"

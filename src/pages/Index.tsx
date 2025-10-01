@@ -57,6 +57,7 @@ const Index = () => {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(false);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -334,16 +335,80 @@ const Index = () => {
   };
 
   const handleGenerateMetadata = async () => {
+    setIsGeneratingMetadata(true);
     toast({
       title: "Generating metadata",
       description: "AI is analyzing the entire video hierarchically...",
     });
-    // TODO: Call edge function to process entire video hierarchically:
-    // 1. Video-level metadata (overview, conditions, etc.)
-    // 2. Scene-level metadata (for each detected scene)
-    // 3. Frame-level metadata (for META keyframes)
-    // For now, just a placeholder
-    console.log("Generate metadata for entire video");
+
+    // Simulate AI processing delay (your local backend would do the actual processing)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Mock metadata generation - replace this with your local backend call
+    // Your backend should return: { videoMetadata, sceneMetadata, keyframeMetadata }
+    
+    // 1. Video-level metadata
+    const mockVideoMetadata: Record<string, string> = {
+      "Wind Conditions": "15-20 knots, gusty",
+      "Location": "Maui, Kanaha Beach",
+      "Time of Day": "Morning session",
+      "Water Conditions": "Choppy with 1-2m waves",
+      "Overall Quality": "Good sailing conditions",
+    };
+
+    // 2. Scene-level metadata (for each scene)
+    const mockSceneMetadata: Record<string, Record<string, string>> = {};
+    scenes.forEach((scene, idx) => {
+      if (scene.quality !== "bad") {
+        mockSceneMetadata[scene.id] = {
+          "Action": ["Cruising", "Jump attempt", "Speed run", "Freestyle", "Wave riding"][idx % 5],
+          "Intensity": ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
+          "Notable Events": `Key moment at frame ${scene.startFrame + Math.floor((scene.endFrame - scene.startFrame) / 2)}`,
+        };
+      }
+    });
+
+    // 3. Frame-level metadata (for META keyframes only)
+    const mockKeyframeMetadata: Record<number, Record<string, string>> = {};
+    keyframes.forEach(kf => {
+      if (kf.type === "META") {
+        mockKeyframeMetadata[kf.frame] = {
+          "Trick": ["Forward Loop", "Backloop", "Vulcan", "Shaka", "Pushloop"][Math.floor(Math.random() * 5)],
+          "Height": `${Math.floor(Math.random() * 5) + 1}m`,
+          "Rotation": ["360°", "540°", "720°"][Math.floor(Math.random() * 3)],
+          "Landing": ["Clean", "Partial", "Crashed"][Math.floor(Math.random() * 3)],
+        };
+      }
+    });
+
+    // Update all metadata states
+    setVideoMetadata(mockVideoMetadata);
+    
+    setScenes(prev => prev.map(scene => ({
+      ...scene,
+      metadata: mockSceneMetadata[scene.id] || scene.metadata,
+    })));
+
+    setKeyframes(prev => prev.map(kf => ({
+      ...kf,
+      metadata: kf.type === "META" ? mockKeyframeMetadata[kf.frame] || kf.metadata : kf.metadata,
+    })));
+
+    setIsGeneratingMetadata(false);
+    toast({
+      title: "Metadata generated",
+      description: `Generated metadata for video, ${Object.keys(mockSceneMetadata).length} scenes, and ${Object.keys(mockKeyframeMetadata).length} META keyframes`,
+    });
+  };
+
+  const handleClearMetadata = (frame: number) => {
+    setKeyframes(prev => prev.map(kf => 
+      kf.frame === frame && kf.type === "META" ? { ...kf, metadata: undefined } : kf
+    ));
+    toast({
+      title: "Metadata cleared",
+      description: `Frame ${frame} metadata removed`,
+    });
   };
 
   // Mock SAM2 segmentation - simulates backend call
@@ -1144,6 +1209,7 @@ const Index = () => {
                     onSceneQualityChange={handleSceneQualityChange}
                     onGenerateMetadata={handleGenerateMetadata}
                     isDetecting={isDetectingScenes}
+                    isGenerating={isGeneratingMetadata}
                   />
                 </TabsContent>
                 <TabsContent value="tracking" className="mt-4 space-y-4">
@@ -1175,6 +1241,8 @@ const Index = () => {
           onAddKeyframe={handleAddKeyframe}
           onStartTracking={handleStartTracking}
           onDeletePrompt={handleDeletePrompt}
+          onClearMetadata={handleClearMetadata}
+          keyframes={keyframes}
         />
       )}
     </div>

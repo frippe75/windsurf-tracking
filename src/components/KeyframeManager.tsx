@@ -1,12 +1,19 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, StopCircle, X, Trash2, BarChart3 } from "lucide-react";
+import { Flag, StopCircle, X, Trash2, BarChart3, Database } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Keyframe {
   frame: number;
   type: "START" | "STOP" | "SKIP" | "META";
   timestamp: string;
+  metadata?: Record<string, string>;
 }
 
 interface KeyframeManagerProps {
@@ -44,7 +51,8 @@ export function KeyframeManager({
     type: "START" | "STOP" | "SKIP" | "META";
     frames: number[];
     displayText: string;
-    ranges?: Array<{ text: string; frames: number[] }>; // For SKIP pills
+    ranges?: Array<{ text: string; frames: number[]; metadata?: Record<string, string> }>; // For SKIP/META pills
+    hasMetadata?: boolean;
   }> = [];
 
   // Helper to convert range text to frames
@@ -195,9 +203,11 @@ export function KeyframeManager({
 
   // Collect and group META keyframes
   const metaFrames: number[] = [];
+  const metaKeyframeMap = new Map<number, Keyframe>();
   sortedKeyframes.forEach(kf => {
     if (kf.type === "META") {
       metaFrames.push(kf.frame);
+      metaKeyframeMap.set(kf.frame, kf);
     }
   });
   
@@ -217,17 +227,27 @@ export function KeyframeManager({
     }
     ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
     
-    // Create ranges array with frame mapping
-    const rangesWithFrames = ranges.map(rangeText => ({
-      text: rangeText,
-      frames: rangeToFrames(rangeText),
-    }));
+    // Create ranges array with frame mapping and metadata
+    const rangesWithFrames = ranges.map(rangeText => {
+      const frames = rangeToFrames(rangeText);
+      // Get metadata from first frame in range (if it's a single frame, that frame; if range, first frame)
+      const metadata = metaKeyframeMap.get(frames[0])?.metadata;
+      return {
+        text: rangeText,
+        frames,
+        metadata,
+      };
+    });
+    
+    // Check if any META keyframe has metadata
+    const hasMetadata = Array.from(metaKeyframeMap.values()).some(kf => kf.metadata && Object.keys(kf.metadata).length > 0);
     
     groupedKeyframes.push({
       type: "META",
       frames: metaFrames,
       displayText: ranges.join(", "),
       ranges: rangesWithFrames,
+      hasMetadata,
     });
   }
 
@@ -305,21 +325,41 @@ export function KeyframeManager({
                     {/* Pills for all types */}
                     <div className="flex flex-wrap gap-1">
                       {(group.type === "SKIP" || group.type === "META") && group.ranges ? (
-                        group.ranges.map((range, rangeIdx) => (
-                          <div
-                            key={rangeIdx}
-                            className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-0 group-hover:gap-1 text-foreground hover:bg-muted/80 transition-all"
-                          >
-                            <span>{range.text}</span>
-                            <button
-                              onClick={() => handleDeleteGroup(range.frames)}
-                              className="w-0 opacity-0 group-hover:w-3 group-hover:opacity-100 transition-all hover:text-destructive overflow-hidden flex items-center justify-center"
-                              title={`Delete frames ${range.text}`}
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        ))
+                        group.ranges.map((range, rangeIdx) => {
+                          const hasMetadata = range.metadata && Object.keys(range.metadata).length > 0;
+                          return (
+                            <TooltipProvider key={rangeIdx}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="group h-5 px-2 group-hover:pl-2 group-hover:pr-1 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center gap-1 text-foreground hover:bg-muted/80 transition-all">
+                                    {hasMetadata && group.type === "META" && (
+                                      <Database className="h-2.5 w-2.5 text-[hsl(var(--sail-purple))]" />
+                                    )}
+                                    <span>{range.text}</span>
+                                    <button
+                                      onClick={() => handleDeleteGroup(range.frames)}
+                                      className="w-0 opacity-0 group-hover:w-3 group-hover:opacity-100 transition-all hover:text-destructive overflow-hidden flex items-center justify-center"
+                                      title={`Delete frames ${range.text}`}
+                                    >
+                                      <X className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                </TooltipTrigger>
+                                {hasMetadata && (
+                                  <TooltipContent>
+                                    <div className="text-xs space-y-1">
+                                      {Object.entries(range.metadata!).map(([key, value]) => (
+                                        <div key={key}>
+                                          <span className="font-medium">{key}:</span> {value}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })
                       ) : (
                         <div className="h-5 px-2 text-[10px] font-medium rounded-full bg-muted border border-border flex items-center text-foreground">
                           <span>{group.displayText}</span>

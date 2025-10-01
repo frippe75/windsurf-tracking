@@ -23,6 +23,7 @@ interface ScenesManagerProps {
   onSceneQualityChange: (sceneId: string, quality: "good" | "bad" | "unknown") => void;
   onGenerateMetadata: () => void;
   isDetecting?: boolean;
+  isGenerating?: boolean;
 }
 
 export function ScenesManager({
@@ -35,6 +36,7 @@ export function ScenesManager({
   onSceneQualityChange,
   onGenerateMetadata,
   isDetecting = false,
+  isGenerating = false,
 }: ScenesManagerProps) {
   const { toast } = useToast();
 
@@ -89,9 +91,10 @@ export function ScenesManager({
           size="sm"
           className="w-full"
           onClick={onGenerateMetadata}
+          disabled={isGenerating}
         >
           <Sparkles className="h-4 w-4 mr-2" />
-          Generate Metadata
+          {isGenerating ? "Generating..." : "Generate Metadata"}
         </Button>
       </div>
 
