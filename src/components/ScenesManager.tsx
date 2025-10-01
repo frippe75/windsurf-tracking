@@ -98,8 +98,7 @@ export function ScenesManager({
               <Badge variant="secondary" className="text-xs">Full Video</Badge>
             </div>
             <div className="text-xs text-muted-foreground">
-              Frames 0 - {totalFrames}
-              <span className="ml-2">({totalFrames} frames)</span>
+              {totalFrames} frames
             </div>
           </div>
 
@@ -155,8 +154,7 @@ export function ScenesManager({
                   </div>
                   {!isBad && (
                     <div className="text-xs text-muted-foreground">
-                      Frames {scene.startFrame} - {scene.endFrame}
-                      <span className="ml-2">({scene.endFrame - scene.startFrame + 1} frames)</span>
+                      {scene.endFrame - scene.startFrame + 1} frames
                     </div>
                   )}
                 </div>
