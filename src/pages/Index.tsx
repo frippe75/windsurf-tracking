@@ -298,15 +298,25 @@ const Index = () => {
   const handleDetectScenes = () => {
     setIsDetectingScenes(true);
     
-    // Mock scene detection - in real version, this would use PySceneDetect
+    // Mock scene detection - splits video into 3-5 realistic scenes based on video length
     setTimeout(() => {
-      const mockScenes: Scene[] = [
-        { id: "scene-1", startFrame: 0, endFrame: 450, quality: "unknown" },
-        { id: "scene-2", startFrame: 451, endFrame: 920, quality: "unknown" },
-        { id: "scene-3", startFrame: 921, endFrame: 1580, quality: "unknown" },
-        { id: "scene-4", startFrame: 1581, endFrame: 2100, quality: "unknown" },
-        { id: "scene-5", startFrame: 2101, endFrame: 3000, quality: "unknown" },
-      ];
+      const numScenes = Math.min(5, Math.max(3, Math.floor(totalFrames / 50)));
+      const mockScenes: Scene[] = [];
+      const avgSceneLength = Math.floor(totalFrames / numScenes);
+      
+      for (let i = 0; i < numScenes; i++) {
+        const startFrame = i === 0 ? 0 : mockScenes[i - 1].endFrame + 1;
+        const endFrame = i === numScenes - 1 
+          ? totalFrames - 1 
+          : startFrame + avgSceneLength + Math.floor(Math.random() * 20 - 10); // Add slight variation
+        
+        mockScenes.push({
+          id: `scene-${i + 1}`,
+          startFrame,
+          endFrame: Math.min(endFrame, totalFrames - 1),
+          quality: "unknown"
+        });
+      }
       
       setScenes(mockScenes);
       setIsDetectingScenes(false);
