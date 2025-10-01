@@ -303,10 +303,10 @@ export function HierarchicalTimeline({
               >
                 {kf.type === "META" && (
                   (!kf.metadata || Object.values(kf.metadata).every(v => String(v ?? '').trim().length === 0)) ? (
-                    <Flag className="absolute -top-[6px] left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                    <Flag className="absolute -top-[8px] left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
                   ) : (
                     <Flag
-                      className="absolute -top-[6px] left-0 h-3 w-3"
+                      className="absolute -top-[8px] left-0 h-3 w-3"
                       style={{ color: "hsl(var(--muted-foreground))", fill: "hsl(var(--muted-foreground))" }}
                       strokeWidth={2}
                     />
