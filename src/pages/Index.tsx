@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes } from "@/lib/api";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -29,6 +29,8 @@ const SAIL_COLORS = [
 const Index = () => {
   const { toast } = useToast();
   const [videoUrl, setVideoUrl] = useState<string>("");
+  const [videoId, setVideoId] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -282,51 +284,107 @@ const Index = () => {
     };
   }, [totalFrames, currentFrame, keyframes, selectedTool, annotations, selectedAnnotationId]);
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setVideoUrl(url);
+    if (!file) return;
+
+    // Create local URL for immediate playback
+    const url = URL.createObjectURL(file);
+    setVideoUrl(url);
+    
+    // Start upload to backend
+    setIsUploading(true);
+    toast({
+      title: "Uploading video",
+      description: "Uploading to backend...",
+    });
+
+    try {
+      const uploadResponse = await uploadVideo(file);
+      setVideoId(uploadResponse.video_id);
+      
       toast({
-        title: "Video loaded",
-        description: "Ready to annotate",
+        title: "Video uploaded",
+        description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps`,
       });
-      // Scene detection will be triggered after video metadata loads
+
+      // Auto-trigger scene detection after upload
+      toast({
+        title: "Detecting scenes",
+        description: "Analyzing video content...",
+      });
+      
+      const sceneResponse = await detectScenes(uploadResponse.video_id);
+      
+      // Convert API response to app Scene format
+      const detectedScenes = sceneResponse.scenes.map(scene => ({
+        id: `scene-${scene.scene_id}`,
+        startFrame: scene.start_frame,
+        endFrame: scene.end_frame,
+        quality: scene.quality as "good" | "bad" | "unknown"
+      }));
+      
+      setScenes(detectedScenes);
+      setTotalFrames(uploadResponse.total_frames);
+      
+      toast({
+        title: "Scenes detected",
+        description: `Found ${sceneResponse.total_scenes} scenes`,
+      });
+    } catch (error) {
+      console.error("Upload or scene detection failed:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process video",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleDetectScenes = (framesToUse?: number) => {
+  const handleDetectScenes = async () => {
+    if (!videoId) {
+      toast({
+        title: "No video uploaded",
+        description: "Please upload a video first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDetectingScenes(true);
-    
-    const actualTotalFrames = framesToUse ?? totalFrames;
-    
-    // Mock scene detection - splits video into 3-5 realistic scenes based on video length
-    setTimeout(() => {
-      const numScenes = Math.min(5, Math.max(3, Math.floor(actualTotalFrames / 50)));
-      const mockScenes: Scene[] = [];
-      const avgSceneLength = Math.floor(actualTotalFrames / numScenes);
+    toast({
+      title: "Detecting scenes",
+      description: "Running PySceneDetect...",
+    });
+
+    try {
+      const sceneResponse = await detectScenes(videoId);
       
-      for (let i = 0; i < numScenes; i++) {
-        const startFrame = i === 0 ? 0 : mockScenes[i - 1].endFrame + 1;
-        const endFrame = i === numScenes - 1 
-          ? actualTotalFrames - 1 
-          : startFrame + avgSceneLength + Math.floor(Math.random() * 20 - 10); // Add slight variation
-        
-        mockScenes.push({
-          id: `scene-${i + 1}`,
-          startFrame,
-          endFrame: Math.min(endFrame, actualTotalFrames - 1),
-          quality: "unknown"
-        });
-      }
+      // Convert API response to app Scene format
+      const detectedScenes = sceneResponse.scenes.map(scene => ({
+        id: `scene-${scene.scene_id}`,
+        startFrame: scene.start_frame,
+        endFrame: scene.end_frame,
+        quality: scene.quality as "good" | "bad" | "unknown"
+      }));
       
-      setScenes(mockScenes);
-      setIsDetectingScenes(false);
+      setScenes(detectedScenes);
       toast({
         title: "Scenes detected",
-        description: `Found ${mockScenes.length} scenes`,
+        description: `Found ${sceneResponse.total_scenes} scenes`,
       });
-    }, 2000);
+    } catch (error) {
+      console.error("Scene detection failed:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Scene detection failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDetectingScenes(false);
+    }
   };
 
   const handleSceneSelect = (scene: Scene | null) => {
@@ -1086,10 +1144,10 @@ const Index = () => {
                 Shortcuts
               </Button>
               <label>
-                <Button variant="default" size="sm" asChild>
+                <Button variant="default" size="sm" asChild disabled={isUploading}>
                   <span>
                     <Upload className="h-4 w-4 mr-2" />
-                    {videoUrl ? "Change Video" : "Load Video"}
+                    {isUploading ? "Uploading..." : videoUrl ? "Change Video" : "Load Video"}
                   </span>
                 </Button>
                 <Input
@@ -1097,6 +1155,7 @@ const Index = () => {
                   accept="video/*"
                   className="hidden"
                   onChange={handleVideoUpload}
+                  disabled={isUploading}
                 />
               </label>
             </div>
@@ -1175,13 +1234,10 @@ const Index = () => {
                 frameRange={frameRange}
                 onFrameChange={setCurrentFrame}
                 onVideoMetadata={(metadata) => {
-                  setTotalFrames(metadata.totalFrames);
-                  toast({
-                    title: "Video loaded",
-                    description: `${metadata.totalFrames} frames at ${metadata.fps} fps`,
-                  });
-                  // Auto-detect scenes after metadata is loaded, passing actual frame count
-                  setTimeout(() => handleDetectScenes(metadata.totalFrames), 500);
+                  // Only set total frames if not already set from upload
+                  if (!videoId) {
+                    setTotalFrames(metadata.totalFrames);
+                  }
                 }}
                 onCanvasClick={handleCanvasClick}
                 classes={classes}

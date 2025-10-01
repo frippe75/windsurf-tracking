@@ -151,4 +151,49 @@ export const detectScenes = async (videoId: string): Promise<SceneDetectionRespo
   return await response.json();
 };
 
+// Video Upload Types
+export interface VideoUploadResponse {
+  video_id: string;
+  filename: string;
+  duration: number;
+  fps: number;
+  resolution: string;
+  total_frames: number;
+  message: string;
+}
+
+// Video upload endpoint
+export const uploadVideo = async (file: File): Promise<VideoUploadResponse> => {
+  if (config.useMockApi) {
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Mock response
+    return {
+      video_id: `mock-${Date.now()}`,
+      filename: file.name,
+      duration: 120.5,
+      fps: 30,
+      resolution: "1920x1080",
+      total_frames: 3615,
+      message: "Video uploaded successfully (mock)"
+    };
+  }
+
+  // Real API call to FastAPI backend
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${config.backendUrl}/api/videos/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Video upload failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Add more API functions here as needed
