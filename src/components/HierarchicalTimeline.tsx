@@ -281,11 +281,18 @@ export function HierarchicalTimeline({
                 title={`${kf.type} at frame ${kf.frame}`}
               >
                 {kf.type === "META" && (
-                  <Flag 
-                    className="absolute -top-1 left-0 h-3 w-3" 
-                    style={{ color: getKeyframeColor(kf.type) }} 
-                    fill={kf.metadata && Object.keys(kf.metadata).length > 0 ? getKeyframeColor(kf.type) : "none"}
-                  />
+                  (kf.metadata && Object.values(kf.metadata).some(v => String(v).trim().length > 0)) ? (
+                    <svg
+                      className="absolute -top-1 left-0 h-3 w-3"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="3" width="1.5" height="18" fill={getKeyframeColor(kf.type)} />
+                      <path d="M6 5 L18 8 L6 11 Z" fill={getKeyframeColor(kf.type)} />
+                    </svg>
+                  ) : (
+                    <Flag className="absolute -top-1 left-0 h-3 w-3" style={{ color: getKeyframeColor(kf.type) }} />
+                  )
                 )}
               </div>
             );
