@@ -258,14 +258,14 @@ export function HierarchicalTimeline({
           })}
 
           {/* Scene boundary markers - above timeline bg, below keyframe markers */}
-          {scenes.map((scene) => {
+          {scenes.slice(0, -1).map((scene) => {
             const boundaryPos = frameToPosition(scene.endFrame);
             if (boundaryPos < 0 || boundaryPos > 100) return null;
             
             return (
               <div
                 key={`scene-boundary-${scene.id}`}
-                className="absolute w-[3px] bg-white/60 z-10 pointer-events-none"
+                className="absolute w-[1.5px] bg-white/40 z-10 pointer-events-none"
                 style={{ 
                   left: `${boundaryPos}%`,
                   top: '-10px',
