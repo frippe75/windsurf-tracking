@@ -228,6 +228,11 @@ const Index = () => {
           e.preventDefault();
           handleAddKeyframe("SKIP");
           break;
+        case "t":
+        case "T":
+          e.preventDefault();
+          handleAddKeyframe("META");
+          break;
         case "v":
           e.preventDefault();
           setSelectedTool("select");
@@ -845,7 +850,7 @@ const Index = () => {
     );
   };
 
-  const handleAddKeyframe = (type: "START" | "STOP" | "SKIP") => {
+  const handleAddKeyframe = (type: "START" | "STOP" | "SKIP" | "META") => {
     // Check if keyframe of this type already exists at current frame
     const existingKeyframe = keyframes.find(k => k.frame === currentFrame && k.type === type);
     

@@ -1,18 +1,18 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Flag, StopCircle, X, Trash2 } from "lucide-react";
+import { Flag, StopCircle, X, Trash2, BarChart3 } from "lucide-react";
 
 interface Keyframe {
   frame: number;
-  type: "START" | "STOP" | "SKIP";
+  type: "START" | "STOP" | "SKIP" | "META";
   timestamp: string;
 }
 
 interface KeyframeManagerProps {
   keyframes: Keyframe[];
   currentFrame: number;
-  onAddKeyframe: (type: "START" | "STOP" | "SKIP") => void;
+  onAddKeyframe: (type: "START" | "STOP" | "SKIP" | "META") => void;
   onDeleteKeyframe: (frame: number) => void;
 }
 
@@ -32,6 +32,8 @@ export function KeyframeManager({
         return "hsl(var(--destructive))";
       case "SKIP":
         return "hsl(var(--warning))";
+      case "META":
+        return "hsl(var(--chart-5))";
       default:
         return "hsl(var(--muted))";
     }
@@ -39,7 +41,7 @@ export function KeyframeManager({
 
   // Group keyframes for display (group SKIP frames between START/STOP pairs)
   const groupedKeyframes: Array<{
-    type: "START" | "STOP" | "SKIP";
+    type: "START" | "STOP" | "SKIP" | "META";
     frames: number[];
     displayText: string;
     ranges?: Array<{ text: string; frames: number[] }>; // For SKIP pills
@@ -137,6 +139,14 @@ export function KeyframeManager({
         displayText: `${kf.frame}`,
       });
       i++;
+    } else if (kf.type === "META") {
+      // META keyframes display individually
+      groupedKeyframes.push({
+        type: "META",
+        frames: [kf.frame],
+        displayText: `${kf.frame}`,
+      });
+      i++;
     } else {
       // Orphan SKIP (outside START/STOP pairs) - skip for now, will be added at end
       i++;
@@ -202,7 +212,7 @@ export function KeyframeManager({
         <Badge variant="secondary">{keyframes.length}</Badge>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button
           onClick={() => onAddKeyframe("START")}
           className="w-full"
@@ -229,6 +239,15 @@ export function KeyframeManager({
         >
           <X className="h-4 w-4 mr-1" />
           SKIP (X)
+        </Button>
+        <Button
+          onClick={() => onAddKeyframe("META")}
+          className="w-full"
+          variant="outline"
+          size="sm"
+        >
+          <BarChart3 className="h-4 w-4 mr-1" />
+          META (T)
         </Button>
       </div>
 

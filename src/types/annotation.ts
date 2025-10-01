@@ -28,7 +28,7 @@ export interface Annotation {
 
 export interface Keyframe {
   frame: number;
-  type: "START" | "STOP" | "SKIP";
+  type: "START" | "STOP" | "SKIP" | "META";
   timestamp: string;
 }
 
