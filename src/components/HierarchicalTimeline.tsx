@@ -71,6 +71,8 @@ export function HierarchicalTimeline({
         return "hsl(var(--destructive))";
       case "SKIP":
         return "hsl(var(--sail-yellow))";
+      case "META":
+        return "hsl(var(--chart-5))";
       default:
         return "hsl(var(--muted-foreground))";
     }
