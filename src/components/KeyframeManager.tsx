@@ -139,16 +139,8 @@ export function KeyframeManager({
         displayText: `${kf.frame}`,
       });
       i++;
-    } else if (kf.type === "META") {
-      // META keyframes display individually
-      groupedKeyframes.push({
-        type: "META",
-        frames: [kf.frame],
-        displayText: `${kf.frame}`,
-      });
-      i++;
     } else {
-      // Orphan SKIP (outside START/STOP pairs) - skip for now, will be added at end
+      // Orphan SKIP or META (outside START/STOP pairs) - skip for now, will be added at end
       i++;
     }
   }
@@ -196,6 +188,44 @@ export function KeyframeManager({
     groupedKeyframes.push({
       type: "SKIP",
       frames: orphanSkips,
+      displayText: ranges.join(", "),
+      ranges: rangesWithFrames,
+    });
+  }
+
+  // Collect and group META keyframes
+  const metaFrames: number[] = [];
+  sortedKeyframes.forEach(kf => {
+    if (kf.type === "META") {
+      metaFrames.push(kf.frame);
+    }
+  });
+  
+  if (metaFrames.length > 0) {
+    const ranges: string[] = [];
+    let rangeStart = metaFrames[0];
+    let rangeEnd = metaFrames[0];
+    
+    for (let k = 1; k < metaFrames.length; k++) {
+      if (metaFrames[k] === rangeEnd + 1) {
+        rangeEnd = metaFrames[k];
+      } else {
+        ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+        rangeStart = metaFrames[k];
+        rangeEnd = metaFrames[k];
+      }
+    }
+    ranges.push(rangeStart === rangeEnd ? `${rangeStart}` : `${rangeStart}-${rangeEnd}`);
+    
+    // Create ranges array with frame mapping
+    const rangesWithFrames = ranges.map(rangeText => ({
+      text: rangeText,
+      frames: rangeToFrames(rangeText),
+    }));
+    
+    groupedKeyframes.push({
+      type: "META",
+      frames: metaFrames,
       displayText: ranges.join(", "),
       ranges: rangesWithFrames,
     });
@@ -274,7 +304,7 @@ export function KeyframeManager({
                     
                     {/* Pills for all types */}
                     <div className="flex flex-wrap gap-1">
-                      {group.type === "SKIP" && group.ranges ? (
+                      {(group.type === "SKIP" || group.type === "META") && group.ranges ? (
                         group.ranges.map((range, rangeIdx) => (
                           <div
                             key={rangeIdx}
