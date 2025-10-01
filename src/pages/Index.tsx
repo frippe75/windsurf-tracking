@@ -332,6 +332,16 @@ const Index = () => {
     );
   };
 
+  const handleGenerateMetadata = async (sceneId: string) => {
+    toast({
+      title: "Generating metadata",
+      description: "AI is analyzing the scene...",
+    });
+    // TODO: Call edge function with META keyframe frames or sampled frames
+    // For now, just a placeholder
+    console.log("Generate metadata for scene:", sceneId);
+  };
+
   // Mock SAM2 segmentation - simulates backend call
   // Creates bbox 5-15% of canvas size with 3-6 point polygon inside
   const mockSAM2Segmentation = async (
@@ -1112,13 +1122,12 @@ const Index = () => {
               />
             </div>
 
-            {/* Right sidebar - Scenes, Tracking & Metadata tabs */}
+            {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
               <Tabs defaultValue="scenes" className="h-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
-                  <TabsTrigger value="metadata">Metadata</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -1129,6 +1138,7 @@ const Index = () => {
                     onDetectScenes={handleDetectScenes}
                     onSceneSelect={handleSceneSelect}
                     onSceneQualityChange={handleSceneQualityChange}
+                    onGenerateMetadata={handleGenerateMetadata}
                     isDetecting={isDetectingScenes}
                   />
                 </TabsContent>
@@ -1144,40 +1154,6 @@ const Index = () => {
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
                   />
-                </TabsContent>
-                <TabsContent value="metadata" className="mt-4">
-                  <Card className="p-4 bg-card border-border">
-                    <h3 className="text-sm font-semibold mb-4">Instance Metadata</h3>
-                    <div className="space-y-3">
-                      {instances.length === 0 ? (
-                        <div className="text-center py-8 text-sm text-muted-foreground">
-                          <p className="text-xs">No instances yet. Create instances to add metadata.</p>
-                        </div>
-                      ) : (
-                        instances.map((instance) => {
-                          const instanceClass = classes.find(c => c.id === instance.classId);
-                          const displayName = instance.name || `${instanceClass?.name}#${instance.instanceNumber}`;
-                          
-                          return (
-                            <div key={instance.id} className="border border-border rounded-lg p-3 bg-muted/20">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div
-                                  className="w-3 h-3 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: instanceClass?.color }}
-                                />
-                                <span className="text-xs font-medium">{displayName}</span>
-                              </div>
-                              <MetadataEditor
-                                metadata={instance.metadata || {}}
-                                onSave={(metadata) => handleUpdateMetadata(instance.id, metadata)}
-                                onCancel={() => {}}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </Card>
                 </TabsContent>
               </Tabs>
             </div>

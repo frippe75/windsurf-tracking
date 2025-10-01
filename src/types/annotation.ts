@@ -37,4 +37,5 @@ export interface Scene {
   startFrame: number;
   endFrame: number;
   quality: "good" | "bad" | "unknown";
+  metadata?: Record<string, string>; // Scene-level metadata from AI annotation
 }

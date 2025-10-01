@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Scan, CheckCircle, XCircle, Circle, Film } from "lucide-react";
+import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Scene {
@@ -10,6 +10,7 @@ interface Scene {
   startFrame: number;
   endFrame: number;
   quality: "good" | "bad" | "unknown";
+  metadata?: Record<string, string>;
 }
 
 interface ScenesManagerProps {
@@ -20,6 +21,7 @@ interface ScenesManagerProps {
   onDetectScenes: () => void;
   onSceneSelect: (scene: Scene | null) => void;
   onSceneQualityChange: (sceneId: string, quality: "good" | "bad" | "unknown") => void;
+  onGenerateMetadata: (sceneId: string) => void;
   isDetecting?: boolean;
 }
 
@@ -31,6 +33,7 @@ export function ScenesManager({
   onDetectScenes,
   onSceneSelect,
   onSceneQualityChange,
+  onGenerateMetadata,
   isDetecting = false,
 }: ScenesManagerProps) {
   const { toast } = useToast();
@@ -153,9 +156,38 @@ export function ScenesManager({
                     </div>
                   </div>
                   {!isBad && (
-                    <div className="text-xs text-muted-foreground">
-                      {scene.endFrame - scene.startFrame + 1} frames
-                    </div>
+                    <>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        {scene.endFrame - scene.startFrame + 1} frames
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-7 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onGenerateMetadata(scene.id);
+                        }}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Generate Metadata
+                      </Button>
+                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                        <div className="mt-2 p-2 bg-muted/40 rounded text-xs space-y-1">
+                          {Object.entries(scene.metadata).slice(0, 2).map(([key, value]) => (
+                            <div key={key} className="flex gap-1">
+                              <span className="font-medium">{key}:</span>
+                              <span className="text-muted-foreground truncate">{value}</span>
+                            </div>
+                          ))}
+                          {Object.keys(scene.metadata).length > 2 && (
+                            <div className="text-muted-foreground italic">
+                              +{Object.keys(scene.metadata).length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
