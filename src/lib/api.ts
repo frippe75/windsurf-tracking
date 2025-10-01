@@ -1,5 +1,39 @@
 import { config } from './config';
 
+// Backend Health Check Types
+export interface HealthCheckResponse {
+  message: string;
+  version: string;
+  status: string;
+}
+
+// Health check endpoint
+export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> => {
+  if (config.useMockApi) {
+    // Mock mode - always healthy
+    return {
+      message: "Windsurf Dataset API (Mock)",
+      version: "1.0.0",
+      status: "healthy"
+    };
+  }
+
+  try {
+    const response = await fetch(`${config.backendUrl}/`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.warn('Backend health check failed:', error);
+    return null;
+  }
+};
+
 // Mock data generator for detect-objects
 const generateMockDetections = (frameWidth: number, frameHeight: number) => {
   const PREDEFINED_CLASSES = [

@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth } from "@/lib/api";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -31,6 +31,7 @@ const Index = () => {
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -72,6 +73,29 @@ const Index = () => {
   const frameRange: [number, number] = selectedScene 
     ? [selectedScene.startFrame, selectedScene.endFrame]
     : [0, totalFrames];
+
+  // Check backend health on mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      const health = await checkBackendHealth();
+      if (health && health.status === "healthy") {
+        setBackendStatus("healthy");
+        toast({
+          title: "Backend connected",
+          description: `${health.message} v${health.version}`,
+        });
+      } else {
+        setBackendStatus("offline");
+        toast({
+          title: "Backend offline",
+          description: "Running in offline mode. Upload and scene detection unavailable.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    checkHealth();
+  }, [toast]);
 
   // Auto-create tracking jobs from START->STOP keyframe pairs
   useEffect(() => {
