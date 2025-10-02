@@ -171,9 +171,9 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id} className="[&>span:first-child]:hidden !pl-2">
-                <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
-                  <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
-                    {selectedBackend?.id === backend.id && (
+                <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
+                  <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
+                    {selectedBackend?.id === backend.id ? (
                       <>
                         {backendStatus === "healthy" && (
                           <span className="relative block h-2.5 w-2.5">
@@ -188,11 +188,13 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                           </span>
                         )}
                       </>
+                    ) : (
+                      <span className="block h-2.5 w-2.5" />
                     )}
-                  </div>
+                  </span>
                   <span className="col-start-2 row-start-1 font-medium leading-tight">{backend.name}</span>
                   <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
-                </div>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
