@@ -152,18 +152,35 @@ export function VideoPlayer({
       const isSelected = selectedAnnotationId === annotation.id;
       const color = getAnnotationColor(annotation);
       
-      // Draw segment overlay
-      if (overlays.segments && annotation.points.length > 0) {
-        ctx.fillStyle = color + "40"; // 25% opacity
-        ctx.beginPath();
-        annotation.points.forEach((point, i) => {
-          const x = (point.x / 100) * canvas.width;
-          const y = (point.y / 100) * canvas.height;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fill();
+      // Draw segment overlay (mask if available, else polygon)
+      if (overlays.segments) {
+        // Prefer high-fidelity mask overlay if available
+        if ((annotation as any).maskBase64 && (annotation as any).maskBBox) {
+          const { maskBase64, maskBBox } = annotation as any;
+          const img = new Image();
+          img.src = `data:image/png;base64,${maskBase64}`;
+          const x = (maskBBox.x / 100) * canvas.width;
+          const y = (maskBBox.y / 100) * canvas.height;
+          const w = (maskBBox.w / 100) * canvas.width;
+          const h = (maskBBox.h / 100) * canvas.height;
+          img.onload = () => {
+            ctx.save();
+            ctx.globalAlpha = 0.35;
+            ctx.drawImage(img, x, y, w, h);
+            ctx.restore();
+          };
+        } else if (annotation.points.length > 0) {
+          ctx.fillStyle = color + "40"; // 25% opacity
+          ctx.beginPath();
+          annotation.points.forEach((point, i) => {
+            const x = (point.x / 100) * canvas.width;
+            const y = (point.y / 100) * canvas.height;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+          ctx.fill();
+        }
       }
 
       // Draw bounding box

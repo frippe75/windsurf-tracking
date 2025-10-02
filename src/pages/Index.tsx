@@ -760,6 +760,8 @@ const Index = () => {
             instanceId: newInstance.id,
             points,
             bbox,
+            maskBase64: maskBase64,
+            maskBBox: bbox,
             frameCreated: currentFrame,
             sam2Prompts: [{ x, y, type: 'positive' }], // Add initial click as positive prompt
             isKeyframe: true, // Manual annotation

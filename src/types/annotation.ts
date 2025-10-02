@@ -23,6 +23,9 @@ export interface Annotation {
   bbox?: { x: number; y: number; w: number; h: number };
   trackedFrames?: Array<[number, number]>; // Array of [start, end] ranges where object is tracked
   sam2Prompts?: Array<{ x: number; y: number; type: 'positive' | 'negative' }>; // SAM2 point prompts
+  // SAM2 mask overlay (percentage-based bbox relative to displayed video area)
+  maskBase64?: string;
+  maskBBox?: { x: number; y: number; w: number; h: number };
   isKeyframe: boolean; // True if manually created, false if from tracking
 }
 
