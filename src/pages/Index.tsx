@@ -672,18 +672,20 @@ const Index = () => {
         console.log('🎯 Calling SAM2 API with:', { 
           videoId, 
           frame: currentFrame, 
-          x: Math.round(x), 
-          y: Math.round(y),
+          x: Math.round((x / 100) * videoWidth), 
+          y: Math.round((y / 100) * videoHeight),
           videoWidth,
           videoHeight
         });
 
         try {
-          // Call real SAM2 backend API with integer coordinates
+          // Call real SAM2 backend API with integer pixel coordinates
+          const clickX = Math.round((x / 100) * videoWidth);
+          const clickY = Math.round((y / 100) * videoHeight);
           const sam2Response = await segmentWithSAM2({
             video_id: videoId,
             frame_number: currentFrame,
-            click_prompts: [{ x: Math.round(x), y: Math.round(y), type: 'positive' }]
+            click_prompts: [{ x: clickX, y: clickY, type: 'positive' }]
           });
 
           console.log('✅ SAM2 response received:', sam2Response);
@@ -694,13 +696,13 @@ const Index = () => {
             throw new Error('Invalid SAM2 response: missing results or bbox');
           }
           
-          // Parse bbox array [x, y, width, height]
-          const bboxArray = results.bbox;
+          // Parse bbox array [x, y, width, height] from video pixel coords -> normalize to %
+          const [bx, by, bw, bh] = results.bbox as [number, number, number, number];
           const bbox = {
-            x: bboxArray[0],
-            y: bboxArray[1],
-            w: bboxArray[2],
-            h: bboxArray[3]
+            x: (bx / videoWidth) * 100,
+            y: (by / videoHeight) * 100,
+            w: (bw / videoWidth) * 100,
+            h: (bh / videoHeight) * 100,
           };
           
           // Store the mask for later use (could be displayed as overlay)
