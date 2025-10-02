@@ -411,3 +411,135 @@ export const getAIStatus = async (): Promise<AIStatusResponse> => {
 
   return await response.json();
 };
+
+// ============= Tracking Endpoints =============
+
+// Tracking Job Types
+export interface TrackingSegment {
+  start_frame: number;
+  end_frame: number;
+  click_prompts: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
+}
+
+export interface SubJob {
+  job_id: string;
+  name: string;
+  start_frame: number;
+  end_frame: number;
+  frames: number;
+  prompt_source: 'manual' | 'propagated';
+}
+
+export interface AutoSplitResult {
+  split_required: boolean;
+  estimated_memory?: string;
+  max_frames_per_job?: number;
+  created_jobs: SubJob[];
+}
+
+export interface CreateTrackingJobResponse {
+  job_id: string;
+  video_id: string;
+  auto_split_result: AutoSplitResult;
+}
+
+export interface TrackingJobStatus {
+  job_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  current_frame?: number;
+  total_frames?: number;
+  percentage?: number;
+  frames_completed?: number;
+  processing_time?: number;
+  error?: string;
+}
+
+// Create tracking job with auto-split support
+export const createTrackingJob = async (
+  videoId: string, 
+  segments: TrackingSegment[]
+): Promise<CreateTrackingJobResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const totalFrames = segments[0].end_frame - segments[0].start_frame;
+    const mockSubJobs: SubJob[] = totalFrames > 100 
+      ? [
+          { job_id: `mock-part-1`, name: 'Part 1/2', start_frame: segments[0].start_frame, end_frame: segments[0].start_frame + 50, frames: 50, prompt_source: 'manual' },
+          { job_id: `mock-part-2`, name: 'Part 2/2', start_frame: segments[0].start_frame + 49, end_frame: segments[0].end_frame, frames: totalFrames - 49, prompt_source: 'propagated' }
+        ]
+      : [{ job_id: `mock-job`, name: 'Full Segment', start_frame: segments[0].start_frame, end_frame: segments[0].end_frame, frames: totalFrames, prompt_source: 'manual' }];
+    
+    return {
+      job_id: `mock-parent-${Date.now()}`,
+      video_id: videoId,
+      auto_split_result: {
+        split_required: totalFrames > 100,
+        estimated_memory: totalFrames > 100 ? '12.5GB' : '5.2GB',
+        max_frames_per_job: 100,
+        created_jobs: mockSubJobs
+      }
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/tracking/jobs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ segments }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create tracking job: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Execute tracking job
+export const executeTrackingJob = async (jobId: string): Promise<{ job_id: string; status: string }> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return { job_id: jobId, status: 'started' };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/execute`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to execute tracking job: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Get tracking job status
+export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobStatus> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Simulate progressive completion
+    const randomProgress = Math.floor(Math.random() * 100);
+    return {
+      job_id: jobId,
+      status: randomProgress < 100 ? 'running' : 'completed',
+      current_frame: randomProgress,
+      total_frames: 100,
+      percentage: randomProgress,
+      frames_completed: randomProgress,
+      processing_time: randomProgress < 100 ? undefined : 5.3
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/status`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get tracking job status: ${response.statusText}`);
+  }
+
+  return await response.json();
+};

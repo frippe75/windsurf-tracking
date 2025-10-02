@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -845,79 +845,175 @@ const Index = () => {
     });
   };
 
-  const handleProcessJob = (jobId: string) => {
+  const handleProcessJob = async (jobId: string) => {
     const job = trackingJobs.find(j => j.id === jobId);
-    if (!job) return;
+    if (!job || !videoId) return;
 
-    setTrackingJobs(jobs =>
-      jobs.map(job =>
-        job.id === jobId ? { ...job, status: "processing" as const, progress: 0 } : job
-      )
+    // Extract click_prompts from annotations in this segment
+    const segmentAnnotations = annotations.filter(ann => 
+      job.objectIds.includes(ann.id) && ann.sam2Prompts && ann.sam2Prompts.length > 0
     );
 
-    // ========================================
-    // FAKE TRACKING SIMULATION - REPLACE THIS
-    // ========================================
-    // TODO: Replace with real SAM2/CV tracking API call
-    // Real implementation should:
-    // 1. Extract frames from video (job.startFrame to job.stopFrame)
-    // 2. Send to tracking API (SAM2, DINO, etc.) with initial bbox/points
-    // 3. Receive per-frame results: { frame: number, found: boolean, bbox: {...}, confidence: number }[]
-    // 4. Update annotations with actual tracked ranges
-    
-    simulateFakeTracking(jobId, job);
-  };
+    if (segmentAnnotations.length === 0) {
+      toast({
+        title: "No prompts found",
+        description: "Annotations in this segment need SAM2 click prompts",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const simulateFakeTracking = (jobId: string, job: TrackingJob) => {
-    // FAKE: Simulates progress with intervals
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
+    // Use prompts from first annotation with prompts
+    const clickPrompts = segmentAnnotations[0].sam2Prompts!.map(p => ({
+      x: p.x,
+      y: p.y,
+      type: p.type
+    }));
+
+    try {
+      // Create tracking job with backend (auto-splits if needed)
+      toast({
+        title: "Creating tracking job",
+        description: "Analyzing segment size and memory requirements...",
+      });
+
+      const createResponse = await createTrackingJob(videoId, [{
+        start_frame: job.startFrame,
+        end_frame: job.stopFrame,
+        click_prompts: clickPrompts
+      }]);
+
+      const { auto_split_result } = createResponse;
+      
+      // Update job with auto-split info
       setTrackingJobs(jobs =>
         jobs.map(j =>
-          j.id === jobId ? { ...j, progress } : j
+          j.id === jobId ? {
+            ...j,
+            status: "processing" as const,
+            progress: 0,
+            isSplit: auto_split_result.split_required,
+            estimatedMemory: auto_split_result.estimated_memory,
+            subJobs: auto_split_result.created_jobs.map(subJob => ({
+              ...subJob,
+              status: "pending" as const
+            }))
+          } : j
         )
       );
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        
-        // FAKE: Mark entire segment as tracked
-        // REAL: Would use actual frame-by-frame results from tracking API
-        const fakeTrackedRanges: [number, number][] = [
-          [job.startFrame, job.stopFrame] // FAKE: assumes perfect tracking
-        ];
-        
-        setTrackingJobs(jobs =>
-          jobs.map(j =>
-            j.id === jobId ? { ...j, status: "completed" as const } : j
-          )
-        );
-        
-        // Update annotations with tracked frames
-        setAnnotations(prevAnnotations =>
-          prevAnnotations.map(ann => {
-            if (job.objectIds.includes(ann.id)) {
-              const trackedFrames = ann.trackedFrames || [];
-              return {
-                ...ann,
-                trackedFrames: [...trackedFrames, ...fakeTrackedRanges],
-              };
-            }
-            return ann;
-          })
-        );
-        
+      if (auto_split_result.split_required) {
         toast({
-          title: "Tracking completed (FAKE)",
-          description: `Tracked ${job.objectIds.length} object(s) from frame ${job.startFrame} to ${job.stopFrame}`,
+          title: "Job auto-split",
+          description: `Split into ${auto_split_result.created_jobs.length} parts (~${auto_split_result.estimated_memory})`,
         });
       }
-    }, 500);
+
+      // Execute each sub-job sequentially
+      for (let i = 0; i < auto_split_result.created_jobs.length; i++) {
+        const subJob = auto_split_result.created_jobs[i];
+        
+        // Mark sub-job as processing
+        setTrackingJobs(jobs =>
+          jobs.map(j =>
+            j.id === jobId && j.subJobs ? {
+              ...j,
+              subJobs: j.subJobs.map((sj, idx) =>
+                idx === i ? { ...sj, status: "processing" as const, progress: 0 } : sj
+              )
+            } : j
+          )
+        );
+
+        // Execute tracking
+        await executeTrackingJob(subJob.job_id);
+
+        // Poll for completion
+        let completed = false;
+        while (!completed) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every second
+          
+          const status = await getTrackingJobStatus(subJob.job_id);
+          
+          // Update progress
+          setTrackingJobs(jobs =>
+            jobs.map(j =>
+              j.id === jobId && j.subJobs ? {
+                ...j,
+                progress: Math.round(((i + (status.percentage || 0) / 100) / auto_split_result.created_jobs.length) * 100),
+                subJobs: j.subJobs.map((sj, idx) =>
+                  idx === i ? { ...sj, progress: status.percentage } : sj
+                )
+              } : j
+            )
+          );
+
+          if (status.status === "completed") {
+            completed = true;
+            
+            // Mark sub-job as completed
+            setTrackingJobs(jobs =>
+              jobs.map(j =>
+                j.id === jobId && j.subJobs ? {
+                  ...j,
+                  subJobs: j.subJobs.map((sj, idx) =>
+                    idx === i ? { ...sj, status: "completed" as const, progress: 100 } : sj
+                  )
+                } : j
+              )
+            );
+          } else if (status.status === "failed") {
+            throw new Error(`Sub-job ${subJob.name} failed: ${status.error}`);
+          }
+        }
+      }
+
+      // All sub-jobs completed
+      const fakeTrackedRanges: [number, number][] = [
+        [job.startFrame, job.stopFrame]
+      ];
+
+      setTrackingJobs(jobs =>
+        jobs.map(j =>
+          j.id === jobId ? { ...j, status: "completed" as const, progress: 100 } : j
+        )
+      );
+
+      // Update annotations with tracked frames
+      setAnnotations(prevAnnotations =>
+        prevAnnotations.map(ann => {
+          if (job.objectIds.includes(ann.id)) {
+            const trackedFrames = ann.trackedFrames || [];
+            return {
+              ...ann,
+              trackedFrames: [...trackedFrames, ...fakeTrackedRanges],
+            };
+          }
+          return ann;
+        })
+      );
+
+      toast({
+        title: "Tracking completed",
+        description: `Tracked ${job.objectIds.length} object(s) across ${auto_split_result.created_jobs.length} segment(s)`,
+      });
+
+    } catch (error) {
+      console.error("Tracking failed:", error);
+      
+      setTrackingJobs(jobs =>
+        jobs.map(j =>
+          j.id === jobId ? { ...j, status: "failed" as const } : j
+        )
+      );
+
+      toast({
+        title: "Tracking failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
-  // ========================================
-  // END FAKE TRACKING SIMULATION
-  // ========================================
 
   const handleDeleteJob = (jobId: string) => {
     setTrackingJobs(jobs => jobs.filter(job => job.id !== jobId));

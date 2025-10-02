@@ -27,6 +27,7 @@ export interface Backend {
 
 const DEFAULT_BACKENDS: Backend[] = [
   { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
+  { id: "lab-k8s", name: "Lab K8s", url: "http://k8s-w09.lab.loc:8000" },
   { id: "production", name: "Production", url: "https://lablebee.tclab.org" },
   { id: "custom", name: "Custom", url: "" },
 ];
