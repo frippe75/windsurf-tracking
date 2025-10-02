@@ -319,6 +319,9 @@ export interface SAM2SegmentationResponse {
 
 // SAM2 segmentation endpoint
 export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise<SAM2SegmentationResponse> => {
+  console.log('🎯 SAM2 segmentation request:', request);
+  console.log('🔗 Backend URL:', config.backendUrl);
+  
   if (config.useMockApi) {
     await new Promise(resolve => setTimeout(resolve, 800));
     
@@ -350,19 +353,28 @@ export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise
     };
   }
 
-  const response = await fetch(`${config.backendUrl}/api/ai/sam2/segment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
+  try {
+    const response = await fetch(`${config.backendUrl}/api/ai/sam2/segment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
 
-  if (!response.ok) {
-    throw new Error(`SAM2 segmentation failed: ${response.statusText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ SAM2 API error:', response.status, errorText);
+      throw new Error(`SAM2 segmentation failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ SAM2 response:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ SAM2 request failed:', error);
+    throw error;
   }
-
-  return await response.json();
 };
 
 // AI Status Types
