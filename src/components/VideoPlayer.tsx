@@ -609,8 +609,22 @@ export function VideoPlayer({
 
     const rect = canvas.getBoundingClientRect();
     const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    const x = (canvasX / canvas.width) * 100;
-    const y = (canvasY / canvas.height) * 100;
+    
+    // Canvas has zoom/DPR scaling, so we need to account for that
+    // The canvas internal bitmap is canvas.width x canvas.height (includes zoom * DPR)
+    // But the underlying video rendering area corresponds to the displayed rect
+    const displayed = getDisplayedRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Convert canvas internal coords to displayed video rect coords
+    // canvas.width = displayed.width * dpr * zoom
+    const displayedX = canvasX / (dpr * zoom);
+    const displayedY = canvasY / (dpr * zoom);
+    
+    // Now convert displayed coords to percentage of video frame (0-100)
+    const x = (displayedX / displayed.width) * 100;
+    const y = (displayedY / displayed.height) * 100;
+    
     const videoWidth = video.videoWidth || 1280;
     const videoHeight = video.videoHeight || 720;
     const isAltLike = e.altKey || e.getModifierState?.('AltGraph') === true;
