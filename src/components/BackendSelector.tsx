@@ -171,8 +171,8 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id}>
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-start gap-2">
+                  <div className="pt-1">
                     {selectedBackend?.id === backend.id && backendStatus === "healthy" && (
                       <span className="relative flex h-2.5 w-2.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 duration-1000"></span>
@@ -185,10 +185,10 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-lg shadow-red-500/50"></span>
                       </span>
                     )}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{backend.name}</span>
-                      <span className="text-xs text-muted-foreground">{backend.url}</span>
-                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{backend.name}</span>
+                    <span className="text-xs text-muted-foreground">{backend.url}</span>
                   </div>
                 </div>
               </SelectItem>
