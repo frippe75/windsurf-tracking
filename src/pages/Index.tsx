@@ -696,17 +696,32 @@ const Index = () => {
             throw new Error('Invalid SAM2 response: missing results or bbox');
           }
           
-          // Parse bbox array [x, y, width, height] from video pixel coords -> normalize to %
+          // Parse bbox array [x, y, width, height] and normalize using mask size if available
           const [bx, by, bw, bh] = results.bbox as [number, number, number, number];
+          
+          const maskBase64 = results.mask_base64 as string | undefined;
+          let baseW = videoWidth;
+          let baseH = videoHeight;
+          if (maskBase64) {
+            try {
+              const img = new Image();
+              img.src = `data:image/png;base64,${maskBase64}`;
+              await img.decode();
+              baseW = img.width || baseW;
+              baseH = img.height || baseH;
+            } catch (e) {
+              console.warn('⚠️ Failed to decode mask image, falling back to video dims', e);
+            }
+          }
+
           const bbox = {
-            x: (bx / videoWidth) * 100,
-            y: (by / videoHeight) * 100,
-            w: (bw / videoWidth) * 100,
-            h: (bh / videoHeight) * 100,
+            x: (bx / baseW) * 100,
+            y: (by / baseH) * 100,
+            w: (bw / baseW) * 100,
+            h: (bh / baseH) * 100,
           };
           
-          // Store the mask for later use (could be displayed as overlay)
-          const maskBase64 = results.mask_base64;
+          // Keep mask for later
           const maskPixels = results.mask_pixels;
           
           // For now, generate polygon points from bbox (could extract contours from mask in future)
