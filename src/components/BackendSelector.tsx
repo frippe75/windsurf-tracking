@@ -170,14 +170,14 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
                 {backendStatus === "offline" ? (
-                  <span className="relative block h-2 w-2">
+                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
                     <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                    <span className="relative block h-2 w-2 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                    <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
                   </span>
                 ) : (
-                  <span className="relative block h-2 w-2">
+                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
                     <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                    <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                    <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                   </span>
                 )}
                 </div>
@@ -195,18 +195,18 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                   <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
                     {selectedBackend?.id === backend.id ? (
                       backendStatus === "offline" ? (
-                        <span className="relative block h-2 w-2">
+                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
                           <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                          <span className="relative block h-2 w-2 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                          <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
                         </span>
                       ) : (
-                        <span className="relative block h-2 w-2">
+                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
                           <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                          <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                          <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                         </span>
                       )
                     ) : (
-                      <span className="block h-2 w-2" />
+                      <span className="block h-[9px] w-[9px]" />
                     )}
                   </span>
                   <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
