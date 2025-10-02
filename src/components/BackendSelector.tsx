@@ -171,10 +171,10 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id}>
-                <div className="flex flex-col">
-                  <span className="font-medium">{backend.name}</span>
-                  <span className="text-xs text-muted-foreground">{backend.url}</span>
-                </div>
+                <span className="flex flex-col items-start">
+                  <span className="font-medium leading-tight">{backend.name}</span>
+                  <span className="text-xs text-muted-foreground leading-tight">{backend.url}</span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
