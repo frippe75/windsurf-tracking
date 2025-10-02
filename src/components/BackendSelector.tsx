@@ -165,7 +165,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
             if (backend) handleSelectBackend(backend);
           }}
         >
-          <SelectTrigger className="w-[200px] h-9">
+          <SelectTrigger className="w-[280px] h-9">
             <SelectValue placeholder="Select backend" />
           </SelectTrigger>
           <SelectContent>
