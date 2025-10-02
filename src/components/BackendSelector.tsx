@@ -185,9 +185,11 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-lg shadow-red-500/50"></span>
                       </span>
                     )}
-                    <span className="font-medium">{backend.name}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{backend.name}</span>
+                      <span className="text-xs text-muted-foreground">{backend.url}</span>
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground pl-4">{backend.url}</span>
                 </div>
               </SelectItem>
             ))}
