@@ -35,6 +35,7 @@ interface VideoPlayerProps {
   selectedAnnotationId?: string;
   onContextMenu: (x: number, y: number, context: any) => void;
   showLabels?: boolean;
+  isUploading?: boolean;
 }
 
 export function VideoPlayer({
@@ -48,6 +49,7 @@ export function VideoPlayer({
   classes,
   instances,
   annotations,
+  isUploading = false,
   onAnnotationUpdate,
   onAnnotationSelect,
   overlays,
@@ -680,6 +682,7 @@ export function VideoPlayer({
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'top left',
             cursor: isPanning ? "grabbing" : cursorStyle,
+            pointerEvents: isUploading ? "none" : "auto",
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
@@ -714,6 +717,21 @@ export function VideoPlayer({
         >
           <Maximize2 className="h-4 w-4 text-white" />
         </Button>
+        
+        {/* Loading overlay during upload */}
+        {isUploading && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg p-6 text-center space-y-3">
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-semibold">Processing Video</p>
+                <p className="text-sm text-muted-foreground">Uploading and detecting scenes...</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">

@@ -1474,6 +1474,7 @@ const Index = () => {
                 selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
                 showLabels={showLabels}
+                isUploading={isUploading}
               />
               <HierarchicalTimeline
                 classes={classes}
