@@ -977,12 +977,17 @@ const Index = () => {
         click_prompts: clickPrompts
       }]);
 
+      console.log('📦 Tracking job creation response:', createResponse);
+
       const { auto_split_result } = createResponse;
       
       // Validate response
       if (!auto_split_result || !auto_split_result.created_jobs) {
-        throw new Error("Invalid response from tracking job creation");
+        console.error('❌ Invalid tracking response structure:', createResponse);
+        throw new Error(`Invalid response from tracking job creation. Response: ${JSON.stringify(createResponse)}`);
       }
+      
+      console.log(`✅ Job created with ${auto_split_result.created_jobs.length} sub-jobs`);
       
       // Update job with auto-split info
       setTrackingJobs(jobs =>
