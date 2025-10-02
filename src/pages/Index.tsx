@@ -681,9 +681,16 @@ const Index = () => {
 
           console.log('✅ SAM2 response received:', sam2Response);
 
-          // Extract points and bbox from response
-          const points = sam2Response.points || [];
-          const bbox = sam2Response.bbox;
+          // Extract points and bbox from response.results
+          const results = (sam2Response as any).results;
+          if (!results || !results.bbox) {
+            throw new Error('Invalid SAM2 response: missing results or bbox');
+          }
+          
+          const points = results.mask_pixels || results.points || [];
+          const bbox = results.bbox;
+          
+          console.log('📊 Extracted segmentation:', { points: points.length, bbox });
           
           // Use DINO detection or default to "Sail" class
           const className = "Sail"; // TODO: Could call DINO here if needed
