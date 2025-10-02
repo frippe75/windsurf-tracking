@@ -681,7 +681,7 @@ const Index = () => {
 
           console.log('✅ SAM2 response received:', sam2Response);
 
-          // Extract points and bbox from response.results
+          // Extract mask and bbox from response.results
           const results = (sam2Response as any).results;
           if (!results || !results.bbox) {
             throw new Error('Invalid SAM2 response: missing results or bbox');
@@ -696,7 +696,12 @@ const Index = () => {
             h: bboxArray[3]
           };
           
-          // Generate polygon points from bbox (clockwise rectangle)
+          // Store the mask for later use (could be displayed as overlay)
+          const maskBase64 = results.mask_base64;
+          const maskPixels = results.mask_pixels;
+          
+          // For now, generate polygon points from bbox (could extract contours from mask in future)
+          // TODO: Convert mask_base64 PNG to polygon contour points for better visualization
           const points = [
             { x: bbox.x, y: bbox.y },
             { x: bbox.x + bbox.w, y: bbox.y },
@@ -704,7 +709,12 @@ const Index = () => {
             { x: bbox.x, y: bbox.y + bbox.h }
           ];
           
-          console.log('📊 Extracted segmentation:', { bbox, points: points.length, score: results.score });
+          console.log('📊 Extracted segmentation:', { 
+            bbox, 
+            points: points.length, 
+            maskPixels,
+            score: results.score 
+          });
           
           // Use DINO detection or default to "Sail" class
           const className = "Sail"; // TODO: Could call DINO here if needed
