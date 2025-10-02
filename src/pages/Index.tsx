@@ -972,19 +972,18 @@ const Index = () => {
       return;
     }
 
-    // Collect ALL annotations as separate tracking objects
-    const trackingObjects = segmentAnnotations.map((ann, index) => ({
-      object_id: index + 1,
-      prompts: ann.sam2Prompts!.map(p => ({
+    // Collect ALL click prompts from all annotations
+    const allClickPrompts = segmentAnnotations.flatMap(ann => 
+      ann.sam2Prompts!.map(p => ({
         x: Math.round((p.x / 100) * videoNativeWidth),
         y: Math.round((p.y / 100) * videoNativeHeight),
         type: p.type
       }))
-    }));
+    );
 
-    console.log('🎯 Tracking job objects:', {
-      objectCount: trackingObjects.length,
-      objects: trackingObjects,
+    console.log('🎯 Tracking job click prompts:', {
+      promptCount: allClickPrompts.length,
+      prompts: allClickPrompts,
       nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
     });
 
@@ -998,7 +997,7 @@ const Index = () => {
       const createResponse = await createTrackingJob(videoId, [{
         start_frame: job.startFrame,
         end_frame: job.stopFrame,
-        objects: trackingObjects
+        click_prompts: allClickPrompts
       }]);
 
       console.log('📦 Tracking job creation response:', createResponse);

@@ -478,15 +478,10 @@ export const getAIStatus = async (): Promise<AIStatusResponse> => {
 // ============= Tracking Endpoints =============
 
 // Tracking Job Types
-export interface TrackingObject {
-  object_id: number;
-  prompts: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
-}
-
 export interface TrackingSegment {
   start_frame: number;
   end_frame: number;
-  objects: TrackingObject[];
+  click_prompts: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
 }
 
 export interface SubJob {
