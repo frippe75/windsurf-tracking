@@ -169,11 +169,17 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
             {selectedBackend ? (
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
-                  {backendStatus === "offline" ? (
-                    <span className="block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
-                  ) : (
-                    <span className="block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
-                  )}
+                {backendStatus === "offline" ? (
+                  <span className="relative block h-3 w-3">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                  </span>
+                ) : (
+                  <span className="relative block h-3 w-3">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                  </span>
+                )}
                 </div>
                 <span className="col-start-2 row-start-1 font-bold leading-tight">{selectedBackend.name}</span>
                 <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{selectedBackend.url}</span>
@@ -189,9 +195,15 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                   <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
                     {selectedBackend?.id === backend.id ? (
                       backendStatus === "offline" ? (
-                        <span className="block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                        <span className="relative block h-3 w-3">
+                          <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-75" />
+                          <span className="relative block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                        </span>
                       ) : (
-                        <span className="block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                        <span className="relative block h-3 w-3">
+                          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                        </span>
                       )
                     ) : (
                       <span className="block h-3 w-3" />
