@@ -697,7 +697,8 @@ const Index = () => {
           }
           
           // Parse bbox array [x, y, width, height] and normalize using mask size if available
-          const [bx, by, bw, bh] = results.bbox as [number, number, number, number];
+          // Backend returns bbox as [x1, y1, x2, y2] (corner coordinates)
+          const [x1, y1, x2, y2] = results.bbox as [number, number, number, number];
           
           const maskBase64 = results.mask_base64 as string | undefined;
           let baseW = videoWidth;
@@ -713,6 +714,12 @@ const Index = () => {
               console.warn('⚠️ Failed to decode mask image, falling back to video dims', e);
             }
           }
+
+          // Calculate width and height from corner coordinates
+          const bx = x1;
+          const by = y1;
+          const bw = x2 - x1;
+          const bh = y2 - y1;
 
           const bbox = {
             x: (bx / baseW) * 100,
