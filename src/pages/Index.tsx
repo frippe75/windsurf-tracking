@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, segmentWithSAM2, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -657,8 +657,19 @@ const Index = () => {
         });
 
         try {
-          // Call mock SAM2 backend with actual video dimensions
-          const { points, className } = await mockSAM2Segmentation(x, y, videoWidth, videoHeight, false);
+          // Call real SAM2 backend API
+          const sam2Response = await segmentWithSAM2({
+            video_id: videoId,
+            frame_number: currentFrame,
+            click_prompts: [{ x, y, type: 'positive' }]
+          });
+
+          // Extract points and bbox from response
+          const points = sam2Response.points || [];
+          const bbox = sam2Response.bbox;
+          
+          // Use DINO detection or default to "Sail" class
+          const className = "Sail"; // TODO: Could call DINO here if needed
 
           // Find or create class
           let classData = classes.find(c => c.name === className);
@@ -673,14 +684,6 @@ const Index = () => {
             setClasses(prev => [...prev, classData!]);
             setColorIndex(prev => prev + 1);
           }
-
-          // Calculate bounding box from segmentation points
-          const xs = points.map(p => p.x);
-          const ys = points.map(p => p.y);
-          const minX = Math.min(...xs);
-          const maxX = Math.max(...xs);
-          const minY = Math.min(...ys);
-          const maxY = Math.max(...ys);
 
           // Create new instance for this class
           const classInstances = instances.filter(inst => inst.classId === classData.id);
@@ -697,12 +700,7 @@ const Index = () => {
             id: `ann-${Date.now()}`,
             instanceId: newInstance.id,
             points,
-            bbox: {
-              x: minX,
-              y: minY,
-              w: maxX - minX,
-              h: maxY - minY,
-            },
+            bbox,
             frameCreated: currentFrame,
             sam2Prompts: [{ x, y, type: 'positive' }], // Add initial click as positive prompt
             isKeyframe: true, // Manual annotation
