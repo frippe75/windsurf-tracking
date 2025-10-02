@@ -19,8 +19,10 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
   }
 
   try {
+    console.log('🔍 Checking backend health at:', config.backendUrl);
     const response = await fetch(`${config.backendUrl}/`, {
       method: 'GET',
+      mode: 'cors',
     });
 
     if (!response.ok) {
@@ -29,7 +31,7 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
 
     return await response.json();
   } catch (error) {
-    console.warn('Backend health check failed:', error);
+    console.error('❌ Backend health check failed for', config.backendUrl, ':', error);
     return null;
   }
 };
