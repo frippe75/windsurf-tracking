@@ -167,9 +167,19 @@ export const BackendSelector = () => {
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id}>
-                <div className="flex flex-col">
-                  <span className="font-medium">{backend.name}</span>
-                  <span className="text-xs text-muted-foreground">{backend.url}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{backend.name}</span>
+                      {backend.id === "lab-k8s" && selectedBackend?.id === "lab-k8s" && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{backend.url}</span>
+                  </div>
                 </div>
               </SelectItem>
             ))}
