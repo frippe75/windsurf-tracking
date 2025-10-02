@@ -979,15 +979,41 @@ const Index = () => {
 
       console.log('📦 Tracking job creation response:', createResponse);
 
-      const { auto_split_result } = createResponse;
-      
-      // Validate response
-      if (!auto_split_result || !auto_split_result.created_jobs) {
+      // Handle both response formats: single_job or auto_split_result
+      let subJobs: SubJob[];
+      let isSplit = false;
+      let estimatedMemory = '';
+
+      if (createResponse.auto_split_result) {
+        // Multi-part job (split required)
+        const { auto_split_result } = createResponse;
+        isSplit = auto_split_result.split_required;
+        estimatedMemory = auto_split_result.estimated_memory || '';
+        subJobs = auto_split_result.created_jobs;
+        
+        toast({
+          title: "Job auto-split",
+          description: `Split into ${subJobs.length} parts (~${estimatedMemory})`,
+        });
+      } else if (createResponse.single_job) {
+        // Single job (no split needed)
+        const { single_job } = createResponse;
+        isSplit = false;
+        estimatedMemory = single_job.estimated_memory || '';
+        subJobs = [{
+          job_id: single_job.job_id,
+          name: single_job.name || 'Tracking Job',
+          start_frame: single_job.start_frame,
+          end_frame: single_job.end_frame,
+          frames: single_job.frames,
+          prompt_source: 'manual'
+        }];
+      } else {
         console.error('❌ Invalid tracking response structure:', createResponse);
-        throw new Error(`Invalid response from tracking job creation. Response: ${JSON.stringify(createResponse)}`);
+        throw new Error(`Invalid response format. Expected 'auto_split_result' or 'single_job'`);
       }
       
-      console.log(`✅ Job created with ${auto_split_result.created_jobs.length} sub-jobs`);
+      console.log(`✅ Job created with ${subJobs.length} sub-job(s)`);
       
       // Update job with auto-split info
       setTrackingJobs(jobs =>
@@ -996,9 +1022,9 @@ const Index = () => {
             ...j,
             status: "processing" as const,
             progress: 0,
-            isSplit: auto_split_result.split_required,
-            estimatedMemory: auto_split_result.estimated_memory,
-            subJobs: auto_split_result.created_jobs.map(subJob => ({
+            isSplit,
+            estimatedMemory,
+            subJobs: subJobs.map(subJob => ({
               ...subJob,
               status: "pending" as const
             }))
@@ -1006,16 +1032,9 @@ const Index = () => {
         )
       );
 
-      if (auto_split_result.split_required) {
-        toast({
-          title: "Job auto-split",
-          description: `Split into ${auto_split_result.created_jobs.length} parts (~${auto_split_result.estimated_memory})`,
-        });
-      }
-
       // Execute each sub-job sequentially
-      for (let i = 0; i < auto_split_result.created_jobs.length; i++) {
-        const subJob = auto_split_result.created_jobs[i];
+      for (let i = 0; i < subJobs.length; i++) {
+        const subJob = subJobs[i];
         
         // Mark sub-job as processing
         setTrackingJobs(jobs =>
@@ -1044,7 +1063,7 @@ const Index = () => {
             jobs.map(j =>
               j.id === jobId && j.subJobs ? {
                 ...j,
-                progress: Math.round(((i + (status.percentage || 0) / 100) / auto_split_result.created_jobs.length) * 100),
+                progress: Math.round(((i + (status.percentage || 0) / 100) / subJobs.length) * 100),
                 subJobs: j.subJobs.map((sj, idx) =>
                   idx === i ? { ...sj, progress: status.percentage } : sj
                 )
@@ -1075,7 +1094,7 @@ const Index = () => {
       // All sub-jobs completed - fetch and create annotations from tracking results
       const allResults: any[] = [];
       
-      for (const subJob of auto_split_result.created_jobs) {
+      for (const subJob of subJobs) {
         try {
           const results = await getTrackingJobResults(subJob.job_id);
           allResults.push(...results.results);
@@ -1181,7 +1200,7 @@ const Index = () => {
 
       toast({
         title: "Tracking completed",
-        description: `Created ${allResults.length} annotations across ${auto_split_result.created_jobs.length} segment(s)`,
+        description: `Created ${allResults.length} annotations across ${subJobs.length} segment(s)`,
       });
 
     } catch (error) {

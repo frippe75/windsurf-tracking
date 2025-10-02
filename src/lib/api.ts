@@ -461,8 +461,22 @@ export interface AutoSplitResult {
 
 export interface CreateTrackingJobResponse {
   job_id: string;
-  video_id: string;
-  auto_split_result: AutoSplitResult;
+  video_id?: string;
+  auto_split_result?: AutoSplitResult;
+  single_job?: {
+    video_id: string;
+    video_path: string;
+    fps: number;
+    job_id: string;
+    name: string;
+    start_frame: number;
+    end_frame: number;
+    frames: number;
+    click_prompts: Array<{ x: number; y: number; type: 'positive' | 'negative' }>;
+    estimated_memory: string;
+    status: string;
+  };
+  message?: string;
 }
 
 export interface TrackingJobStatus {
