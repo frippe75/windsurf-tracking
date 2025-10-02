@@ -162,20 +162,7 @@ export function VideoPlayer({
           img.onload = () => {
             ctx.save();
             
-            // Draw mask to determine where to apply color
-            if (maskIsCropped) {
-              const x = (maskBBox.x / 100) * canvas.width;
-              const y = (maskBBox.y / 100) * canvas.height;
-              const w = (maskBBox.w / 100) * canvas.width;
-              const h = (maskBBox.h / 100) * canvas.height;
-              ctx.drawImage(img, x, y, w, h);
-            } else {
-              // Full-frame mask: stretch over display rect
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            }
-            
-            // Apply class color only where mask exists (non-transparent pixels)
-            ctx.globalCompositeOperation = 'source-in';
+            // Step 1: Draw the colored overlay first
             ctx.fillStyle = color + "60"; // 38% opacity with class color
             if (maskIsCropped) {
               const x = (maskBBox.x / 100) * canvas.width;
@@ -185,6 +172,18 @@ export function VideoPlayer({
               ctx.fillRect(x, y, w, h);
             } else {
               ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Step 2: Use mask as clipping - only keep color where mask is opaque
+            ctx.globalCompositeOperation = 'destination-in';
+            if (maskIsCropped) {
+              const x = (maskBBox.x / 100) * canvas.width;
+              const y = (maskBBox.y / 100) * canvas.height;
+              const w = (maskBBox.w / 100) * canvas.width;
+              const h = (maskBBox.h / 100) * canvas.height;
+              ctx.drawImage(img, x, y, w, h);
+            } else {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             }
             
             ctx.restore();
