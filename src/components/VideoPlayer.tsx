@@ -156,17 +156,22 @@ export function VideoPlayer({
       if (overlays.segments) {
         // Prefer high-fidelity mask overlay if available
         if ((annotation as any).maskBase64 && (annotation as any).maskBBox) {
-          const { maskBase64, maskBBox } = annotation as any;
+          const { maskBase64, maskBBox, maskIsCropped } = annotation as any;
           const img = new Image();
           img.src = `data:image/png;base64,${maskBase64}`;
-          const x = (maskBBox.x / 100) * canvas.width;
-          const y = (maskBBox.y / 100) * canvas.height;
-          const w = (maskBBox.w / 100) * canvas.width;
-          const h = (maskBBox.h / 100) * canvas.height;
           img.onload = () => {
             ctx.save();
             ctx.globalAlpha = 0.35;
-            ctx.drawImage(img, x, y, w, h);
+            if (maskIsCropped) {
+              const x = (maskBBox.x / 100) * canvas.width;
+              const y = (maskBBox.y / 100) * canvas.height;
+              const w = (maskBBox.w / 100) * canvas.width;
+              const h = (maskBBox.h / 100) * canvas.height;
+              ctx.drawImage(img, x, y, w, h);
+            } else {
+              // Full-frame mask: stretch over display rect
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            }
             ctx.restore();
           };
         } else if (annotation.points.length > 0) {

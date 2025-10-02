@@ -26,6 +26,9 @@ export interface Annotation {
   // SAM2 mask overlay (percentage-based bbox relative to displayed video area)
   maskBase64?: string;
   maskBBox?: { x: number; y: number; w: number; h: number };
+  maskWidth?: number;
+  maskHeight?: number;
+  maskIsCropped?: boolean;
   isKeyframe: boolean; // True if manually created, false if from tracking
 }
 
