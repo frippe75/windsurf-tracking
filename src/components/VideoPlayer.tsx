@@ -162,32 +162,67 @@ export function VideoPlayer({
           const img = new Image();
           img.src = `data:image/png;base64,${maskBase64}`;
           img.onload = () => {
+            // Create a temporary canvas to colorize the mask
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) return;
+            
+            const x = maskIsCropped ? (maskBBox.x / 100) * canvas.width : 0;
+            const y = maskIsCropped ? (maskBBox.y / 100) * canvas.height : 0;
+            const w = maskIsCropped ? (maskBBox.w / 100) * canvas.width : canvas.width;
+            const h = maskIsCropped ? (maskBBox.h / 100) * canvas.height : canvas.height;
+            
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            
+            // Draw the mask
+            tempCtx.drawImage(img, 0, 0);
+            
+            // Get image data to colorize it
+            const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+            
+            // Parse the color (assuming it's in hsl format like "hsl(142, 71%, 45%)")
+            const colorMatch = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+            let r = 255, g = 255, b = 255;
+            if (colorMatch) {
+              const h = parseInt(colorMatch[1]) / 360;
+              const s = parseInt(colorMatch[2]) / 100;
+              const l = parseInt(colorMatch[3]) / 100;
+              // Simple HSL to RGB conversion
+              const hue2rgb = (p: number, q: number, t: number) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+              };
+              const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+              const p = 2 * l - q;
+              r = Math.round(hue2rgb(p, q, h + 1/3) * 255);
+              g = Math.round(hue2rgb(p, q, h) * 255);
+              b = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+            }
+            
+            // Colorize: replace white pixels with class color, keep alpha from mask
+            for (let i = 0; i < data.length; i += 4) {
+              const brightness = data[i]; // grayscale mask, so R=G=B
+              if (brightness > 128) { // If pixel is bright (part of mask)
+                data[i] = r;     // Red
+                data[i + 1] = g; // Green
+                data[i + 2] = b; // Blue
+                data[i + 3] = 150; // Semi-transparent
+              } else {
+                data[i + 3] = 0; // Fully transparent for black areas
+              }
+            }
+            
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            // Draw colorized mask on main canvas
             ctx.save();
-            
-            // Step 1: Draw the colored overlay first
-            ctx.fillStyle = color + "60"; // 38% opacity with class color
-            if (maskIsCropped) {
-              const x = (maskBBox.x / 100) * canvas.width;
-              const y = (maskBBox.y / 100) * canvas.height;
-              const w = (maskBBox.w / 100) * canvas.width;
-              const h = (maskBBox.h / 100) * canvas.height;
-              ctx.fillRect(x, y, w, h);
-            } else {
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
-            
-            // Step 2: Use mask as clipping - only keep color where mask is opaque
-            ctx.globalCompositeOperation = 'destination-in';
-            if (maskIsCropped) {
-              const x = (maskBBox.x / 100) * canvas.width;
-              const y = (maskBBox.y / 100) * canvas.height;
-              const w = (maskBBox.w / 100) * canvas.width;
-              const h = (maskBBox.h / 100) * canvas.height;
-              ctx.drawImage(img, x, y, w, h);
-            } else {
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            }
-            
+            ctx.drawImage(tempCanvas, 0, 0, img.width, img.height, x, y, w, h);
             ctx.restore();
           };
         } else if (annotation.points.length > 0) {
