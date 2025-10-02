@@ -171,32 +171,29 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id}>
-                <div className="flex flex-col gap-0.5 w-full">
-                  {/* First line: indicator + name */}
-                  <div className="flex items-center gap-2">
+                <div className="grid grid-cols-[14px,1fr] gap-x-2 w-full">
+                  {/* Row 1: indicator + name */}
+                  <div className="col-start-1 row-start-1 h-3.5 w-3.5">
                     {selectedBackend?.id === backend.id && (
                       <>
                         {backendStatus === "healthy" && (
-                          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="relative block h-2.5 w-2.5">
                             <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
                             <span className="relative block h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
                           </span>
                         )}
                         {backendStatus === "offline" && (
-                          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="relative block h-2.5 w-2.5">
                             <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-75 duration-1000" />
                             <span className="relative block h-2.5 w-2.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50" />
                           </span>
                         )}
                       </>
                     )}
-                    <span className="font-medium leading-tight">{backend.name}</span>
                   </div>
-                  
-                  {/* Second line: URL */}
-                  <div className="flex items-center">
-                    <span className="text-xs text-muted-foreground leading-tight">{backend.url}</span>
-                  </div>
+                  <span className="col-start-2 row-start-1 font-medium leading-tight">{backend.name}</span>
+                  {/* Row 2: URL aligned with name */}
+                  <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
                 </div>
               </SelectItem>
             ))}
