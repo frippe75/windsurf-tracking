@@ -1099,13 +1099,25 @@ const Index = () => {
       for (const subJob of subJobs) {
         try {
           const results = await getTrackingJobResults(subJob.job_id);
-          console.log(`✅ Fetched ${results.results.length} results from ${subJob.name}:`, {
-            firstFrame: results.results[0]?.frame_number,
-            lastFrame: results.results[results.results.length - 1]?.frame_number,
-            sampleBbox: results.results[0]?.bbox,
-            hasMasks: results.results.some(r => r.mask_base64)
-          });
-          allResults.push(...results.results);
+          
+          // Check if results.results is an array of per-frame tracking data
+          if (Array.isArray(results.results)) {
+            console.log(`✅ Fetched ${results.results.length} results from ${subJob.name}:`, {
+              firstFrame: results.results[0]?.frame_number,
+              lastFrame: results.results[results.results.length - 1]?.frame_number,
+              sampleBbox: results.results[0]?.bbox,
+              hasMasks: results.results.some(r => r.mask_base64)
+            });
+            allResults.push(...results.results);
+          } else {
+            // Backend returned summary object instead of per-frame data
+            console.warn(`⚠️ ${subJob.name} returned summary instead of per-frame tracking data:`, results.results);
+            toast({
+              title: "Incomplete Tracking Data",
+              description: `Backend returned summary only. Update your /results endpoint to return per-frame bbox/mask data.`,
+              variant: "destructive",
+            });
+          }
         } catch (error) {
           console.error(`Failed to fetch results for ${subJob.name}:`, error);
         }
