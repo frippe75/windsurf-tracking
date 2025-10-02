@@ -165,8 +165,22 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
             if (backend) handleSelectBackend(backend);
           }}
         >
-          <SelectTrigger className="w-[280px] h-9">
-            <SelectValue placeholder="Select backend" />
+          <SelectTrigger className="w-[280px] h-auto min-h-[36px] py-2">
+            {selectedBackend ? (
+              <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
+                <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
+                  {backendStatus === "offline" ? (
+                    <span className="block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                  ) : (
+                    <span className="block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                  )}
+                </span>
+                <span className="col-start-2 row-start-1 font-bold leading-tight text-left">{selectedBackend.name}</span>
+                <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight text-left">{selectedBackend.url}</span>
+              </span>
+            ) : (
+              <SelectValue placeholder="Select backend" />
+            )}
           </SelectTrigger>
           <SelectContent>
             {backends.map((backend) => (
