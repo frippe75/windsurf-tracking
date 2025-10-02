@@ -669,14 +669,14 @@ const Index = () => {
           description: "Detecting object boundary and class",
         });
 
-        console.log('🎯 Calling SAM2 API with:', { videoId, frame: currentFrame, x, y });
+        console.log('🎯 Calling SAM2 API with:', { videoId, frame: currentFrame, x: Math.round(x), y: Math.round(y) });
 
         try {
-          // Call real SAM2 backend API
+          // Call real SAM2 backend API with integer coordinates
           const sam2Response = await segmentWithSAM2({
             video_id: videoId,
             frame_number: currentFrame,
-            click_prompts: [{ x, y, type: 'positive' }]
+            click_prompts: [{ x: Math.round(x), y: Math.round(y), type: 'positive' }]
           });
 
           console.log('✅ SAM2 response received:', sam2Response);
@@ -739,9 +739,10 @@ const Index = () => {
             }
           }
         } catch (error) {
+          console.error('❌ SAM2 error:', error);
           toast({
             title: "Segmentation failed",
-            description: "Could not segment object",
+            description: error instanceof Error ? error.message : "Could not segment object",
             variant: "destructive",
           });
         }

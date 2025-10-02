@@ -315,6 +315,8 @@ export interface SAM2SegmentationResponse {
   points: Array<{ x: number; y: number }>;  // Polygon points
   bbox: { x: number; y: number; w: number; h: number };
   model: string;
+  success?: boolean;  // Backend may return success flag
+  error?: string;     // Backend may return error message
 }
 
 // SAM2 segmentation endpoint
@@ -370,6 +372,12 @@ export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise
 
     const result = await response.json();
     console.log('✅ SAM2 response:', result);
+    
+    // Check if backend returned an error in the response body
+    if (result.success === false || result.error) {
+      throw new Error(result.error || 'SAM2 segmentation failed');
+    }
+    
     return result;
   } catch (error) {
     console.error('❌ SAM2 request failed:', error);
