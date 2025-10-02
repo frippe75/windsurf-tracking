@@ -979,6 +979,11 @@ const Index = () => {
 
       const { auto_split_result } = createResponse;
       
+      // Validate response
+      if (!auto_split_result || !auto_split_result.created_jobs) {
+        throw new Error("Invalid response from tracking job creation");
+      }
+      
       // Update job with auto-split info
       setTrackingJobs(jobs =>
         jobs.map(j =>
