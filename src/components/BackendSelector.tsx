@@ -31,7 +31,7 @@ interface BackendSelectorProps {
 
 const DEFAULT_BACKENDS: Backend[] = [
   { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
-  { id: "lab-k8s", name: "Lab K8s", url: "https://windsurf-api.tclab.org" },
+  { id: "lab-k8s", name: "K8s Lab", url: "https://windsurf-api.tclab.org" },
   { id: "production", name: "Production", url: "https://lablebee.tclab.org" },
   { id: "custom", name: "Custom", url: "" },
 ];
@@ -174,25 +174,16 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                 <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
                   <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
                     {selectedBackend?.id === backend.id ? (
-                      <>
-                        {backendStatus === "healthy" && (
-                          <span className="relative block h-2.5 w-2.5">
-                            <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
-                            <span className="relative block h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
-                          </span>
-                        )}
-                        {backendStatus === "offline" && (
-                          <span className="relative block h-2.5 w-2.5">
-                            <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-75 duration-1000" />
-                            <span className="relative block h-2.5 w-2.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50" />
-                          </span>
-                        )}
-                      </>
+                      backendStatus === "offline" ? (
+                        <span className="block h-3 w-3 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                      ) : (
+                        <span className="block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                      )
                     ) : (
-                      <span className="block h-2.5 w-2.5" />
+                      <span className="block h-3 w-3" />
                     )}
                   </span>
-                  <span className="col-start-2 row-start-1 font-medium leading-tight">{backend.name}</span>
+                  <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
                   <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
                 </span>
               </SelectItem>
