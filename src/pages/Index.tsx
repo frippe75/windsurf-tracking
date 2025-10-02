@@ -108,8 +108,8 @@ const Index = () => {
     // Initial check
     checkHealth();
     
-    // Check every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
+    // Check every 5 seconds
+    const interval = setInterval(checkHealth, 5000);
     
     return () => clearInterval(interval);
   }, [toast]);
