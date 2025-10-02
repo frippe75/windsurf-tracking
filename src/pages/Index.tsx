@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Server, ServerOff, Loader2 } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
@@ -1268,13 +1268,13 @@ const Index = () => {
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background/50">
                 {backendStatus === "healthy" && (
                   <>
-                    <Wifi className="h-4 w-4 text-green-500" />
+                    <Server className="h-4 w-4 text-green-500" />
                     <span className="text-sm font-medium text-green-600">Online</span>
                   </>
                 )}
                 {backendStatus === "offline" && (
                   <>
-                    <WifiOff className="h-4 w-4 text-muted-foreground" />
+                    <ServerOff className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-muted-foreground">Offline</span>
                   </>
                 )}
