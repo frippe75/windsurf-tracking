@@ -640,6 +640,8 @@ const Index = () => {
 
       // If SAM2 is enabled and no existing annotation clicked, create new one
       if (useSAM2) {
+        console.log('🎯 SAM2 enabled, checking videoId:', videoId);
+        
         // Don't create new annotations with negative prompts
         if (altKey) {
           toast({
@@ -650,11 +652,24 @@ const Index = () => {
           return;
         }
 
+        // Check if videoId exists
+        if (!videoId) {
+          toast({
+            title: "No video loaded",
+            description: "Please upload a video first",
+            variant: "destructive",
+          });
+          console.error('❌ Cannot call SAM2: videoId is missing');
+          return;
+        }
+
         // Show loading toast
         toast({
           title: `Running SAM2 segmentation...`,
           description: "Detecting object boundary and class",
         });
+
+        console.log('🎯 Calling SAM2 API with:', { videoId, frame: currentFrame, x, y });
 
         try {
           // Call real SAM2 backend API
@@ -663,6 +678,8 @@ const Index = () => {
             frame_number: currentFrame,
             click_prompts: [{ x, y, type: 'positive' }]
           });
+
+          console.log('✅ SAM2 response received:', sam2Response);
 
           // Extract points and bbox from response
           const points = sam2Response.points || [];
