@@ -329,6 +329,18 @@ const Index = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Clear all states for fresh start
+    setAnnotations([]);
+    setInstances([]);
+    setKeyframes([]);
+    setScenes([]);
+    setSelectedClassId(undefined);
+    setSelectedAnnotationId(undefined);
+    setSelectedScene(null);
+    setTrackingJobs([]);
+    setCurrentFrame(0);
+    setVideoMetadata({});
+
     // Create local URL for immediate playback
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
