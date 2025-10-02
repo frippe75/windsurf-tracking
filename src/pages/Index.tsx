@@ -972,17 +972,19 @@ const Index = () => {
       return;
     }
 
-    // Use prompts from first annotation with prompts
-    // Convert percentage coordinates to native video pixel coordinates
-    const clickPrompts = segmentAnnotations[0].sam2Prompts!.map(p => ({
-      x: Math.round((p.x / 100) * videoNativeWidth),
-      y: Math.round((p.y / 100) * videoNativeHeight),
-      type: p.type
+    // Collect ALL annotations as separate tracking objects
+    const trackingObjects = segmentAnnotations.map((ann, index) => ({
+      object_id: index + 1,
+      prompts: ann.sam2Prompts!.map(p => ({
+        x: Math.round((p.x / 100) * videoNativeWidth),
+        y: Math.round((p.y / 100) * videoNativeHeight),
+        type: p.type
+      }))
     }));
 
-    console.log('🎯 Tracking job click prompts:', {
-      originalPercentages: segmentAnnotations[0].sam2Prompts,
-      nativePixels: clickPrompts,
+    console.log('🎯 Tracking job objects:', {
+      objectCount: trackingObjects.length,
+      objects: trackingObjects,
       nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
     });
 
@@ -996,7 +998,7 @@ const Index = () => {
       const createResponse = await createTrackingJob(videoId, [{
         start_frame: job.startFrame,
         end_frame: job.stopFrame,
-        click_prompts: clickPrompts
+        objects: trackingObjects
       }]);
 
       console.log('📦 Tracking job creation response:', createResponse);
@@ -1129,18 +1131,51 @@ const Index = () => {
               ? (results as any).results.frames
               : [];
 
-          // Map various backend shapes to the expected TrackingResult shape
-          const normalized = frames
-            .map((r: any) => {
+          // Map multi-object backend results to flat array of per-object-per-frame results
+          const normalized: Array<{ 
+            frame_number: number; 
+            object_id: number;
+            bbox: [number, number, number, number]; 
+            mask_base64?: string; 
+            score?: number 
+          }> = [];
+
+          for (const r of frames) {
+            const frame_number = r.frame_number ?? r.frame;
+            if (typeof frame_number !== 'number') continue;
+
+            // Handle multi-object format: object_ids, bboxes, masks_base64 arrays
+            if (Array.isArray(r.object_ids) && Array.isArray(r.bboxes)) {
+              for (let i = 0; i < r.object_ids.length; i++) {
+                const bbox = r.bboxes[i];
+                if (!bbox) continue;
+                
+                normalized.push({
+                  frame_number,
+                  object_id: r.object_ids[i],
+                  bbox,
+                  mask_base64: r.masks_base64?.[i],
+                  score: r.scores?.[i]
+                });
+              }
+            } 
+            // Fallback: single-object format
+            else {
               const bbox = r.bbox ?? (Array.isArray(r.bboxes) ? r.bboxes[0] : undefined);
-              const frame_number = r.frame_number ?? r.frame;
               const mask_base64 = r.mask_base64 ?? r.maskBase64 ?? r.mask?.base64;
               const score = r.score ?? r.confidence;
-              return bbox && (typeof frame_number === 'number')
-                ? { frame_number, bbox, mask_base64, score }
-                : null;
-            })
-            .filter(Boolean) as Array<{ frame_number: number; bbox: [number, number, number, number]; mask_base64?: string; score?: number }>;
+              
+              if (bbox) {
+                normalized.push({
+                  frame_number,
+                  object_id: 1, // Default to object_id 1 for backward compatibility
+                  bbox,
+                  mask_base64,
+                  score
+                });
+              }
+            }
+          }
 
           if (normalized.length > 0) {
             console.log(`✅ Fetched ${normalized.length} results from ${subJob.name}:`, {
@@ -1170,74 +1205,77 @@ const Index = () => {
         hasMask: !!r.mask_base64
       })));
 
-      // Create new annotations for each tracked frame
+      // Create new annotations for each tracked frame and object
       if (allResults.length > 0) {
         const newAnnotations: Annotation[] = [];
         
-        // Get the instance ID from the original annotation
-        const originalAnnotation = annotations.find(ann => job.objectIds.includes(ann.id));
-        if (originalAnnotation) {
-          console.log(`🎨 Creating annotations for instance ${originalAnnotation.instanceId}...`);
-          
-          for (const result of allResults) {
-            // Decode mask to get dimensions
-            let maskWidth: number | undefined;
-            let maskHeight: number | undefined;
-            if (result.mask_base64) {
-              try {
-                const img = new Image();
-                img.src = `data:image/png;base64,${result.mask_base64}`;
-                await img.decode();
-                maskWidth = img.width;
-                maskHeight = img.height;
-              } catch (e) {
-                console.warn('Failed to decode mask for frame', result.frame_number);
-              }
-            }
-
-            // Convert bbox from [x1, y1, x2, y2] to percentage-based format
-            const [x1, y1, x2, y2] = result.bbox;
-            const bboxWidth = x2 - x1;
-            const bboxHeight = y2 - y1;
-            
-            // Use mask dimensions if available, otherwise fall back to video dimensions (1280x720 default)
-            const baseW = maskWidth || 1280;
-            const baseH = maskHeight || 720;
-            
-            const bbox = {
-              x: (x1 / baseW) * 100,
-              y: (y1 / baseH) * 100,
-              w: (bboxWidth / baseW) * 100,
-              h: (bboxHeight / baseH) * 100,
-            };
-
-            // Create polygon points from bbox
-            const points = [
-              { x: bbox.x, y: bbox.y },
-              { x: bbox.x + bbox.w, y: bbox.y },
-              { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
-              { x: bbox.x, y: bbox.y + bbox.h }
-            ];
-
-            newAnnotations.push({
-              id: `ann-tracked-${result.frame_number}-${Date.now()}-${Math.random()}`,
-              instanceId: originalAnnotation.instanceId,
-              points,
-              bbox,
-              maskBase64: result.mask_base64,
-              maskBBox: bbox,
-              maskWidth,
-              maskHeight,
-              maskIsCropped: true,
-              frameCreated: result.frame_number,
-              isKeyframe: false // Tracked, not manual
-            });
+        // Group results by object_id to map back to original annotations
+        console.log(`🎨 Creating annotations for ${segmentAnnotations.length} objects...`);
+        
+        for (const result of allResults) {
+          // Map object_id back to original annotation (object_id is 1-based)
+          const originalAnnotation = segmentAnnotations[result.object_id - 1];
+          if (!originalAnnotation) {
+            console.warn(`⚠️ No annotation found for object_id ${result.object_id}`);
+            continue;
           }
+          // Decode mask to get dimensions
+          let maskWidth: number | undefined;
+          let maskHeight: number | undefined;
+          if (result.mask_base64) {
+            try {
+              const img = new Image();
+              img.src = `data:image/png;base64,${result.mask_base64}`;
+              await img.decode();
+              maskWidth = img.width;
+              maskHeight = img.height;
+            } catch (e) {
+              console.warn('Failed to decode mask for frame', result.frame_number);
+            }
+          }
+
+          // Convert bbox from [x1, y1, x2, y2] to percentage-based format
+          const [x1, y1, x2, y2] = result.bbox;
+          const bboxWidth = x2 - x1;
+          const bboxHeight = y2 - y1;
           
-          console.log(`✅ Created ${newAnnotations.length} annotations. Sample frames:`, 
-            newAnnotations.slice(0, 3).map(a => ({ frame: a.frameCreated, bbox: a.bbox }))
-          );
+          // Use mask dimensions if available, otherwise fall back to video dimensions
+          const baseW = maskWidth || videoNativeWidth || 1280;
+          const baseH = maskHeight || videoNativeHeight || 720;
+          
+          const bbox = {
+            x: (x1 / baseW) * 100,
+            y: (y1 / baseH) * 100,
+            w: (bboxWidth / baseW) * 100,
+            h: (bboxHeight / baseH) * 100,
+          };
+
+          // Create polygon points from bbox
+          const points = [
+            { x: bbox.x, y: bbox.y },
+            { x: bbox.x + bbox.w, y: bbox.y },
+            { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
+            { x: bbox.x, y: bbox.y + bbox.h }
+          ];
+
+          newAnnotations.push({
+            id: `ann-tracked-${result.object_id}-${result.frame_number}-${Date.now()}-${Math.random()}`,
+            instanceId: originalAnnotation.instanceId,
+            points,
+            bbox,
+            maskBase64: result.mask_base64,
+            maskBBox: bbox,
+            maskWidth,
+            maskHeight,
+            maskIsCropped: true,
+            frameCreated: result.frame_number,
+            isKeyframe: false // Tracked, not manual
+          });
         }
+        
+        console.log(`✅ Created ${newAnnotations.length} annotations across ${segmentAnnotations.length} objects. Sample:`, 
+          newAnnotations.slice(0, 3).map(a => ({ frame: a.frameCreated, bbox: a.bbox, instanceId: a.instanceId }))
+        );
 
         // Add all new tracked annotations
         setAnnotations(prevAnnotations => [...prevAnnotations, ...newAnnotations]);
