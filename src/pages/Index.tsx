@@ -1094,16 +1094,29 @@ const Index = () => {
       // All sub-jobs completed - fetch and create annotations from tracking results
       const allResults: any[] = [];
       
+      console.log(`📦 Fetching results from ${subJobs.length} sub-job(s)...`);
+      
       for (const subJob of subJobs) {
         try {
           const results = await getTrackingJobResults(subJob.job_id);
+          console.log(`✅ Fetched ${results.results.length} results from ${subJob.name}:`, {
+            firstFrame: results.results[0]?.frame_number,
+            lastFrame: results.results[results.results.length - 1]?.frame_number,
+            sampleBbox: results.results[0]?.bbox,
+            hasMasks: results.results.some(r => r.mask_base64)
+          });
           allResults.push(...results.results);
         } catch (error) {
           console.error(`Failed to fetch results for ${subJob.name}:`, error);
         }
       }
 
-      console.log(`📦 Retrieved ${allResults.length} tracking results`);
+      console.log(`📊 Total tracking results retrieved: ${allResults.length}`);
+      console.log('Sample of first 3 results:', allResults.slice(0, 3).map(r => ({
+        frame: r.frame_number,
+        bbox: r.bbox,
+        hasMask: !!r.mask_base64
+      })));
 
       // Create new annotations for each tracked frame
       if (allResults.length > 0) {
@@ -1112,6 +1125,8 @@ const Index = () => {
         // Get the instance ID from the original annotation
         const originalAnnotation = annotations.find(ann => job.objectIds.includes(ann.id));
         if (originalAnnotation) {
+          console.log(`🎨 Creating annotations for instance ${originalAnnotation.instanceId}...`);
+          
           for (const result of allResults) {
             // Decode mask to get dimensions
             let maskWidth: number | undefined;
@@ -1153,7 +1168,7 @@ const Index = () => {
             ];
 
             newAnnotations.push({
-              id: `ann-tracked-${result.frame_number}-${Date.now()}`,
+              id: `ann-tracked-${result.frame_number}-${Date.now()}-${Math.random()}`,
               instanceId: originalAnnotation.instanceId,
               points,
               bbox,
@@ -1167,11 +1182,15 @@ const Index = () => {
               trackedFrames: [[job.startFrame, job.stopFrame]]
             });
           }
+          
+          console.log(`✅ Created ${newAnnotations.length} annotations. Sample frames:`, 
+            newAnnotations.slice(0, 3).map(a => ({ frame: a.frameCreated, bbox: a.bbox }))
+          );
         }
 
         // Add all new tracked annotations
         setAnnotations(prevAnnotations => [...prevAnnotations, ...newAnnotations]);
-        console.log(`✅ Created ${newAnnotations.length} tracked annotations`);
+        console.log(`✅ Added ${newAnnotations.length} tracked annotations to state`);
       }
 
       const fakeTrackedRanges: [number, number][] = [
