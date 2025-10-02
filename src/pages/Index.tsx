@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, segmentWithSAM2, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -1062,7 +1062,89 @@ const Index = () => {
         }
       }
 
-      // All sub-jobs completed
+      // All sub-jobs completed - fetch and create annotations from tracking results
+      const allResults: any[] = [];
+      
+      for (const subJob of auto_split_result.created_jobs) {
+        try {
+          const results = await getTrackingJobResults(subJob.job_id);
+          allResults.push(...results.results);
+        } catch (error) {
+          console.error(`Failed to fetch results for ${subJob.name}:`, error);
+        }
+      }
+
+      console.log(`📦 Retrieved ${allResults.length} tracking results`);
+
+      // Create new annotations for each tracked frame
+      if (allResults.length > 0) {
+        const newAnnotations: Annotation[] = [];
+        
+        // Get the instance ID from the original annotation
+        const originalAnnotation = annotations.find(ann => job.objectIds.includes(ann.id));
+        if (originalAnnotation) {
+          for (const result of allResults) {
+            // Decode mask to get dimensions
+            let maskWidth: number | undefined;
+            let maskHeight: number | undefined;
+            if (result.mask_base64) {
+              try {
+                const img = new Image();
+                img.src = `data:image/png;base64,${result.mask_base64}`;
+                await img.decode();
+                maskWidth = img.width;
+                maskHeight = img.height;
+              } catch (e) {
+                console.warn('Failed to decode mask for frame', result.frame_number);
+              }
+            }
+
+            // Convert bbox from [x1, y1, x2, y2] to percentage-based format
+            const [x1, y1, x2, y2] = result.bbox;
+            const bboxWidth = x2 - x1;
+            const bboxHeight = y2 - y1;
+            
+            // Use mask dimensions if available, otherwise fall back to video dimensions (1280x720 default)
+            const baseW = maskWidth || 1280;
+            const baseH = maskHeight || 720;
+            
+            const bbox = {
+              x: (x1 / baseW) * 100,
+              y: (y1 / baseH) * 100,
+              w: (bboxWidth / baseW) * 100,
+              h: (bboxHeight / baseH) * 100,
+            };
+
+            // Create polygon points from bbox
+            const points = [
+              { x: bbox.x, y: bbox.y },
+              { x: bbox.x + bbox.w, y: bbox.y },
+              { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
+              { x: bbox.x, y: bbox.y + bbox.h }
+            ];
+
+            newAnnotations.push({
+              id: `ann-tracked-${result.frame_number}-${Date.now()}`,
+              instanceId: originalAnnotation.instanceId,
+              points,
+              bbox,
+              maskBase64: result.mask_base64,
+              maskBBox: bbox,
+              maskWidth,
+              maskHeight,
+              maskIsCropped: true,
+              frameCreated: result.frame_number,
+              isKeyframe: false,  // Tracked, not manual
+              trackedFrames: [[job.startFrame, job.stopFrame]]
+            });
+          }
+        }
+
+        // Add all new tracked annotations
+        setAnnotations(prevAnnotations => [...prevAnnotations, ...newAnnotations]);
+        console.log(`✅ Created ${newAnnotations.length} tracked annotations`);
+      }
+
       const fakeTrackedRanges: [number, number][] = [
         [job.startFrame, job.stopFrame]
       ];
@@ -1073,7 +1155,7 @@ const Index = () => {
         )
       );
 
-      // Update annotations with tracked frames
+      // Update original annotations with tracked frames marker
       setAnnotations(prevAnnotations =>
         prevAnnotations.map(ann => {
           if (job.objectIds.includes(ann.id)) {
@@ -1089,7 +1171,7 @@ const Index = () => {
 
       toast({
         title: "Tracking completed",
-        description: `Tracked ${job.objectIds.length} object(s) across ${auto_split_result.created_jobs.length} segment(s)`,
+        description: `Created ${allResults.length} annotations across ${auto_split_result.created_jobs.length} segment(s)`,
       });
 
     } catch (error) {

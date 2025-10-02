@@ -565,3 +565,53 @@ export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobSt
 
   return await response.json();
 };
+
+// Get tracking job results
+export interface TrackingResult {
+  frame_number: number;
+  bbox: [number, number, number, number];  // [x1, y1, x2, y2]
+  mask_base64?: string;
+  score?: number;
+}
+
+export interface TrackingJobResults {
+  job_id: string;
+  video_id: string;
+  start_frame: number;
+  end_frame: number;
+  results: TrackingResult[];
+}
+
+export const getTrackingJobResults = async (jobId: string): Promise<TrackingJobResults> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Mock some tracking results
+    const mockResults: TrackingResult[] = [];
+    for (let frame = 0; frame < 20; frame++) {
+      mockResults.push({
+        frame_number: frame,
+        bbox: [100 + frame * 2, 150, 300, 400],
+        score: 0.9
+      });
+    }
+    
+    return {
+      job_id: jobId,
+      video_id: 'mock-video',
+      start_frame: 0,
+      end_frame: 20,
+      results: mockResults
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/results`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get tracking job results: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
