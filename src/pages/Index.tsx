@@ -1099,22 +1099,40 @@ const Index = () => {
       for (const subJob of subJobs) {
         try {
           const results = await getTrackingJobResults(subJob.job_id);
-          
-          // Check if results.results is an array of per-frame tracking data
-          if (Array.isArray(results.results)) {
-            console.log(`✅ Fetched ${results.results.length} results from ${subJob.name}:`, {
-              firstFrame: results.results[0]?.frame_number,
-              lastFrame: results.results[results.results.length - 1]?.frame_number,
-              sampleBbox: results.results[0]?.bbox,
-              hasMasks: results.results.some(r => r.mask_base64)
+
+          // Normalize backend results to a consistent per-frame array
+          const frames = Array.isArray(results.results)
+            ? results.results
+            : Array.isArray((results as any).results?.frames)
+              ? (results as any).results.frames
+              : [];
+
+          // Map various backend shapes to the expected TrackingResult shape
+          const normalized = frames
+            .map((r: any) => {
+              const bbox = r.bbox ?? (Array.isArray(r.bboxes) ? r.bboxes[0] : undefined);
+              const frame_number = r.frame_number ?? r.frame;
+              const mask_base64 = r.mask_base64 ?? r.maskBase64 ?? r.mask?.base64;
+              const score = r.score ?? r.confidence;
+              return bbox && (typeof frame_number === 'number')
+                ? { frame_number, bbox, mask_base64, score }
+                : null;
+            })
+            .filter(Boolean) as Array<{ frame_number: number; bbox: [number, number, number, number]; mask_base64?: string; score?: number }>;
+
+          if (normalized.length > 0) {
+            console.log(`✅ Fetched ${normalized.length} results from ${subJob.name}:`, {
+              firstFrame: normalized[0]?.frame_number,
+              lastFrame: normalized[normalized.length - 1]?.frame_number,
+              sampleBbox: normalized[0]?.bbox,
+              hasMasks: normalized.some(r => !!r.mask_base64)
             });
-            allResults.push(...results.results);
+            allResults.push(...normalized);
           } else {
-            // Backend returned summary object instead of per-frame data
-            console.warn(`⚠️ ${subJob.name} returned summary instead of per-frame tracking data:`, results.results);
+            console.warn(`⚠️ ${subJob.name} returned no usable per-frame tracking data:`, results);
             toast({
-              title: "Incomplete Tracking Data",
-              description: `Backend returned summary only. Update your /results endpoint to return per-frame bbox/mask data.`,
+              title: "No Tracking Frames Parsed",
+              description: `Received results but could not parse frames. Check backend result schema (expect frames[].bbox or bboxes[0]).`,
               variant: "destructive",
             });
           }
@@ -1190,8 +1208,7 @@ const Index = () => {
               maskHeight,
               maskIsCropped: true,
               frameCreated: result.frame_number,
-              isKeyframe: false,  // Tracked, not manual
-              trackedFrames: [[job.startFrame, job.stopFrame]]
+              isKeyframe: false // Tracked, not manual
             });
           }
           
@@ -1215,19 +1232,8 @@ const Index = () => {
         )
       );
 
-      // Update original annotations with tracked frames marker
-      setAnnotations(prevAnnotations =>
-        prevAnnotations.map(ann => {
-          if (job.objectIds.includes(ann.id)) {
-            const trackedFrames = ann.trackedFrames || [];
-            return {
-              ...ann,
-              trackedFrames: [...trackedFrames, ...fakeTrackedRanges],
-            };
-          }
-          return ann;
-        })
-      );
+      // (Removed) Avoid marking original keyframe as tracked across range to prevent duplicate overlays
+      // We rely on per-frame tracked annotations created above.
 
       toast({
         title: "Tracking completed",
