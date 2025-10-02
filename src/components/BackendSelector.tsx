@@ -171,13 +171,13 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
                 {backendStatus === "offline" ? (
                   <span className="relative block h-2 w-2">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-red-300 opacity-75" />
-                    <span className="relative block h-2 w-2 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                    <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
+                    <span className="relative block h-2 w-2 rounded-full bg-red-400 ring-2 ring-red-500/50" />
                   </span>
                 ) : (
                   <span className="relative block h-2 w-2">
-                    <span className="absolute inset-0 animate-ping rounded-full opacity-75" style={{ backgroundColor: 'hsl(142 71% 75%)' }} />
-                    <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 45%)', boxShadow: '0 0 0 2px hsl(142 71% 35% / 0.5)' }} />
+                    <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                    <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                   </span>
                 )}
                 </div>
@@ -196,13 +196,13 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                     {selectedBackend?.id === backend.id ? (
                       backendStatus === "offline" ? (
                         <span className="relative block h-2 w-2">
-                          <span className="absolute inset-0 animate-ping rounded-full bg-red-300 opacity-75" />
-                          <span className="relative block h-2 w-2 rounded-full bg-red-500 ring-2 ring-red-600/50" />
+                          <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
+                          <span className="relative block h-2 w-2 rounded-full bg-red-400 ring-2 ring-red-500/50" />
                         </span>
                       ) : (
                         <span className="relative block h-2 w-2">
-                          <span className="absolute inset-0 animate-ping rounded-full opacity-75" style={{ backgroundColor: 'hsl(142 71% 75%)' }} />
-                          <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 45%)', boxShadow: '0 0 0 2px hsl(142 71% 35% / 0.5)' }} />
+                          <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                          <span className="relative block h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                         </span>
                       )
                     ) : (
