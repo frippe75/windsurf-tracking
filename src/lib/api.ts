@@ -619,13 +619,29 @@ export const getTrackingJobResults = async (jobId: string): Promise<TrackingJobR
     };
   }
 
-  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/results`, {
-    method: 'GET',
-  });
+  const maxAttempts = 12; // ~12s total with 1s intervals
+  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-  if (!response.ok) {
-    throw new Error(`Failed to get tracking job results: ${response.statusText}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/results`, {
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      return await response.json();
+    }
+
+    // Results can briefly 404 while the backend finalizes artifacts after completion
+    if (response.status === 404) {
+      const waitMs = 1000; // fixed 1s retry
+      console.warn(`⌛ Results 404 for job ${jobId} (attempt ${attempt}/${maxAttempts}). Retrying in ${waitMs}ms...`);
+      await delay(waitMs);
+      continue;
+    }
+
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Failed to get tracking job results: ${response.status} ${response.statusText} ${errorText}`);
   }
 
-  return await response.json();
+  throw new Error(`Tracking results not available yet for job ${jobId} after ${maxAttempts} retries`);
 };
