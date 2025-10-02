@@ -25,6 +25,10 @@ export interface Backend {
   url: string;
 }
 
+interface BackendSelectorProps {
+  backendStatus?: "checking" | "healthy" | "offline";
+}
+
 const DEFAULT_BACKENDS: Backend[] = [
   { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
   { id: "lab-k8s", name: "Lab K8s", url: "https://windsurf-api.tclab.org" },
@@ -35,7 +39,7 @@ const DEFAULT_BACKENDS: Backend[] = [
 const STORAGE_KEY = "selected-backend";
 const CUSTOM_BACKENDS_KEY = "custom-backends";
 
-export const BackendSelector = () => {
+export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
   const [selectedBackend, setSelectedBackend] = useState<Backend | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -167,17 +171,23 @@ export const BackendSelector = () => {
           <SelectContent>
             {backends.map((backend) => (
               <SelectItem key={backend.id} value={backend.id}>
-                <div className="flex items-center gap-2">
-                  {backend.id === "lab-k8s" && selectedBackend?.id === "lab-k8s" && (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                  )}
-                  <div className="flex flex-col">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    {selectedBackend?.id === backend.id && backendStatus === "healthy" && (
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 duration-1000"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-lg shadow-emerald-500/50"></span>
+                      </span>
+                    )}
+                    {selectedBackend?.id === backend.id && backendStatus === "offline" && (
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 duration-1000"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-lg shadow-red-500/50"></span>
+                      </span>
+                    )}
                     <span className="font-medium">{backend.name}</span>
-                    <span className="text-xs text-muted-foreground">{backend.url}</span>
                   </div>
+                  <span className="text-xs text-muted-foreground pl-4">{backend.url}</span>
                 </div>
               </SelectItem>
             ))}

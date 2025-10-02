@@ -1263,7 +1263,7 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
             </div>
             <div className="flex items-center gap-2">
-              <BackendSelector />
+              <BackendSelector backendStatus={backendStatus} />
               <Button variant="outline" size="sm" onClick={handleSaveProject}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Project
