@@ -198,6 +198,47 @@ export interface VideoUploadResponse {
   message: string;
 }
 
+// Video Info Types
+export interface VideoInfoResponse {
+  video_id: string;
+  filename: string;
+  duration: number;
+  fps: number;
+  width: number;
+  height: number;
+  total_frames: number;
+  file_size: number;
+  coordinate_system?: string;
+}
+
+// Get video info endpoint
+export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      video_id: videoId,
+      filename: "mock-video.mp4",
+      duration: 120.5,
+      fps: 30,
+      width: 1280,
+      height: 720,
+      total_frames: 3615,
+      file_size: 50000000,
+      coordinate_system: "top-left"
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get video info: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Video upload endpoint
 export const uploadVideo = async (file: File): Promise<VideoUploadResponse> => {
   if (config.useMockApi) {

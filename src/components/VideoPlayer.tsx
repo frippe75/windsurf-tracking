@@ -625,10 +625,9 @@ export function VideoPlayer({
     const x = (displayedX / displayed.width) * 100;
     const y = (displayedY / displayed.height) * 100;
     
-    const videoWidth = video.videoWidth || 1280;
-    const videoHeight = video.videoHeight || 720;
+    // Pass percentages (0-100) to parent - parent will convert to native video pixels
     const isAltLike = e.altKey || e.getModifierState?.('AltGraph') === true;
-    onCanvasClick(x, y, videoWidth, videoHeight, e.ctrlKey || e.metaKey, isAltLike);
+    onCanvasClick(x, y, displayed.width, displayed.height, e.ctrlKey || e.metaKey, isAltLike);
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {

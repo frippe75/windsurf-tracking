@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -31,6 +31,8 @@ const Index = () => {
   const { toast } = useToast();
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
+  const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
+  const [videoNativeHeight, setVideoNativeHeight] = useState<number>(720);
   const [isUploading, setIsUploading] = useState(false);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -356,9 +358,14 @@ const Index = () => {
       const uploadResponse = await uploadVideo(file);
       setVideoId(uploadResponse.video_id);
       
+      // Fetch native video resolution from backend
+      const videoInfo = await getVideoInfo(uploadResponse.video_id);
+      setVideoNativeWidth(videoInfo.width);
+      setVideoNativeHeight(videoInfo.height);
+      
       toast({
         title: "Video uploaded",
-        description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps`,
+        description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
       });
 
       // Auto-trigger scene detection after upload
@@ -608,9 +615,24 @@ const Index = () => {
   };
 
   const handleCanvasClick = useCallback(
-    async (x: number, y: number, videoWidth: number, videoHeight: number, ctrlKey: boolean, altKey: boolean) => {
+    async (x: number, y: number, displayWidth: number, displayHeight: number, ctrlKey: boolean, altKey: boolean) => {
       // If in edit mode or select mode, don't handle canvas clicks
       if (selectedTool !== "annotate") return;
+
+      console.log('🖱️ Canvas click:', { 
+        percentageX: x.toFixed(2), 
+        percentageY: y.toFixed(2),
+        displayWidth,
+        displayHeight,
+        nativeWidth: videoNativeWidth,
+        nativeHeight: videoNativeHeight
+      });
+
+      // Convert percentage (0-100) to native video pixel coordinates
+      const videoX = Math.round((x / 100) * videoNativeWidth);
+      const videoY = Math.round((y / 100) * videoNativeHeight);
+
+      console.log('🎯 Mapped to native coords:', { videoX, videoY, videoNativeWidth, videoNativeHeight });
 
       // Determine prompt type: Alt (or Alt-Gr) = negative, Ctrl only = positive
       // Note: Alt-Gr registers as both ctrlKey and altKey on many keyboards
@@ -681,23 +703,24 @@ const Index = () => {
           description: "Detecting object boundary and class",
         });
 
+        // Convert percentage (0-100) to native video pixel coordinates for backend
+        const videoX = Math.round((x / 100) * videoNativeWidth);
+        const videoY = Math.round((y / 100) * videoNativeHeight);
+
         console.log('🎯 Calling SAM2 API with:', { 
           videoId, 
           frame: currentFrame, 
-          x: Math.round((x / 100) * videoWidth), 
-          y: Math.round((y / 100) * videoHeight),
-          videoWidth,
-          videoHeight
+          x: videoX, 
+          y: videoY,
+          nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
         });
 
         try {
-          // Call real SAM2 backend API with integer pixel coordinates
-          const clickX = Math.round((x / 100) * videoWidth);
-          const clickY = Math.round((y / 100) * videoHeight);
+          // Call real SAM2 backend API with native video pixel coordinates
           const sam2Response = await segmentWithSAM2({
             video_id: videoId,
             frame_number: currentFrame,
-            click_prompts: [{ x: clickX, y: clickY, type: 'positive' }]
+            click_prompts: [{ x: videoX, y: videoY, type: 'positive' }]
           });
 
           console.log('✅ SAM2 response received:', sam2Response);
@@ -708,24 +731,15 @@ const Index = () => {
             throw new Error('Invalid SAM2 response: missing results or bbox');
           }
           
-          // Parse bbox array [x, y, width, height] and normalize using mask size if available
-          // Backend returns bbox as [x1, y1, x2, y2] (corner coordinates)
+          // Parse bbox array [x1, y1, x2, y2] (corner coordinates in native video resolution)
           const [x1, y1, x2, y2] = results.bbox as [number, number, number, number];
           
           const maskBase64 = results.mask_base64 as string | undefined;
-          let baseW = videoWidth;
-          let baseH = videoHeight;
-          if (maskBase64) {
-            try {
-              const img = new Image();
-              img.src = `data:image/png;base64,${maskBase64}`;
-              await img.decode();
-              baseW = img.width || baseW;
-              baseH = img.height || baseH;
-            } catch (e) {
-              console.warn('⚠️ Failed to decode mask image, falling back to video dims', e);
-            }
-          }
+          
+          // Backend returns coordinates in native video resolution
+          // We normalize these to percentages for display
+          const baseW = videoNativeWidth;
+          const baseH = videoNativeHeight;
 
           // Calculate width and height from corner coordinates
           const bx = x1;
@@ -757,8 +771,9 @@ const Index = () => {
             points: points.length, 
             maskPixels,
             score: results.score,
-            clickCoords: { x: Math.round(x), y: Math.round(y) },
-            videoSize: { width: videoWidth, height: videoHeight }
+            clickPercentage: { x: x.toFixed(2), y: y.toFixed(2) },
+            clickNative: { x: videoX, y: videoY },
+            nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
           });
           
           // Use DINO detection or default to "Sail" class
@@ -958,11 +973,18 @@ const Index = () => {
     }
 
     // Use prompts from first annotation with prompts
+    // Convert percentage coordinates to native video pixel coordinates
     const clickPrompts = segmentAnnotations[0].sam2Prompts!.map(p => ({
-      x: p.x,
-      y: p.y,
+      x: Math.round((p.x / 100) * videoNativeWidth),
+      y: Math.round((p.y / 100) * videoNativeHeight),
       type: p.type
     }));
+
+    console.log('🎯 Tracking job click prompts:', {
+      originalPercentages: segmentAnnotations[0].sam2Prompts,
+      nativePixels: clickPrompts,
+      nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
+    });
 
     try {
       // Create tracking job with backend (auto-splits if needed)
