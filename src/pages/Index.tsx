@@ -687,10 +687,24 @@ const Index = () => {
             throw new Error('Invalid SAM2 response: missing results or bbox');
           }
           
-          const points = results.mask_pixels || results.points || [];
-          const bbox = results.bbox;
+          // Parse bbox array [x, y, width, height]
+          const bboxArray = results.bbox;
+          const bbox = {
+            x: bboxArray[0],
+            y: bboxArray[1],
+            w: bboxArray[2],
+            h: bboxArray[3]
+          };
           
-          console.log('📊 Extracted segmentation:', { points: points.length, bbox });
+          // Generate polygon points from bbox (clockwise rectangle)
+          const points = [
+            { x: bbox.x, y: bbox.y },
+            { x: bbox.x + bbox.w, y: bbox.y },
+            { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
+            { x: bbox.x, y: bbox.y + bbox.h }
+          ];
+          
+          console.log('📊 Extracted segmentation:', { bbox, points: points.length, score: results.score });
           
           // Use DINO detection or default to "Sail" class
           const className = "Sail"; // TODO: Could call DINO here if needed
