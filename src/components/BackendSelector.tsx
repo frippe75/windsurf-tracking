@@ -176,8 +176,8 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                   </span>
                 ) : (
                   <span className="relative block h-3 w-3">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                    <span className="absolute inset-0 animate-ping rounded-full opacity-75" style={{ backgroundColor: 'hsl(142 71% 60%)' }} />
+                    <span className="relative block h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(142 71% 45%)', boxShadow: '0 0 0 2px hsl(142 71% 35% / 0.5)' }} />
                   </span>
                 )}
                 </div>
@@ -201,8 +201,8 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                         </span>
                       ) : (
                         <span className="relative block h-3 w-3">
-                          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600/50" />
+                          <span className="absolute inset-0 animate-ping rounded-full opacity-75" style={{ backgroundColor: 'hsl(142 71% 60%)' }} />
+                          <span className="relative block h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(142 71% 45%)', boxShadow: '0 0 0 2px hsl(142 71% 35% / 0.5)' }} />
                         </span>
                       )
                     ) : (
