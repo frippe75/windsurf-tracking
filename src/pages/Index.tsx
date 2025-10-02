@@ -669,7 +669,14 @@ const Index = () => {
           description: "Detecting object boundary and class",
         });
 
-        console.log('🎯 Calling SAM2 API with:', { videoId, frame: currentFrame, x: Math.round(x), y: Math.round(y) });
+        console.log('🎯 Calling SAM2 API with:', { 
+          videoId, 
+          frame: currentFrame, 
+          x: Math.round(x), 
+          y: Math.round(y),
+          videoWidth,
+          videoHeight
+        });
 
         try {
           // Call real SAM2 backend API with integer coordinates
@@ -713,7 +720,9 @@ const Index = () => {
             bbox, 
             points: points.length, 
             maskPixels,
-            score: results.score 
+            score: results.score,
+            clickCoords: { x: Math.round(x), y: Math.round(y) },
+            videoSize: { width: videoWidth, height: videoHeight }
           });
           
           // Use DINO detection or default to "Sail" class
