@@ -771,19 +771,39 @@ export function VideoPlayer({
         
         {/* Loading overlay during upload */}
         {isUploading && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-card border border-border rounded-lg p-6 text-center space-y-4 min-w-[300px]">
-              <div className="space-y-2">
-                <p className="text-lg font-semibold">Processing Video</p>
-                <p className="text-sm text-muted-foreground">
-                  {uploadProgress < 100 
-                    ? "Uploading video..." 
-                    : "Analyzing scenes..."}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Progress value={uploadProgress} className="w-full" />
-                <p className="text-xs text-muted-foreground">{uploadProgress}%</p>
+          <div className="absolute inset-0 backdrop-blur-md z-50 flex flex-col">
+            {/* Dimmed video effect */}
+            <div className="absolute inset-0 bg-black/40" />
+            
+            {/* Animated frame previews */}
+            <div className="absolute inset-0 grid grid-cols-4 gap-2 p-4">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <div
+                  key={i}
+                  className="aspect-video bg-gradient-to-br from-primary/10 to-primary/30 rounded-md animate-pulse border border-primary/20"
+                  style={{
+                    animationDelay: `${i * 0.3}s`,
+                    animationDuration: "2.5s"
+                  }}
+                />
+              ))}
+            </div>
+            
+            {/* Progress info overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-card/95 border border-border rounded-lg p-6 text-center space-y-4 min-w-[300px] shadow-2xl">
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold">Processing Video</p>
+                  <p className="text-sm text-muted-foreground">
+                    {uploadProgress < 100 
+                      ? "Uploading video..." 
+                      : "Analyzing scenes..."}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Progress value={uploadProgress} className="w-full" />
+                  <p className="text-xs text-muted-foreground">{uploadProgress}%</p>
+                </div>
               </div>
             </div>
           </div>
