@@ -368,32 +368,41 @@ const Index = () => {
         description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
       });
 
-      // Wait for backend to finish indexing the video
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for backend to finish indexing the video (increased delay)
+      await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Auto-trigger scene detection after upload
-      toast({
-        title: "Detecting scenes",
-        description: "Analyzing video content...",
-      });
+      try {
+        toast({
+          title: "Detecting scenes",
+          description: "Analyzing video content...",
+        });
+        
+        const sceneResponse = await detectScenes(uploadResponse.video_id);
       
-      const sceneResponse = await detectScenes(uploadResponse.video_id);
-      
-      // Convert API response to app Scene format
-      const detectedScenes = sceneResponse.scenes.map(scene => ({
-        id: `scene-${scene.scene_id}`,
-        startFrame: scene.start_frame,
-        endFrame: scene.end_frame,
-        quality: scene.quality as "good" | "bad" | "unknown"
-      }));
-      
-      setScenes(detectedScenes);
-      setTotalFrames(uploadResponse.total_frames);
-      
-      toast({
-        title: "Scenes detected",
-        description: `Found ${sceneResponse.total_scenes} scenes`,
-      });
+        // Convert API response to app Scene format
+        const detectedScenes = sceneResponse.scenes.map(scene => ({
+          id: `scene-${scene.scene_id}`,
+          startFrame: scene.start_frame,
+          endFrame: scene.end_frame,
+          quality: scene.quality as "good" | "bad" | "unknown"
+        }));
+        
+        setScenes(detectedScenes);
+        setTotalFrames(uploadResponse.total_frames);
+        
+        toast({
+          title: "Scenes detected",
+          description: `Found ${sceneResponse.total_scenes} scenes`,
+        });
+      } catch (sceneError) {
+        console.error("Scene detection failed:", sceneError);
+        toast({
+          title: "Scene detection failed",
+          description: "Video uploaded successfully, but scene detection failed. Try detecting scenes manually.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Upload or scene detection failed:", error);
       toast({
