@@ -390,14 +390,17 @@ const Index = () => {
 
     try {
       // Check if video already exists on backend
-      console.log("📤 handleVideoUpload: Checking for existing video");
+      console.log("📤 handleVideoUpload: Checking for existing video:", file.name);
       let uploadResponse;
       
       try {
         const existsCheck = await checkVideoExists(file.name);
+        console.log("📤 handleVideoUpload: Exists check response:", JSON.stringify(existsCheck));
+        console.log("📤 handleVideoUpload: existsCheck.exists type:", typeof existsCheck.exists, "value:", existsCheck.exists);
+        console.log("📤 handleVideoUpload: existsCheck.video_id:", existsCheck.video_id);
         
         if (existsCheck.exists && existsCheck.video_id) {
-          console.log("📤 handleVideoUpload: Found existing video, skipping upload:", existsCheck.video_id);
+          console.log("📤 handleVideoUpload: ✅ Video EXISTS - skipping upload, video_id:", existsCheck.video_id);
           
           // Get video info for the existing video
           const existingVideoInfo = await getVideoInfo(existsCheck.video_id);
@@ -422,9 +425,12 @@ const Index = () => {
             total_frames: existingVideoInfo.total_frames,
             message: "Using existing video"
           };
+        } else {
+          console.log("📤 handleVideoUpload: ❌ Video does NOT exist - will upload");
         }
       } catch (checkError) {
-        console.log("📤 handleVideoUpload: Could not check existing video, proceeding with upload");
+        console.error("📤 handleVideoUpload: Error checking existing video:", checkError);
+        console.log("📤 handleVideoUpload: Proceeding with upload due to error");
       }
       
       // Upload if not found
