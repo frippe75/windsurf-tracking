@@ -976,7 +976,7 @@ const Index = () => {
         });
       }
     },
-    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, videoId, videoNativeWidth, videoNativeHeight]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
