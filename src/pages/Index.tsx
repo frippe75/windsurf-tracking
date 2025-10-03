@@ -1255,7 +1255,8 @@ const Index = () => {
       
       console.log(`📦 Fetching results from ${subJobs.length} sub-job(s)...`);
       
-      for (const subJob of subJobs) {
+      for (let subJobIndex = 0; subJobIndex < subJobs.length; subJobIndex++) {
+        const subJob = subJobs[subJobIndex];
         try {
           const results = await getTrackingJobResults(subJob.job_id);
 
@@ -1347,13 +1348,14 @@ const Index = () => {
         // Group results by object_id to map back to original annotations
         console.log(`🎨 Creating annotations for ${segmentAnnotations.length} objects...`);
         
-        // Skip first frame (it already has the manual annotation that started tracking)
-        const firstJobStartFrame = job.startFrame;
+        // Only skip first frame if this was a split job (first part already has manual annotation)
+        const isMultiPartJob = subJobs.length > 1;
+        const firstJobStartFrame = isMultiPartJob ? job.startFrame : null;
         
         for (const result of allResults) {
-          // Skip the first frame to avoid duplicating the manual annotation
-          if (result.frame_number === firstJobStartFrame) {
-            console.log(`⏭️ Skipping frame ${result.frame_number} (already has manual annotation)`);
+          // Skip the first frame ONLY if it's a multi-part job (first part has the manual annotation)
+          if (firstJobStartFrame !== null && result.frame_number === firstJobStartFrame) {
+            console.log(`⏭️ Skipping frame ${result.frame_number} (first part's manual annotation)`);
             continue;
           }
           
