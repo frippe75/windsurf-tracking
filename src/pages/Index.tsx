@@ -1194,14 +1194,21 @@ const Index = () => {
         );
 
         // Execute tracking
+        console.log(`🚀 Starting tracking job: ${subJob.job_id}`);
         await executeTrackingJob(subJob.job_id);
 
-        // Poll for completion
+        // Poll for completion with timeout
         let completed = false;
-        while (!completed) {
+        let pollCount = 0;
+        const maxPolls = 300; // 5 minutes max (300 seconds)
+        
+        while (!completed && pollCount < maxPolls) {
           await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every second
+          pollCount++;
           
           const status = await getTrackingJobStatus(subJob.job_id);
+          
+          console.log(`📊 Poll #${pollCount} for job ${subJob.name}:`, status.status, `${status.percentage}%`);
           
           // Update progress
           setTrackingJobs(jobs =>
@@ -1217,6 +1224,7 @@ const Index = () => {
           );
 
           if (status.status === "completed") {
+            console.log(`✅ Job ${subJob.name} completed!`);
             completed = true;
             
             // Mark sub-job as completed
@@ -1231,8 +1239,14 @@ const Index = () => {
               )
             );
           } else if (status.status === "failed") {
+            console.error(`❌ Job ${subJob.name} failed`);
             throw new Error(`Sub-job ${subJob.name} failed: ${status.error}`);
           }
+        }
+        
+        if (!completed) {
+          console.error(`⏱️ Polling timeout after ${pollCount} attempts for job ${subJob.name}`);
+          throw new Error(`Tracking job timed out after ${pollCount} seconds. Backend may still be processing.`);
         }
       }
 

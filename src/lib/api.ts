@@ -698,15 +698,31 @@ export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobSt
     };
   }
 
-  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/status`, {
+  // Add cache-busting to prevent stale responses
+  const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/status?t=${Date.now()}`, {
     method: 'GET',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
   });
 
   if (!response.ok) {
     throw new Error(`Failed to get tracking job status: ${response.statusText}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  console.log(`📊 Job status poll [${jobId}]:`, {
+    status: data.status,
+    percentage: data.percentage,
+    phase: data.phase,
+    frames_completed: data.frames_completed,
+    current_frame: data.current_frame,
+    total_frames: data.total_frames
+  });
+  
+  return data;
 };
 
 // Get tracking job results
