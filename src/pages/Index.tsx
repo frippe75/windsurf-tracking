@@ -368,6 +368,9 @@ const Index = () => {
         description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
       });
 
+      // Wait for backend to finish indexing the video
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Auto-trigger scene detection after upload
       toast({
         title: "Detecting scenes",
