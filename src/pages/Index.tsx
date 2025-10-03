@@ -1665,7 +1665,39 @@ const Index = () => {
 
       {/* Main content */}
       <main className={`w-full ${maximizeVideo ? "px-0 py-2" : "px-4 py-6"}`}>
-        {!videoUrl ? (
+        {isUploading ? (
+          <div className="flex items-center justify-center min-h-[600px]">
+            <div className="text-center space-y-6 max-w-4xl">
+              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
+                <Upload className="h-8 w-8 text-primary animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-semibold">Processing video...</h2>
+              <div className="w-full bg-secondary rounded-full h-2.5 mb-4">
+                <div 
+                  className="bg-primary h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-muted-foreground">
+                {uploadProgress}% complete
+              </p>
+              
+              {/* Animated blurred frame placeholders */}
+              <div className="grid grid-cols-4 gap-4 mt-8">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div
+                    key={i}
+                    className="aspect-video bg-gradient-to-br from-primary/5 to-primary/20 rounded-lg animate-pulse backdrop-blur-sm"
+                    style={{
+                      animationDelay: `${i * 0.2}s`,
+                      animationDuration: "2s"
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : !videoUrl ? (
           <div className="flex items-center justify-center min-h-[600px]">
             <div className="text-center space-y-4">
               <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
