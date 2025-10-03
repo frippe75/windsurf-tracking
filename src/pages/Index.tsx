@@ -1348,16 +1348,10 @@ const Index = () => {
         // Group results by object_id to map back to original annotations
         console.log(`🎨 Creating annotations for ${segmentAnnotations.length} objects...`);
         
-        // Only skip first frame if this was a split job (first part already has manual annotation)
-        const isMultiPartJob = subJobs.length > 1;
-        const firstJobStartFrame = isMultiPartJob ? job.startFrame : null;
+        // Always skip the starting frame result to avoid duplicating the manual keyframe
+        const filteredResults = allResults.filter(r => r.frame_number !== job.startFrame);
         
-        for (const result of allResults) {
-          // Skip the first frame ONLY if it's a multi-part job (first part has the manual annotation)
-          if (firstJobStartFrame !== null && result.frame_number === firstJobStartFrame) {
-            console.log(`⏭️ Skipping frame ${result.frame_number} (first part's manual annotation)`);
-            continue;
-          }
+        for (const result of filteredResults) {
           
           // Map object_id back to original annotation (object_id is 1-based)
           const originalAnnotation = segmentAnnotations[result.object_id - 1];
@@ -1404,6 +1398,11 @@ const Index = () => {
             { x: bbox.x, y: bbox.y + bbox.h }
           ];
 
+          // Determine if mask is a cropped tile or full-frame
+          const isCropped = maskWidth && maskHeight && videoNativeWidth && videoNativeHeight
+            ? !(maskWidth === videoNativeWidth && maskHeight === videoNativeHeight)
+            : false;
+
           newAnnotations.push({
             id: `ann-tracked-${result.object_id}-${result.frame_number}-${Date.now()}-${Math.random()}`,
             instanceId: originalAnnotation.instanceId,
@@ -1413,7 +1412,7 @@ const Index = () => {
             maskBBox: bbox,
             maskWidth,
             maskHeight,
-            maskIsCropped: true,
+            maskIsCropped: isCropped,
             frameCreated: result.frame_number,
             isKeyframe: false // Tracked, not manual
           });
