@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, getVideos, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -394,13 +394,14 @@ const Index = () => {
       let uploadResponse;
       
       try {
-        const videosList = await getVideos();
-        const existingVideo = videosList.videos.find(
-          v => v.filename === file.name && v.file_size === file.size
-        );
+        const existsCheck = await checkVideoExists(file.name);
         
-        if (existingVideo) {
-          console.log("📤 handleVideoUpload: Found existing video, skipping upload:", existingVideo.video_id);
+        if (existsCheck.exists && existsCheck.video_id) {
+          console.log("📤 handleVideoUpload: Found existing video, skipping upload:", existsCheck.video_id);
+          
+          // Get video info for the existing video
+          const existingVideoInfo = await getVideoInfo(existsCheck.video_id);
+          
           toast({
             title: "Using cached video",
             description: "Video already exists on backend",
@@ -413,17 +414,17 @@ const Index = () => {
           }
           
           uploadResponse = {
-            video_id: existingVideo.video_id,
-            filename: existingVideo.filename,
-            duration: existingVideo.duration,
-            fps: existingVideo.fps,
-            resolution: `${existingVideo.width}x${existingVideo.height}`,
-            total_frames: existingVideo.total_frames,
+            video_id: existsCheck.video_id,
+            filename: existingVideoInfo.filename,
+            duration: existingVideoInfo.duration,
+            fps: existingVideoInfo.fps,
+            resolution: `${existingVideoInfo.width}x${existingVideoInfo.height}`,
+            total_frames: existingVideoInfo.total_frames,
             message: "Using existing video"
           };
         }
-      } catch (listError) {
-        console.log("📤 handleVideoUpload: Could not check existing videos, proceeding with upload");
+      } catch (checkError) {
+        console.log("📤 handleVideoUpload: Could not check existing video, proceeding with upload");
       }
       
       // Upload if not found

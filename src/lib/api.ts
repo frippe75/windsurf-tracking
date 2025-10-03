@@ -238,6 +238,30 @@ export const getVideos = async (): Promise<VideoListResponse> => {
   return await response.json();
 };
 
+// Video Exists Types
+export interface VideoExistsResponse {
+  exists: boolean;
+  video_id?: string;
+}
+
+// Check if video exists endpoint
+export const checkVideoExists = async (filename: string): Promise<VideoExistsResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return { exists: false };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/exists?filename=${encodeURIComponent(filename)}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to check video existence: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Get video info endpoint
 export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> => {
   if (config.useMockApi) {
