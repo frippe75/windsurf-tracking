@@ -89,6 +89,58 @@ export function VideoPlayer({
   } | null>(null);
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [uploadPreviewFrames, setUploadPreviewFrames] = useState<string[]>([]);
+
+  // Extract preview frames during upload
+  useEffect(() => {
+    if (!isUploading || !videoRef.current) {
+      setUploadPreviewFrames([]);
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const captureFrame = () => {
+      if (!video.duration || !video.videoWidth) return null;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      return canvas.toDataURL('image/jpeg', 0.6);
+    };
+
+    const frames: string[] = [];
+    let frameIndex = 0;
+
+    const interval = setInterval(() => {
+      if (video.duration) {
+        // Capture frames at different timestamps
+        const timestamps = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+        const time = video.duration * timestamps[frameIndex % timestamps.length];
+        video.currentTime = time;
+        
+        const onSeeked = () => {
+          const frame = captureFrame();
+          if (frame) {
+            frames.push(frame);
+            setUploadPreviewFrames([...frames]);
+          }
+          video.removeEventListener('seeked', onSeeked);
+        };
+        
+        video.addEventListener('seeked', onSeeked);
+        frameIndex++;
+      }
+    }, 800);
+
+    return () => {
+      clearInterval(interval);
+      setUploadPreviewFrames([]);
+    };
+  }, [isUploading]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -775,18 +827,37 @@ export function VideoPlayer({
             {/* Dimmed video effect */}
             <div className="absolute inset-0 bg-black/20" />
             
-            {/* Animated frame previews */}
+            {/* Real frame previews */}
             <div className="absolute inset-0 grid grid-cols-4 gap-2 p-4">
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <div
-                  key={i}
-                  className="aspect-video bg-gradient-to-br from-primary/10 to-primary/30 rounded-md animate-pulse border border-primary/20"
-                  style={{
-                    animationDelay: `${i * 0.3}s`,
-                    animationDuration: "2.5s"
-                  }}
-                />
-              ))}
+              {uploadPreviewFrames.length > 0 ? (
+                uploadPreviewFrames.slice(0, 8).map((frameUrl, i) => (
+                  <div
+                    key={i}
+                    className="aspect-video rounded-md overflow-hidden border border-primary/30 shadow-lg animate-fade-in"
+                    style={{
+                      animationDelay: `${i * 0.2}s`
+                    }}
+                  >
+                    <img 
+                      src={frameUrl} 
+                      alt={`Preview ${i + 1}`}
+                      className="w-full h-full object-cover blur-sm"
+                    />
+                  </div>
+                ))
+              ) : (
+                // Placeholder while frames are loading
+                [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div
+                    key={i}
+                    className="aspect-video bg-gradient-to-br from-primary/10 to-primary/30 rounded-md animate-pulse border border-primary/20"
+                    style={{
+                      animationDelay: `${i * 0.3}s`,
+                      animationDuration: "2.5s"
+                    }}
+                  />
+                ))
+              )}
             </div>
             
             {/* Progress info overlay */}
