@@ -827,36 +827,14 @@ export function VideoPlayer({
             {/* Dimmed video effect */}
             <div className="absolute inset-0 bg-black/20" />
             
-            {/* Real frame previews */}
-            <div className="absolute inset-0 grid grid-cols-4 gap-2 p-4">
-              {uploadPreviewFrames.length > 0 ? (
-                uploadPreviewFrames.slice(0, 8).map((frameUrl, i) => (
-                  <div
-                    key={i}
-                    className="aspect-video rounded-md overflow-hidden border border-primary/30 shadow-lg animate-fade-in"
-                    style={{
-                      animationDelay: `${i * 0.2}s`
-                    }}
-                  >
-                    <img 
-                      src={frameUrl} 
-                      alt={`Preview ${i + 1}`}
-                      className="w-full h-full object-cover blur-sm"
-                    />
-                  </div>
-                ))
-              ) : (
-                // Placeholder while frames are loading
-                [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                  <div
-                    key={i}
-                    className="aspect-video bg-gradient-to-br from-primary/10 to-primary/30 rounded-md animate-pulse border border-primary/20"
-                    style={{
-                      animationDelay: `${i * 0.3}s`,
-                      animationDuration: "2.5s"
-                    }}
-                  />
-                ))
+            {/* Upload live preview - single updating frame */}
+            <div className="absolute inset-0 pointer-events-none">
+              {uploadPreviewFrames.length > 0 && (
+                <img
+                  src={uploadPreviewFrames[uploadPreviewFrames.length - 1]}
+                  alt="Live upload preview frame"
+                  className="w-full h-full object-contain blur-sm"
+                />
               )}
             </div>
             
