@@ -211,7 +211,9 @@ export function VideoPlayer({
     });
 
     visibleAnnotations.forEach((annotation) => {
-      const isSelected = selectedAnnotationId === annotation.id;
+      // Check if this annotation OR any annotation from the same instance is selected
+      const isSelected = selectedAnnotationId === annotation.id || 
+        (selectedAnnotationId && annotations.find(a => a.id === selectedAnnotationId)?.instanceId === annotation.instanceId);
       const color = getAnnotationColor(annotation);
       
       // Draw segment overlay (mask if available, else polygon)
@@ -517,20 +519,29 @@ export function VideoPlayer({
 
     // Edit mode: check for resize handles or selection
     if (selectedTool === "edit") {
-      // First check if we're interacting with the currently selected annotation's handles
+      // First check if we're interacting with the currently selected instance's annotation
       if (selectedAnnotationId) {
-        const annotation = annotations.find(a => a.id === selectedAnnotationId);
-        if (annotation?.bbox) {
-          const handle = getResizeHandle(x, y, annotation.bbox);
-          if (handle) {
-            setDragState({
-              annotationId: selectedAnnotationId,
-              handle,
-              startX: x,
-              startY: y,
-              originalBbox: { ...annotation.bbox },
-            });
-            return;
+        const selectedAnnotation = annotations.find(a => a.id === selectedAnnotationId);
+        if (selectedAnnotation) {
+          // Find the visible annotation for this instance on the current frame
+          const visibleAnnotation = annotations.find(a => 
+            a.instanceId === selectedAnnotation.instanceId && 
+            (a.frameCreated === currentFrame || 
+             a.trackedFrames?.some(([start, end]) => currentFrame >= start && currentFrame <= end))
+          );
+          
+          if (visibleAnnotation?.bbox) {
+            const handle = getResizeHandle(x, y, visibleAnnotation.bbox);
+            if (handle) {
+              setDragState({
+                annotationId: visibleAnnotation.id,
+                handle,
+                startX: x,
+                startY: y,
+                originalBbox: { ...visibleAnnotation.bbox },
+              });
+              return;
+            }
           }
         }
       }
@@ -595,21 +606,30 @@ export function VideoPlayer({
       const x = (canvasX / canvas.width) * 100;
       const y = (canvasY / canvas.height) * 100;
 
-      const annotation = annotations.find(a => a.id === selectedAnnotationId);
-      if (annotation?.bbox) {
-        const handle = getResizeHandle(x, y, annotation.bbox);
-        if (handle === "nw" || handle === "se") {
-          setCursorStyle("nwse-resize");
-          return;
-        } else if (handle === "ne" || handle === "sw") {
-          setCursorStyle("nesw-resize");
-          return;
-        }
+      const selectedAnnotation = annotations.find(a => a.id === selectedAnnotationId);
+      if (selectedAnnotation) {
+        // Find the visible annotation for this instance on the current frame
+        const visibleAnnotation = annotations.find(a => 
+          a.instanceId === selectedAnnotation.instanceId && 
+          (a.frameCreated === currentFrame || 
+           a.trackedFrames?.some(([start, end]) => currentFrame >= start && currentFrame <= end))
+        );
         
-        const { x: bx, y: by, w: bw, h: bh } = annotation.bbox;
-        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
-          setCursorStyle("move");
-          return;
+        if (visibleAnnotation?.bbox) {
+          const handle = getResizeHandle(x, y, visibleAnnotation.bbox);
+          if (handle === "nw" || handle === "se") {
+            setCursorStyle("nwse-resize");
+            return;
+          } else if (handle === "ne" || handle === "sw") {
+            setCursorStyle("nesw-resize");
+            return;
+          }
+          
+          const { x: bx, y: by, w: bw, h: bh } = visibleAnnotation.bbox;
+          if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+            setCursorStyle("move");
+            return;
+          }
         }
       }
     }
