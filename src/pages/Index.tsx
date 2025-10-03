@@ -78,6 +78,33 @@ const Index = () => {
     ? [selectedScene.startFrame, selectedScene.endFrame]
     : [0, totalFrames];
 
+  // 🎬 DEBUG: Component lifecycle logging
+  useEffect(() => {
+    console.log("🎬 Index component mounted");
+    return () => {
+      console.log("🎬 Index component unmounting");
+    };
+  }, []);
+
+  // 🎬 DEBUG: Watch videoUrl changes
+  useEffect(() => {
+    console.log("🎬 videoUrl changed:", videoUrl ? `SET (length: ${videoUrl.length})` : "CLEARED");
+  }, [videoUrl]);
+
+  // 🎬 DEBUG: Watch videoId changes
+  useEffect(() => {
+    console.log("🎬 videoId changed:", videoId ? `SET (${videoId})` : "CLEARED");
+  }, [videoId]);
+
+  // 🔍 DEBUG: Render-time state check
+  useEffect(() => {
+    if (!videoUrl && !videoId) {
+      console.log("⚠️ Render check: Both videoUrl and videoId are empty!");
+    } else {
+      console.log("🔍 Render check: videoUrl exists:", !!videoUrl, "videoId exists:", !!videoId);
+    }
+  });
+
   // Check backend health periodically
   useEffect(() => {
     const checkHealth = async () => {
@@ -332,7 +359,10 @@ const Index = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log("📤 handleVideoUpload: Starting upload for file:", file.name);
+
     // Clear all states for fresh start
+    console.log("📤 handleVideoUpload: Clearing all states");
     setAnnotations([]);
     setInstances([]);
     setKeyframes([]);
@@ -346,7 +376,9 @@ const Index = () => {
 
     // Create local URL for immediate playback
     const url = URL.createObjectURL(file);
+    console.log("📤 handleVideoUpload: Created blob URL:", url);
     setVideoUrl(url);
+    console.log("📤 handleVideoUpload: Called setVideoUrl with blob URL");
     
     // Start upload to backend
     setIsUploading(true);
@@ -357,13 +389,18 @@ const Index = () => {
     });
 
     try {
+      console.log("📤 handleVideoUpload: Starting backend upload");
       const uploadResponse = await uploadVideo(file, (percent) => {
         setUploadProgress(percent);
       });
+      console.log("📤 handleVideoUpload: Backend upload complete, video_id:", uploadResponse.video_id);
       setVideoId(uploadResponse.video_id);
+      console.log("📤 handleVideoUpload: Called setVideoId");
       
       // Fetch native video resolution from backend
+      console.log("📤 handleVideoUpload: Fetching video info");
       const videoInfo = await getVideoInfo(uploadResponse.video_id);
+      console.log("📤 handleVideoUpload: Video info received:", videoInfo.width, "x", videoInfo.height);
       setVideoNativeWidth(videoInfo.width);
       setVideoNativeHeight(videoInfo.height);
       
@@ -371,18 +408,22 @@ const Index = () => {
         title: "Video uploaded",
         description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
       });
+      console.log("📤 handleVideoUpload: Video upload complete, totalFrames:", uploadResponse.total_frames);
 
       // Wait for backend to finish indexing the video (increased delay)
+      console.log("📤 handleVideoUpload: Waiting for backend indexing (2.5s)");
       await new Promise(resolve => setTimeout(resolve, 2500));
 
       // Auto-trigger scene detection after upload
       try {
+        console.log("📤 handleVideoUpload: Starting auto scene detection");
         toast({
           title: "Detecting scenes",
           description: "Analyzing video content...",
         });
         
         const sceneResponse = await detectScenes(uploadResponse.video_id);
+        console.log("📤 handleVideoUpload: Scene detection complete, scenes:", sceneResponse.total_scenes);
       
         // Convert API response to app Scene format
         const detectedScenes = sceneResponse.scenes.map(scene => ({
@@ -394,13 +435,14 @@ const Index = () => {
         
         setScenes(detectedScenes);
         setTotalFrames(uploadResponse.total_frames);
+        console.log("📤 handleVideoUpload: Scenes and totalFrames set");
         
         toast({
           title: "Scenes detected",
           description: `Found ${sceneResponse.total_scenes} scenes`,
         });
       } catch (sceneError) {
-        console.error("Scene detection failed:", sceneError);
+        console.error("📤 handleVideoUpload: Scene detection failed:", sceneError);
         toast({
           title: "Scene detection failed",
           description: "Video uploaded successfully, but scene detection failed. Try detecting scenes manually.",
@@ -408,13 +450,15 @@ const Index = () => {
         });
       }
     } catch (error) {
-      console.error("Upload or scene detection failed:", error);
+      console.error("📤 handleVideoUpload: Upload failed:", error);
+      console.log("⚠️ handleVideoUpload: Clearing videoUrl due to error");
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to process video",
         variant: "destructive",
       });
     } finally {
+      console.log("📤 handleVideoUpload: Upload flow complete");
       setIsUploading(false);
       setUploadProgress(0);
     }
