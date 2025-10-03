@@ -239,11 +239,21 @@ export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> 
   return await response.json();
 };
 
-// Video upload endpoint
-export const uploadVideo = async (file: File): Promise<VideoUploadResponse> => {
+// Video upload endpoint with progress tracking
+export const uploadVideo = async (
+  file: File, 
+  onProgress?: (percent: number) => void
+): Promise<VideoUploadResponse> => {
   if (config.useMockApi) {
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Simulate upload progress in mock mode
+    if (onProgress) {
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        onProgress(i);
+      }
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
     
     // Mock response
     return {
@@ -257,20 +267,47 @@ export const uploadVideo = async (file: File): Promise<VideoUploadResponse> => {
     };
   }
 
-  // Real API call to FastAPI backend
-  const formData = new FormData();
-  formData.append('file', file);
+  // Real API call with XMLHttpRequest for progress tracking
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
 
-  const response = await fetch(`${config.backendUrl}/api/videos/upload`, {
-    method: 'POST',
-    body: formData,
+    // Track upload progress
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        onProgress(percent);
+      }
+    });
+
+    // Handle completion
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          resolve(response);
+        } catch (error) {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else {
+        reject(new Error(`Video upload failed: ${xhr.statusText}`));
+      }
+    });
+
+    // Handle errors
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload cancelled'));
+    });
+
+    // Send request
+    xhr.open('POST', `${config.backendUrl}/api/videos/upload`);
+    xhr.send(formData);
   });
-
-  if (!response.ok) {
-    throw new Error(`Video upload failed: ${response.statusText}`);
-  }
-
-  return await response.json();
 };
 
 // ============= AI Endpoints =============

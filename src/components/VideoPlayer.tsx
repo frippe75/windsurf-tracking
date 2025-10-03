@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import type { ToolMode } from "./Toolbox";
@@ -36,6 +37,7 @@ interface VideoPlayerProps {
   onContextMenu: (x: number, y: number, context: any) => void;
   showLabels?: boolean;
   isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 export function VideoPlayer({
@@ -50,6 +52,7 @@ export function VideoPlayer({
   instances,
   annotations,
   isUploading = false,
+  uploadProgress = 0,
   onAnnotationUpdate,
   onAnnotationSelect,
   overlays,
@@ -769,13 +772,18 @@ export function VideoPlayer({
         {/* Loading overlay during upload */}
         {isUploading && (
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-card border border-border rounded-lg p-6 text-center space-y-3">
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-              </div>
-              <div className="space-y-1">
+            <div className="bg-card border border-border rounded-lg p-6 text-center space-y-4 min-w-[300px]">
+              <div className="space-y-2">
                 <p className="text-lg font-semibold">Processing Video</p>
-                <p className="text-sm text-muted-foreground">Uploading and detecting scenes...</p>
+                <p className="text-sm text-muted-foreground">
+                  {uploadProgress < 100 
+                    ? "Uploading video..." 
+                    : "Analyzing scenes..."}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Progress value={uploadProgress} className="w-full" />
+                <p className="text-xs text-muted-foreground">{uploadProgress}%</p>
               </div>
             </div>
           </div>

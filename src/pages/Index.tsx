@@ -34,6 +34,7 @@ const Index = () => {
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
   const [videoNativeHeight, setVideoNativeHeight] = useState<number>(720);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
@@ -349,13 +350,16 @@ const Index = () => {
     
     // Start upload to backend
     setIsUploading(true);
+    setUploadProgress(0);
     toast({
       title: "Uploading video",
-      description: "Uploading to backend...",
+      description: "Starting upload...",
     });
 
     try {
-      const uploadResponse = await uploadVideo(file);
+      const uploadResponse = await uploadVideo(file, (percent) => {
+        setUploadProgress(percent);
+      });
       setVideoId(uploadResponse.video_id);
       
       // Fetch native video resolution from backend
@@ -412,6 +416,7 @@ const Index = () => {
       });
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -1706,6 +1711,7 @@ const Index = () => {
                 onContextMenu={handleContextMenu}
                 showLabels={showLabels}
                 isUploading={isUploading}
+                uploadProgress={uploadProgress}
               />
               <HierarchicalTimeline
                 classes={classes}
