@@ -1347,7 +1347,16 @@ const Index = () => {
         // Group results by object_id to map back to original annotations
         console.log(`🎨 Creating annotations for ${segmentAnnotations.length} objects...`);
         
+        // Skip first frame (it already has the manual annotation that started tracking)
+        const firstJobStartFrame = job.startFrame;
+        
         for (const result of allResults) {
+          // Skip the first frame to avoid duplicating the manual annotation
+          if (result.frame_number === firstJobStartFrame) {
+            console.log(`⏭️ Skipping frame ${result.frame_number} (already has manual annotation)`);
+            continue;
+          }
+          
           // Map object_id back to original annotation (object_id is 1-based)
           const originalAnnotation = segmentAnnotations[result.object_id - 1];
           if (!originalAnnotation) {
