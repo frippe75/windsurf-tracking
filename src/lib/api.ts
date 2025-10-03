@@ -211,6 +211,33 @@ export interface VideoInfoResponse {
   coordinate_system?: string;
 }
 
+// Video List Types
+export interface VideoListResponse {
+  videos: VideoInfoResponse[];
+  total: number;
+}
+
+// Get all videos endpoint
+export const getVideos = async (): Promise<VideoListResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      videos: [],
+      total: 0
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get videos list: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Get video info endpoint
 export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> => {
   if (config.useMockApi) {

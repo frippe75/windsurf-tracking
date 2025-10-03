@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, getVideos, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -359,7 +359,7 @@ const Index = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    console.log("📤 handleVideoUpload: Starting upload for file:", file.name);
+    console.log("📤 handleVideoUpload: Starting upload for file:", file.name, "size:", file.size);
 
     // Clear all states for fresh start
     console.log("📤 handleVideoUpload: Clearing all states");
@@ -384,15 +384,61 @@ const Index = () => {
     setIsUploading(true);
     setUploadProgress(0);
     toast({
-      title: "Uploading video",
-      description: "Starting upload...",
+      title: "Checking for existing video",
+      description: "Looking for cached version...",
     });
 
     try {
-      console.log("📤 handleVideoUpload: Starting backend upload");
-      const uploadResponse = await uploadVideo(file, (percent) => {
-        setUploadProgress(percent);
-      });
+      // Check if video already exists on backend
+      console.log("📤 handleVideoUpload: Checking for existing video");
+      let uploadResponse;
+      
+      try {
+        const videosList = await getVideos();
+        const existingVideo = videosList.videos.find(
+          v => v.filename === file.name && v.file_size === file.size
+        );
+        
+        if (existingVideo) {
+          console.log("📤 handleVideoUpload: Found existing video, skipping upload:", existingVideo.video_id);
+          toast({
+            title: "Using cached video",
+            description: "Video already exists on backend",
+          });
+          
+          // Simulate progress for UX
+          for (let i = 0; i <= 100; i += 20) {
+            setUploadProgress(i);
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          
+          uploadResponse = {
+            video_id: existingVideo.video_id,
+            filename: existingVideo.filename,
+            duration: existingVideo.duration,
+            fps: existingVideo.fps,
+            resolution: `${existingVideo.width}x${existingVideo.height}`,
+            total_frames: existingVideo.total_frames,
+            message: "Using existing video"
+          };
+        }
+      } catch (listError) {
+        console.log("📤 handleVideoUpload: Could not check existing videos, proceeding with upload");
+      }
+      
+      // Upload if not found
+      if (!uploadResponse) {
+        console.log("📤 handleVideoUpload: Starting backend upload");
+        toast({
+          title: "Uploading video",
+          description: "Uploading to backend...",
+        });
+        
+        uploadResponse = await uploadVideo(file, (percent) => {
+          setUploadProgress(percent);
+        });
+      }
+      
       console.log("📤 handleVideoUpload: Backend upload complete, video_id:", uploadResponse.video_id);
       setVideoId(uploadResponse.video_id);
       console.log("📤 handleVideoUpload: Called setVideoId");
