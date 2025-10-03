@@ -495,6 +495,10 @@ const Index = () => {
           variant: "destructive",
         });
       }
+      
+      // Ensure frame 0 is displayed after upload completes
+      console.log("📤 handleVideoUpload: Setting frame to 0");
+      setCurrentFrame(0);
     } catch (error) {
       console.error("📤 handleVideoUpload: Upload failed:", error);
       console.log("⚠️ handleVideoUpload: Clearing videoUrl due to error");
