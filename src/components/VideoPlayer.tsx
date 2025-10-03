@@ -773,7 +773,7 @@ export function VideoPlayer({
         {isUploading && (
           <div className="absolute inset-0 backdrop-blur-md z-50 flex flex-col">
             {/* Dimmed video effect */}
-            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-black/20" />
             
             {/* Animated frame previews */}
             <div className="absolute inset-0 grid grid-cols-4 gap-2 p-4">
