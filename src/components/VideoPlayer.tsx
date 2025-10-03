@@ -213,7 +213,7 @@ export function VideoPlayer({
       if (overlays.segments) {
         // Prefer high-fidelity mask overlay if available
         if ((annotation as any).maskBase64 && (annotation as any).maskBBox) {
-          const { maskBase64, maskBBox, maskWidth, maskHeight, maskIsCropped } = annotation as any;
+          const { maskBase64, maskBBox, maskIsCropped } = annotation as any;
           const img = new Image();
           img.src = `data:image/png;base64,${maskBase64}`;
           img.onload = () => {
@@ -222,17 +222,11 @@ export function VideoPlayer({
             const tempCtx = tempCanvas.getContext('2d');
             if (!tempCtx) return;
             
-            // CRITICAL: Scale mask bbox using displayed video dimensions, not canvas dimensions
-            // The maskBBox percentages are relative to the VIDEO resolution (not canvas with DPR/zoom)
-            // So we need to map them to the base display size before applying DPR/zoom
-            const displayRect = getDisplayedRect();
-            const baseScaleX = displayRect.width * dpr;  // Base display width with DPR, before zoom
-            const baseScaleY = displayRect.height * dpr; // Base display height with DPR, before zoom
-            
-            const x = maskIsCropped ? (maskBBox.x / 100) * baseScaleX * zoom : 0;
-            const y = maskIsCropped ? (maskBBox.y / 100) * baseScaleY * zoom : 0;
-            const w = maskIsCropped ? (maskBBox.w / 100) * baseScaleX * zoom : canvas.width;
-            const h = maskIsCropped ? (maskBBox.h / 100) * baseScaleY * zoom : canvas.height;
+            // Scale mask bbox using canvas dimensions (accounts for DPR and zoom)
+            const x = maskIsCropped ? (maskBBox.x / 100) * canvas.width : 0;
+            const y = maskIsCropped ? (maskBBox.y / 100) * canvas.height : 0;
+            const w = maskIsCropped ? (maskBBox.w / 100) * canvas.width : canvas.width;
+            const h = maskIsCropped ? (maskBBox.h / 100) * canvas.height : canvas.height;
             
             tempCanvas.width = img.width;
             tempCanvas.height = img.height;
