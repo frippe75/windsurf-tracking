@@ -1697,7 +1697,7 @@ const Index = () => {
               </div>
             </div>
           </div>
-        ) : !videoUrl ? (
+        ) : !videoUrl && !videoId ? (
           <div className="flex items-center justify-center min-h-[600px]">
             <div className="text-center space-y-4">
               <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
