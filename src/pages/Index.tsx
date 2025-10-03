@@ -504,8 +504,12 @@ const Index = () => {
       }
       
       // Ensure frame 0 is displayed after upload completes
-      console.log("📤 handleVideoUpload: Setting frame to 0");
+      // Force frame refresh by setting to -1 first, then to 0
+      console.log("📤 handleVideoUpload: Forcing frame 0 display");
+      setCurrentFrame(-1);
+      await new Promise(resolve => setTimeout(resolve, 100));
       setCurrentFrame(0);
+      console.log("📤 handleVideoUpload: Frame 0 set");
     } catch (error) {
       console.error("📤 handleVideoUpload: Upload failed:", error);
       console.log("⚠️ handleVideoUpload: Clearing videoUrl due to error");
