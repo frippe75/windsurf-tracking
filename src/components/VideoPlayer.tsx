@@ -204,6 +204,11 @@ export function VideoPlayer({
       // Otherwise, only show on the frame where it was created
       return currentFrame === annotation.frameCreated;
     });
+    
+    console.log(`📍 Frame ${currentFrame}: ${visibleAnnotations.length} visible annotations, selected=${selectedAnnotationId}`);
+    visibleAnnotations.forEach(ann => {
+      console.log(`  - ${ann.id} (frame ${ann.frameCreated}, keyframe=${(ann as any).isKeyframe}, hasBbox=${!!ann.bbox})`);
+    });
 
     visibleAnnotations.forEach((annotation) => {
       const isSelected = selectedAnnotationId === annotation.id;
