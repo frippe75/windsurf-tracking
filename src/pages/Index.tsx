@@ -470,6 +470,7 @@ const Index = () => {
         filename: "Loading...",
         status: 'downloading',
         backendProgress: 0,
+        youtubeUrl: url,
         isActive: false,
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),

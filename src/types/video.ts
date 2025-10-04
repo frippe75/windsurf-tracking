@@ -22,6 +22,9 @@ export interface ManagedVideo {
   createdAt: number;
   lastAccessedAt: number;
   
+  // Source
+  youtubeUrl?: string;           // Original YouTube URL if from YouTube
+  
   // Error handling
   error?: string;
 }

@@ -322,6 +322,20 @@ export function VideoManager({
                               <span className="text-muted-foreground">File Size</span>
                               <span className="font-medium">{formatFileSize(selectedVideo.metadata.fileSize)}</span>
                             </div>
+                            {selectedVideo.youtubeUrl && (
+                              <div className="flex justify-between py-2 border-b border-border">
+                                <span className="text-muted-foreground">Source</span>
+                                <a 
+                                  href={selectedVideo.youtubeUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-primary hover:underline flex items-center gap-1"
+                                >
+                                  <Youtube className="h-3 w-3" />
+                                  YouTube
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
 
