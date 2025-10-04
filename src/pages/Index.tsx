@@ -17,10 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
 import { VideoSourceDialog } from "@/components/VideoSourceDialog";
+import { config } from "@/lib/config";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -366,25 +367,139 @@ const Index = () => {
   };
 
   const handleYoutubeUrl = async (url: string) => {
+    // Clear all states for fresh start
+    console.log("📺 YouTube download: Clearing all states");
+    setAnnotations([]);
+    setInstances([]);
+    setKeyframes([]);
+    setScenes([]);
+    setSelectedClassId(undefined);
+    setSelectedAnnotationId(undefined);
+    setSelectedScene(null);
+    setTrackingJobs([]);
+    setCurrentFrame(0);
+    setVideoMetadata({});
+
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
       toast({
-        title: "Downloading from YouTube",
-        description: "This may take a few moments...",
+        title: "Starting YouTube download",
+        description: "Contacting backend...",
       });
 
-      // TODO: Call backend API to download YouTube video
-      // For now, show an error that this feature is not implemented yet
+      // Initiate download
+      console.log("📺 Initiating YouTube download:", url);
+      const downloadJob = await downloadFromYouTube({ url });
+      console.log("📺 Download job created:", downloadJob.job_id);
+
       toast({
-        title: "YouTube Download",
-        description: "Backend support for YouTube downloads needs to be implemented",
-        variant: "destructive",
+        title: "Downloading from YouTube",
+        description: "This may take a few minutes...",
       });
+
+      // Poll for status
+      let status = downloadJob.status;
+      let pollCount = 0;
+      const maxPolls = 180; // 6 minutes max (2 second intervals)
+
+      while (status !== 'completed' && status !== 'failed' && pollCount < maxPolls) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        pollCount++;
+
+        console.log(`📺 Polling status (attempt ${pollCount})...`);
+        const statusResponse = await getYouTubeDownloadStatus(downloadJob.job_id);
+        status = statusResponse.status;
+
+        // Update progress
+        if (statusResponse.progress !== undefined) {
+          setUploadProgress(statusResponse.progress);
+        }
+
+        // Update toast with current step
+        if (statusResponse.current_step) {
+          toast({
+            title: statusResponse.stage === 'downloading' ? "Downloading..." : "Processing...",
+            description: statusResponse.current_step,
+          });
+        }
+
+        console.log("📺 Status:", status, "Progress:", statusResponse.progress);
+
+        // Handle completion
+        if (status === 'completed' && statusResponse.video_id) {
+          console.log("📺 Download completed! video_id:", statusResponse.video_id);
+          
+          setVideoId(statusResponse.video_id);
+          setUploadProgress(100);
+
+          // Get full video info
+          const videoInfo = await getVideoInfo(statusResponse.video_id);
+          setVideoNativeWidth(videoInfo.width);
+          setVideoNativeHeight(videoInfo.height);
+
+          // Create video URL from backend frame endpoint (frame 0)
+          const videoFrameUrl = `${config.backendUrl}/api/videos/${statusResponse.video_id}/frame/0`;
+          setVideoUrl(videoFrameUrl);
+
+          toast({
+            title: "Video ready",
+            description: `${statusResponse.total_frames} frames at ${statusResponse.fps} fps (${statusResponse.width}×${statusResponse.height})`,
+          });
+
+          // Auto-trigger scene detection
+          try {
+            console.log("📺 Starting auto scene detection");
+            toast({
+              title: "Detecting scenes",
+              description: "Analyzing video content...",
+            });
+            
+            const sceneResponse = await detectScenes(statusResponse.video_id);
+            console.log("📺 Scene detection complete, scenes:", sceneResponse.total_scenes);
+          
+            const detectedScenes = sceneResponse.scenes.map(scene => ({
+              id: `scene-${scene.scene_id}`,
+              startFrame: scene.start_frame,
+              endFrame: scene.end_frame,
+              quality: scene.quality as "good" | "bad" | "unknown"
+            }));
+            
+            setScenes(detectedScenes);
+            setTotalFrames(statusResponse.total_frames || 0);
+            
+            toast({
+              title: "Scenes detected",
+              description: `Found ${sceneResponse.total_scenes} scenes`,
+            });
+          } catch (sceneError) {
+            console.error("📺 Scene detection failed:", sceneError);
+            toast({
+              title: "Scene detection failed",
+              description: "Video loaded successfully, but scene detection failed",
+              variant: "destructive",
+            });
+          }
+
+          // Set to frame 0
+          setCurrentFrame(0);
+          return;
+        }
+
+        // Handle failure
+        if (status === 'failed') {
+          throw new Error(statusResponse.error || 'Download failed');
+        }
+      }
+
+      // Timeout
+      if (pollCount >= maxPolls) {
+        throw new Error('Download timeout - please try again');
+      }
 
     } catch (error) {
-      console.error("YouTube download failed:", error);
+      console.error("📺 YouTube download failed:", error);
       toast({
         title: "Download Failed",
         description: error instanceof Error ? error.message : "Failed to download YouTube video",

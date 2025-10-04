@@ -680,6 +680,130 @@ export const executeTrackingJob = async (jobId: string): Promise<{ job_id: strin
   return await response.json();
 };
 
+// ============= YouTube Download Endpoints =============
+
+export interface YouTubeDownloadRequest {
+  url: string;
+  format?: string;
+  quality?: string;
+}
+
+export interface YouTubeDownloadJobResponse {
+  job_id: string;
+  status: 'queued' | 'downloading' | 'processing' | 'completed' | 'failed';
+  message: string;
+}
+
+export interface YouTubeDownloadStatusResponse {
+  job_id: string;
+  status: 'queued' | 'downloading' | 'processing' | 'completed' | 'failed';
+  progress?: number;
+  stage?: string;
+  current_step?: string;
+  eta_seconds?: number;
+  video_id?: string;
+  filename?: string;
+  duration?: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+  total_frames?: number;
+  error?: string;
+}
+
+// Initiate YouTube video download
+export const downloadFromYouTube = async (request: YouTubeDownloadRequest): Promise<YouTubeDownloadJobResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return {
+      job_id: `yt-mock-${Date.now()}`,
+      status: 'queued',
+      message: 'Mock download started'
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(errorData.error || `YouTube download failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Check YouTube download job status
+export const getYouTubeDownloadStatus = async (jobId: string): Promise<YouTubeDownloadStatusResponse> => {
+  if (config.useMockApi) {
+    // Mock progressive download states
+    const elapsed = Date.now() - parseInt(jobId.split('-').pop() || '0');
+    
+    if (elapsed < 2000) {
+      return {
+        job_id: jobId,
+        status: 'downloading',
+        progress: Math.min(40, (elapsed / 2000) * 40),
+        stage: 'downloading',
+        current_step: 'Downloading video from YouTube',
+        eta_seconds: 8
+      };
+    } else if (elapsed < 4000) {
+      return {
+        job_id: jobId,
+        status: 'processing',
+        progress: 40 + Math.min(60, ((elapsed - 2000) / 2000) * 60),
+        stage: 'processing',
+        current_step: 'Converting and analyzing video',
+        eta_seconds: 4
+      };
+    } else {
+      return {
+        job_id: jobId,
+        status: 'completed',
+        video_id: `video-${jobId}`,
+        filename: 'Mock YouTube Video.mp4',
+        duration: 180.5,
+        fps: 30,
+        width: 1920,
+        height: 1080,
+        total_frames: 5415
+      };
+    }
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}/status`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get download status: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Cancel YouTube download job
+export const cancelYouTubeDownload = async (jobId: string): Promise<void> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return;
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to cancel download: ${response.statusText}`);
+  }
+};
+
 // Get tracking job status
 export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobStatus> => {
   if (config.useMockApi) {
