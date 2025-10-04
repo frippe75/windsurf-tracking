@@ -1,0 +1,156 @@
+# Test Data Configuration for Windsurf Pipeline
+# Contains test clips with expected outcomes for validation
+
+test_clips:
+  # Positive test cases (should pass validation)
+  single_sail_on_water:
+    description: "Single windsurfer on water - ideal tracking scenario"
+    source_video: "tests/data/single_sail_clear.mp4"
+    start_frame: 0
+    end_frame: 200
+    expected_outcome:
+      sail_count_filter:
+        passed: true
+        sail_count: 1
+        confidence_min: 0.8
+      on_water_filter:
+        passed: true
+        water_percentage_min: 0.5
+        horizon_detected: true
+      overall_decision: "ACCEPT"
+    metadata:
+      location: "Maui competition footage"
+      conditions: "Clear water, good lighting"
+      sail_color: "red"
+      distance: "medium"
+
+  double_sail_action:
+    description: "Two windsurfers in frame - manageable complexity"
+    source_video: "tests/data/double_sail_race.mp4"
+    start_frame: 100
+    end_frame: 300
+    expected_outcome:
+      sail_count_filter:
+        passed: true
+        sail_count: 2
+        confidence_min: 0.7
+      on_water_filter:
+        passed: true
+        water_percentage_min: 0.4
+      overall_decision: "ACCEPT"
+    metadata:
+      location: "Racing footage"
+      conditions: "Two sails, clear separation"
+
+  # Negative test cases (should be rejected)
+  beach_interview:
+    description: "Beach interview - no water, no sails"
+    source_video: "tests/data/beach_setup.mp4"
+    start_frame: 50
+    end_frame: 250
+    expected_outcome:
+      sail_count_filter:
+        passed: false
+        sail_count: 0
+        confidence_max: 0.2
+      on_water_filter:
+        passed: false
+        water_percentage_max: 0.2
+        horizon_detected: false
+      overall_decision: "REJECT"
+    metadata:
+      location: "Beach setup area"
+      conditions: "Sand, people, no water"
+
+  crowded_start_line:
+    description: "Start line with 5+ sails - too complex"
+    source_video: "tests/data/race_start.mp4"
+    start_frame: 200
+    end_frame: 400
+    expected_outcome:
+      sail_count_filter:
+        passed: false
+        sail_count_min: 3
+        confidence_max: 0.4
+      on_water_filter:
+        passed: true
+        water_percentage_min: 0.6
+      overall_decision: "REJECT"
+    metadata:
+      location: "Race start line"
+      conditions: "Multiple sails, crowded"
+
+  # Edge cases
+  sail_behind_wave:
+    description: "Sail temporarily occluded by wave"
+    source_video: "tests/data/occlusion_test.mp4" 
+    start_frame: 300
+    end_frame: 500
+    expected_outcome:
+      sail_count_filter:
+        passed: true  # Should detect sail in some frames
+        sail_count: 1
+        confidence_min: 0.6  # Lower due to occlusion
+      on_water_filter:
+        passed: true
+        water_percentage_min: 0.7
+      overall_decision: "ACCEPT"
+    metadata:
+      location: "Choppy water conditions"
+      conditions: "Intermittent occlusion"
+
+  distant_sail:
+    description: "Sail very far from camera - small but detectable"
+    source_video: "tests/data/distant_shot.mp4"
+    start_frame: 0
+    end_frame: 200
+    expected_outcome:
+      sail_count_filter:
+        passed: true
+        sail_count: 1
+        confidence_min: 0.5  # Lower due to distance
+      on_water_filter:
+        passed: true
+        water_percentage_min: 0.8  # Mostly water in frame
+      overall_decision: "ACCEPT"
+    metadata:
+      location: "Wide angle shot"
+      conditions: "Distant perspective"
+
+# Test configuration
+test_config:
+  scrub_config:
+    scrub_interval: 25  # 1 second at 25fps
+    max_scrub_attempts: 5
+    early_accept_threshold: 0.8
+    early_reject_threshold: 0.2
+  
+  validation_thresholds:
+    dino_confidence: 0.3
+    water_percentage_min: 0.4
+    horizon_detection_threshold: 0.6
+  
+  performance_targets:
+    filter_time_max_seconds: 60  # Max time per clip validation
+    acceptance_rate_min: 0.6  # At least 60% clips should pass
+    false_positive_rate_max: 0.1  # Max 10% bad clips accepted
+
+# Mock data for unit testing (when real video clips not available)
+mock_data:
+  single_sail_frame:
+    description: "Frame with single sail for unit testing"
+    expected_sail_count: 1
+    expected_water_percentage: 0.6
+    file_path: "tests/fixtures/single_sail_frame.jpg"
+  
+  no_sail_frame:
+    description: "Beach/land frame for negative testing"
+    expected_sail_count: 0
+    expected_water_percentage: 0.1
+    file_path: "tests/fixtures/beach_frame.jpg"
+  
+  multi_sail_frame:
+    description: "Complex scene with multiple sails"
+    expected_sail_count: 4
+    expected_water_percentage: 0.8
+    file_path: "tests/fixtures/multi_sail_frame.jpg"

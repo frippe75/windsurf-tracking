@@ -1,0 +1,45 @@
+# Docker Compose for local testing of ClearML worker image
+version: '3.8'
+
+services:
+  windsurf-pipeline:
+    build:
+      context: ../../  # Build from repo root
+      dockerfile: docker/windsurf-pipeline/Dockerfile
+    image: harbor.tclab.org/windsurf/windsurf-pipeline:latest
+    
+    # GPU support for local testing
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    environment:
+      - CLEARML_CONFIG_FILE=/app/clearml.conf
+      - PYTHONPATH=/app:/app/src:/app/pipeline-stage1:/app/pipeline-stage2
+      - CUDA_VISIBLE_DEVICES=0
+    
+    volumes:
+      # Mount data for processing
+      - ../../cache:/app/cache:ro
+      - ../../out:/app/out
+      
+    # Override for testing
+    command: |
+      bash -c "
+        echo '🐳 Windsurf Pipeline Docker Container'
+        echo '📊 Python: $(python --version)'
+        echo '🔧 CUDA: $(nvcc --version || echo No CUDA compiler)'
+        echo '📦 Packages:'
+        pip list | grep -E '(torch|opencv|clearml|sam2|groundingdino)'
+        echo '💾 Models:'
+        ls -la /app/weights/ /app/checkpoints/ 2>/dev/null || echo 'No models found'
+        echo '✅ Container ready for ClearML tasks'
+        tail -f /dev/null
+      "
+    
+    networks:
+      - clearml

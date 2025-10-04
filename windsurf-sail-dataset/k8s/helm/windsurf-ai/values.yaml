@@ -1,0 +1,171 @@
+# Default values for windsurf-ai KServe deployment
+# This is a YAML-formatted file for Helm template values
+
+# Global configuration
+global:
+  registry: harbor.tclab.org/windsurf
+  imageTag: "v1.0"
+  namespace: ai-models
+
+# KServe configuration
+kserve:
+  enabled: true
+  domain: tclab.org
+
+# DINO Detection Service (generic AI service)
+dino:
+  enabled: true
+  name: dino-detection-api
+  image: 
+    repository: harbor.tclab.org/windsurf/pipeline
+    tag: "v1.0"
+    pullPolicy: IfNotPresent
+  
+  # GPU resources for T4
+  resources:
+    requests:
+      nvidia.com/gpu: 1
+      memory: "8Gi"
+      cpu: "2"
+    limits:
+      nvidia.com/gpu: 1
+      memory: "12Gi"
+      cpu: "4"
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  
+  # KServe InferenceService spec
+  predictor:
+    containers:
+    - name: dino-predictor
+      image: harbor.tclab.org/windsurf/pipeline:v1.0
+      command: ["python", "-m", "uvicorn", "ai_dino_service:app", "--host", "0.0.0.0", "--port", "8000"]
+      env:
+      - name: MODEL_TYPE
+        value: "dino"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: PYTHONPATH
+        value: "/app"
+      ports:
+      - containerPort: 8000
+        protocol: TCP
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          memory: "8Gi"
+        limits:
+          nvidia.com/gpu: 1
+          memory: "12Gi"
+  
+  # Scaling configuration
+  scaling:
+    minReplicas: 1
+    maxReplicas: 5
+    target: 80  # CPU utilization for autoscaling
+
+# SAM2 Segmentation Service (generic AI service)
+sam2:
+  enabled: true
+  name: sam2-segmentation-api
+  image:
+    repository: harbor.tclab.org/windsurf/pipeline
+    tag: "v1.0"
+    pullPolicy: IfNotPresent
+  
+  # GPU resources for T4 (SAM2 needs more memory)
+  resources:
+    requests:
+      nvidia.com/gpu: 1
+      memory: "12Gi"
+      cpu: "2"
+    limits:
+      nvidia.com/gpu: 1
+      memory: "15Gi"  # Nearly full T4 for SAM2
+      cpu: "4"
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  
+  # KServe InferenceService spec
+  predictor:
+    containers:
+    - name: sam2-predictor
+      image: harbor.tclab.org/windsurf/pipeline:v1.0
+      command: ["python", "-m", "uvicorn", "ai_sam2_service:app", "--host", "0.0.0.0", "--port", "8000"]
+      env:
+      - name: MODEL_TYPE
+        value: "sam2"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: PYTHONPATH
+        value: "/app"
+      - name: PYTORCH_CUDA_ALLOC_CONF
+        value: "expandable_segments:True"
+      ports:
+      - containerPort: 8000
+        protocol: TCP
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          memory: "12Gi"
+        limits:
+          nvidia.com/gpu: 1
+          memory: "15Gi"
+  
+  # Scaling configuration
+  scaling:
+    minReplicas: 1
+    maxReplicas: 3  # Fewer replicas due to higher memory usage
+    target: 70  # Lower target due to memory constraints
+
+# Monitoring and logging
+monitoring:
+  enabled: true
+  prometheus: true
+  grafana: true
+  
+logging:
+  level: INFO
+  format: structured
+
+# Network configuration
+networking:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-tclab
+      nginx.org/client-max-body-size: "100m"  # NGINX Inc. annotation
+    hosts:
+    - host: ai-models.tclab.org
+      paths:
+      - path: /dino
+        pathType: Prefix
+        service: dino-detection-api
+      - path: /sam2  
+        pathType: Prefix
+        service: sam2-segmentation-api
+    tls:
+    - secretName: windsurf-ai-tls
+      hosts:
+      - windsurf-ai.tclab.org
+
+# Security
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  
+serviceAccount:
+  create: true
+  annotations: {}
+  name: windsurf-ai

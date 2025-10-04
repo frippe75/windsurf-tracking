@@ -1,0 +1,117 @@
+{{- if .Values.dino.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.dino.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.dino.name }}
+    model: dino
+    chart: {{ include "windsurf-ai.chart" . }}
+spec:
+  replicas: {{ .Values.dino.scaling.minReplicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.dino.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.dino.name }}
+        model: dino
+    spec:
+      # Target GPU nodes
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      
+      # GPU tolerations
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      containers:
+      - name: dino-api
+        image: {{ .Values.dino.image.repository }}:{{ .Values.dino.image.tag }}
+        imagePullPolicy: {{ .Values.dino.image.pullPolicy }}
+        
+        # Simple container test (verify GPU allocation)
+        command: 
+        - "python"
+        - "-c"
+        - |
+          import time
+          import torch
+          
+          print("=== DINO GPU Service Starting ===")
+          print(f"CUDA available: {torch.cuda.is_available()}")
+          
+          if torch.cuda.is_available():
+            print(f"GPU device: {torch.cuda.get_device_name(0)}")
+            print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+          
+          print("GPU allocation successful - DINO service ready")
+          
+          # Keep container running
+          while True:
+            time.sleep(30)
+            print("DINO service heartbeat - GPU allocated")
+        
+        env:
+        - name: MODEL_TYPE
+          value: "dino"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: PYTHONPATH
+          value: "/app:/app/windsurf"
+        
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        # GPU resource allocation for T4
+        resources:
+          requests:
+            nvidia.com/gpu: {{ index .Values.dino.resources.requests "nvidia.com/gpu" }}
+            memory: {{ .Values.dino.resources.requests.memory }}
+            cpu: {{ .Values.dino.resources.requests.cpu }}
+          limits:
+            nvidia.com/gpu: {{ index .Values.dino.resources.limits "nvidia.com/gpu" }}
+            memory: {{ .Values.dino.resources.limits.memory }}
+            cpu: {{ .Values.dino.resources.limits.cpu }}
+        
+        # Health checks for stateful service
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          
+        readinessProbe:
+          httpGet:
+            path: /api/ai/status
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.dino.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.dino.name }}
+spec:
+  selector:
+    app: {{ .Values.dino.name }}
+  ports:
+  - name: http
+    port: {{ .Values.dino.service.port }}
+    targetPort: {{ .Values.dino.service.targetPort }}
+    protocol: TCP
+  type: {{ .Values.dino.service.type }}
+{{- end }}

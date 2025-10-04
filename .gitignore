@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+windsurf_env/
+.env
+
+# Video files and uploads
+*.mp4
+*.avi
+*.mov
+uploads/
+out/
+cache/
+runs/
+scrub_output/
+
+# Model checkpoints and weights
+checkpoints/
+weights/
+*.pt
+*.pth
+sam2_*.pt
+
+# Test outputs and temporary files
+*_test/
+*_frames/
+*_results/
+*_output/
+temp_*.py
+working_*.py
+grounded_dino_detection_test.png
+*.log
+
+# Dependencies and external repos
+facebook-sam2/
+grounded-sam2/
+groundingdino/
+GroundingDINO/
+sam2/
+
+# Environment and config
+.env.example
+=1.16.0
+3.12/
+
+# Documentation exports and misc
+*.json
+*.md
+!README.md
+!QUICKSTART.md
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+
+# Kubernetes sensitive files
+kubectl

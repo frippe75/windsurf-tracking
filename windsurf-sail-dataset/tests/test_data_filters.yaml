@@ -1,0 +1,112 @@
+# Filter Test Data - Using single available clip with flexible frame specifications
+
+test_clips:
+  # Single competition clip with multiple test scenarios
+  IszuR8u0Ybc_full:
+    file_path: "../cache/IszuR8u0Ybc_full.mp4"
+    description: "Competition windsurf footage - 7+ minutes"
+    duration_seconds: 448.8
+    fps: 24.0
+    total_frames: 10761
+    
+    # Multiple test scenarios from same clip
+    test_scenarios:
+      
+      - test_id: "perfect_single_sail"
+        description: "Frame with clear single sail - should accept"
+        frames: 864  # Single frame (36 seconds in)
+        expected_sail_count: 1
+        expected_water_detection: true
+        expected_decision: "ACCEPT"
+        notes: "This is our known working frame from Stage 2 testing"
+        
+      # Additional test scenarios (commented out for initial testing)
+      # - test_id: "sail_action_sequence"
+      #   description: "Action sequence with consistent single sail"
+      #   frames: "864,900,936"  # 3 specific frames (comma-separated)
+      #   expected_sail_count: 1
+      #   expected_water_detection: true
+      #   expected_decision: "ACCEPT"
+      #   notes: "Multiple frames showing consistent sail presence"
+      #   
+      # - test_id: "tracking_range_sample"
+      #   description: "Range sampling for tracking validation"
+      #   frames: "864-1056:25"  # Frames 864-1056, sample every 25th frame
+      #   expected_sail_count: 1
+      #   expected_water_detection: true
+      #   expected_decision: "ACCEPT"
+      #   notes: "8-second range with 1-second sampling intervals"
+      #   
+      # - test_id: "early_video_no_action"
+      #   description: "Early video frames - likely no windsurfing yet"
+      #   frames: "0-200:50"  # First 8 seconds, sample every 50 frames
+      #   expected_sail_count: 0
+      #   expected_water_detection: false
+      #   expected_decision: "REJECT"
+      #   notes: "Video opening - probably establishing shots"
+      #   
+      # - test_id: "mid_video_action"
+      #   description: "Middle section - likely active windsurfing"
+      #   frames: "5000,5100,5200,5300"  # Multiple frames in middle
+      #   expected_sail_count: 1
+      #   expected_water_detection: true
+      #   expected_decision: "ACCEPT"
+      #   notes: "Competition action in progress"
+      #   
+      # - test_id: "complex_scene_check"
+      #   description: "Check for potential multi-sail scenarios"
+      #   frames: "8000-8500:100"  # Later in video, sample every 100 frames
+      #   expected_sail_count_max: 2  # Allow up to 2 sails
+      #   expected_water_detection: true
+      #   expected_decision: "ACCEPT"
+      #   notes: "Potential multiple windsurfers in frame"
+      #   
+      # - test_id: "occlusion_test"
+      #   description: "Test frames where sail might be occluded"
+      #   frames: "2000,2025,2050,2075,2100"  # 5 frames over 4 seconds
+      #   expected_sail_count_min: 0  # Might be temporarily hidden
+      #   expected_sail_count_max: 1
+      #   expected_water_detection: true
+      #   expected_decision: "ACCEPT"  # Should still pass if water detected
+      #   notes: "Potential wave occlusion scenarios"
+
+# Frame specification format documentation
+frame_spec_format:
+  description: "Flexible frame specification syntax"
+  examples:
+    single_frame: "864"
+    multiple_frames: "864,900,936" 
+    frame_range: "864-1056"
+    range_with_step: "864-1056:25"  # Every 25th frame in range
+    mixed: "100,200,500-600:10,800"  # Mix of single, range, and step
+  
+  parsing_rules:
+    - "Comma separates different frame specifications"
+    - "Dash indicates range (start-end)"
+    - "Colon indicates step size for range (:step)"
+    - "Single numbers are individual frames"
+
+# Filter test configuration
+filter_test_config:
+  sail_count_filter:
+    confidence_threshold: 0.3
+    valid_sail_range: [1, 2]
+    
+  water_detection_filter:
+    min_water_percentage: 0.4
+    horizon_detection_min: 0.6
+    
+  scrubbing_defaults:
+    scrub_interval: 25
+    max_attempts: 5
+    early_accept_threshold: 0.8
+    early_reject_threshold: 0.2
+
+# Expected outcomes for validation
+validation_targets:
+  competition_footage_acceptance_rate: 0.8  # 80% of competition clips should pass
+  rejection_reasons:
+    - "No sails detected"
+    - "Too many sails (>2)"  
+    - "Not on water"
+    - "Poor lighting/quality"

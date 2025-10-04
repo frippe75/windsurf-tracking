@@ -1,0 +1,130 @@
+{{- if .Values.sam2.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.sam2.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.sam2.name }}
+    model: sam2
+    chart: {{ include "windsurf-ai.chart" . }}
+spec:
+  replicas: {{ .Values.sam2.scaling.minReplicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.sam2.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.sam2.name }}
+        model: sam2
+    spec:
+      # Target GPU nodes only
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      
+      # GPU tolerations
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      containers:
+      - name: sam2-api
+        image: {{ .Values.sam2.image.repository }}:{{ .Values.sam2.image.tag }}
+        imagePullPolicy: {{ .Values.sam2.image.pullPolicy }}
+        
+        # Simple container test (verify GPU allocation)
+        command: 
+        - "python"
+        - "-c"
+        - |
+          import time
+          import torch
+          
+          print("=== SAM2 GPU Service Starting ===")
+          print(f"CUDA available: {torch.cuda.is_available()}")
+          
+          if torch.cuda.is_available():
+            print(f"GPU device: {torch.cuda.get_device_name(0)}")
+            print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+          
+          print("GPU allocation successful - SAM2 service ready")
+          
+          # Keep container running
+          while True:
+            time.sleep(30)
+            print("SAM2 service heartbeat - GPU allocated")
+        
+        env:
+        - name: MODEL_TYPE
+          value: "sam2"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: PYTHONPATH
+          value: "/app:/app/windsurf"
+        # PyTorch memory management for stateful tracking
+        - name: PYTORCH_CUDA_ALLOC_CONF
+          value: "expandable_segments:True"
+        
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        # GPU resource allocation for T4 (SAM2 needs more memory)
+        resources:
+          requests:
+            nvidia.com/gpu: {{ index .Values.sam2.resources.requests "nvidia.com/gpu" }}
+            memory: {{ .Values.sam2.resources.requests.memory }}
+            cpu: {{ .Values.sam2.resources.requests.cpu }}
+          limits:
+            nvidia.com/gpu: {{ index .Values.sam2.resources.limits "nvidia.com/gpu" }}
+            memory: {{ .Values.sam2.resources.limits.memory }}
+            cpu: {{ .Values.sam2.resources.limits.cpu }}
+        
+        # Health checks for stateful service
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 120  # SAM2 takes longer to load
+          periodSeconds: 30
+          timeoutSeconds: 15
+          
+        readinessProbe:
+          httpGet:
+            path: /api/ai/status
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 10
+        
+        # Startup probe for model loading
+        startupProbe:
+          httpGet:
+            path: /api/ai/status
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 20  # Give SAM2 time to load
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.sam2.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.sam2.name }}
+spec:
+  selector:
+    app: {{ .Values.sam2.name }}
+  ports:
+  - name: http
+    port: {{ .Values.sam2.service.port }}
+    targetPort: {{ .Values.sam2.service.targetPort }}
+    protocol: TCP
+  type: {{ .Values.sam2.service.type }}
+{{- end }}
