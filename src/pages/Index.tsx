@@ -454,6 +454,7 @@ const Index = () => {
           // Create video URL from backend frame endpoint (frame 0)
           const videoFrameUrl = `${config.backendUrl}/api/videos/${statusResponse.video_id}/frame/0`;
           setVideoUrl(videoFrameUrl);
+          setVideoSourceDialogOpen(false);
 
           toast({
             title: "Video ready",
@@ -546,6 +547,7 @@ const Index = () => {
     const url = URL.createObjectURL(file);
     console.log("📤 processVideoFile: Created blob URL:", url);
     setVideoUrl(url);
+    setVideoSourceDialogOpen(false);
     console.log("📤 processVideoFile: Called setVideoUrl with blob URL");
     
     // Start upload to backend
