@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play } from "lucide-react";
+import { config } from "@/lib/config";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
 
@@ -187,28 +188,51 @@ export function VideoManager({
                           }
                         `}
                       >
-                        <div className="flex items-start gap-2">
-                          <div className="mt-0.5 shrink-0">
-                            {getStatusIcon(video.status)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
-                                {video.filename}
-                              </p>
-                              {isActive && (
-                                <Badge variant="default" className="shrink-0 text-xs">Active</Badge>
-                              )}
+                        <div className="flex items-start gap-3">
+                          {/* Thumbnail */}
+                          {video.status === 'ready' && video.metadata ? (
+                            <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
+                              <img 
+                                src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
+                                alt={video.filename}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
                             </div>
-                            {video.metadata ? (
-                              <p className="text-xs text-muted-foreground">
-                                {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
-                              </p>
-                            ) : (
-                              <p className="text-xs text-muted-foreground">
-                                {getStatusText(video)}
-                              </p>
-                            )}
+                          ) : (
+                            <div className="w-20 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
+                              <VideoIcon className="h-6 w-6 text-muted-foreground/50" />
+                            </div>
+                          )}
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-2 mb-1">
+                              <div className="mt-0.5 shrink-0">
+                                {getStatusIcon(video.status)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                                    {video.filename}
+                                  </p>
+                                  {isActive && (
+                                    <Badge variant="default" className="shrink-0 text-xs">Active</Badge>
+                                  )}
+                                </div>
+                                {video.metadata ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">
+                                    {getStatusText(video)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                             {progress && (
                               <div className="mt-2">
                                 <Progress value={progress.value} className="h-1" />
