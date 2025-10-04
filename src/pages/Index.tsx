@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
 
@@ -40,6 +40,7 @@ const Index = () => {
   const [videoId, setVideoId] = useState<string>("");
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
   const [videoNativeHeight, setVideoNativeHeight] = useState<number>(720);
+  const [blobUrlsRef] = useState<{ current: Set<string> }>({ current: new Set() });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
@@ -124,18 +125,48 @@ const Index = () => {
 
   // Restore active video on mount
   useEffect(() => {
-    if (activeVideoId && managedVideos.length > 0) {
-      const activeVideo = managedVideos.find(v => v.id === activeVideoId);
-      if (activeVideo && activeVideo.status === 'ready' && activeVideo.metadata) {
-        console.log('🔄 Restoring active video:', activeVideo.filename);
-        setVideoId(activeVideoId);
-        setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/frame/0`);
-        setVideoNativeWidth(activeVideo.metadata.width);
-        setVideoNativeHeight(activeVideo.metadata.height);
-        setTotalFrames(activeVideo.metadata.totalFrames);
+    const restoreActiveVideo = async () => {
+      if (activeVideoId && managedVideos.length > 0) {
+        const activeVideo = managedVideos.find(v => v.id === activeVideoId);
+        if (activeVideo && activeVideo.status === 'ready' && activeVideo.metadata) {
+          console.log('🔄 Restoring active video:', activeVideo.filename);
+          setVideoId(activeVideoId);
+          
+          // Resolve video source (cache-first, then streaming)
+          try {
+            await videoCache.init();
+            const cached = await videoCache.get(activeVideo.filename);
+            
+            if (cached) {
+              console.log("💾 Restored from IndexedDB cache");
+              const blobUrl = URL.createObjectURL(cached.blob);
+              blobUrlsRef.current.add(blobUrl);
+              setVideoUrl(blobUrl);
+            } else {
+              console.log("🌐 Restored from backend stream");
+              setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/download`);
+            }
+          } catch (error) {
+            console.error("Failed to restore video:", error);
+            setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/download`);
+          }
+          
+          setVideoNativeWidth(activeVideo.metadata.width);
+          setVideoNativeHeight(activeVideo.metadata.height);
+          setTotalFrames(activeVideo.metadata.totalFrames);
+        }
       }
-    }
+    };
+    
+    restoreActiveVideo();
   }, []); // Only run on mount
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -517,6 +548,51 @@ const Index = () => {
           // Get full video info
           const videoInfo = await getVideoInfo(statusResponse.video_id);
           
+          // === Sync video to IndexedDB ===
+          try {
+            // Update to 'syncing' status
+            setManagedVideos(prev => prev.map(v =>
+              v.id === jobId ? {
+                ...v,
+                status: 'syncing' as const,
+                frontendProgress: 0,
+              } : v
+            ));
+            
+            console.log("💾 Syncing video to local cache...");
+            
+            // Download video blob from backend
+            const videoBlob = await downloadVideoFile(statusResponse.video_id, (percent) => {
+              setManagedVideos(prev => prev.map(v =>
+                v.id === jobId ? { ...v, frontendProgress: percent } : v
+              ));
+            });
+            
+            console.log("💾 Video downloaded, storing in IndexedDB...");
+            
+            // Store in IndexedDB
+            await videoCache.init();
+            await videoCache.set(videoInfo.filename, {
+              videoId: statusResponse.video_id,
+              filename: videoInfo.filename,
+              blob: videoBlob,
+              metadata: {
+                duration: videoInfo.duration,
+                fps: videoInfo.fps,
+                width: videoInfo.width,
+                height: videoInfo.height,
+                totalFrames: videoInfo.total_frames,
+                cachedAt: Date.now(),
+              }
+            });
+            
+            console.log("💾 Video cached successfully!");
+            
+          } catch (cacheError) {
+            console.error("💾 Failed to cache video:", cacheError);
+            // Don't block - video is still on backend
+          }
+          
           // Update managed video with final video_id and metadata
           setManagedVideos(prev => prev.map(v =>
             v.id === jobId ? {
@@ -589,7 +665,7 @@ const Index = () => {
     setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
   };
 
-  const handleVideoSelect = (videoId: string) => {
+  const handleVideoSelect = async (videoId: string) => {
     const video = managedVideos.find(v => v.id === videoId);
     if (!video || video.status !== 'ready') return;
 
@@ -608,7 +684,36 @@ const Index = () => {
     // Set new video as active
     setActiveVideoId(videoId);
     setVideoId(videoId);
-    setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/frame/0`);
+    
+    // Resolve video source (cache-first, then streaming)
+    try {
+      await videoCache.init();
+      const cached = await videoCache.get(video.filename);
+      
+      if (cached) {
+        console.log("💾 Loading video from IndexedDB cache");
+        const blobUrl = URL.createObjectURL(cached.blob);
+        blobUrlsRef.current.add(blobUrl);
+        setVideoUrl(blobUrl);
+        
+        toast({
+          title: "Video loaded",
+          description: `${video.filename} (from cache)`,
+        });
+      } else {
+        console.log("🌐 Loading video from backend stream");
+        setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
+        
+        toast({
+          title: "Video loaded",
+          description: `${video.filename} (streaming)`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load video:", error);
+      // Fallback to streaming
+      setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
+    }
     
     if (video.metadata) {
       setVideoNativeWidth(video.metadata.width);
@@ -620,11 +725,6 @@ const Index = () => {
     setManagedVideos(prev => prev.map(v =>
       v.id === videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
     ));
-
-    toast({
-      title: "Video loaded",
-      description: video.filename,
-    });
   };
 
   const handleVideoDelete = (videoId: string) => {

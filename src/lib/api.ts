@@ -361,6 +361,55 @@ export const uploadVideo = async (
   });
 };
 
+// Video download endpoint with progress tracking (for caching)
+export const downloadVideoFile = async (
+  videoId: string, 
+  onProgress?: (percent: number) => void
+): Promise<Blob> => {
+  if (config.useMockApi) {
+    // Mock mode - simulate download
+    if (onProgress) {
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        onProgress(i);
+      }
+    }
+    // Return mock blob
+    return new Blob(['mock video data'], { type: 'video/mp4' });
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/download`);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to download video: ${response.statusText}`);
+  }
+  
+  const contentLength = response.headers.get('content-length');
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+  
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+  
+  const chunks: Uint8Array[] = [];
+  let receivedLength = 0;
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    chunks.push(value);
+    receivedLength += value.length;
+    
+    if (onProgress && total > 0) {
+      onProgress(Math.round((receivedLength / total) * 100));
+    }
+  }
+  
+  const blob = new Blob(chunks, { type: 'video/mp4' });
+  console.log('💾 Video blob downloaded:', `${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+  return blob;
+};
+
 // ============= AI Endpoints =============
 
 // DINO Detection Types

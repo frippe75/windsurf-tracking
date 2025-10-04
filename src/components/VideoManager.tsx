@@ -60,9 +60,9 @@ export function VideoManager({
       case 'ready':
         return 'Ready';
       case 'downloading':
-        return 'Loading from web';
+        return 'Downloading from YouTube...';
       case 'syncing':
-        return 'Preparing';
+        return 'Syncing to device...';
       case 'queued':
         return 'Queued';
       case 'error':
@@ -75,7 +75,7 @@ export function VideoManager({
       const progress = (video.backendProgress || 0) * 0.6;
       return {
         value: progress,
-        label: 'Loading from web...',
+        label: 'Downloading from YouTube...',
         step: `${video.backendProgress || 0}% downloaded`,
         percentage: Math.round(progress)
       };
@@ -84,8 +84,8 @@ export function VideoManager({
       const progress = 60 + (video.frontendProgress || 0) * 0.4;
       return {
         value: progress,
-        label: 'Preparing for editing...',
-        step: 'Processing frames...',
+        label: 'Syncing to device...',
+        step: `${video.frontendProgress || 0}% synced`,
         percentage: Math.round(progress)
       };
     }
