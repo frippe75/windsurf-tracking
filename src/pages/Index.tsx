@@ -81,8 +81,61 @@ const Index = () => {
   }>({ isOpen: false });
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
-  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>([]);
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  
+  // Load persisted video library from localStorage
+  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
+    try {
+      const saved = localStorage.getItem('managedVideos');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('activeVideoId');
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist managed videos to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('managedVideos', JSON.stringify(managedVideos));
+    } catch (error) {
+      console.error('Failed to save managed videos:', error);
+    }
+  }, [managedVideos]);
+
+  // Persist active video ID to localStorage
+  useEffect(() => {
+    try {
+      if (activeVideoId) {
+        localStorage.setItem('activeVideoId', activeVideoId);
+      } else {
+        localStorage.removeItem('activeVideoId');
+      }
+    } catch (error) {
+      console.error('Failed to save active video ID:', error);
+    }
+  }, [activeVideoId]);
+
+  // Restore active video on mount
+  useEffect(() => {
+    if (activeVideoId && managedVideos.length > 0) {
+      const activeVideo = managedVideos.find(v => v.id === activeVideoId);
+      if (activeVideo && activeVideo.status === 'ready' && activeVideo.metadata) {
+        console.log('🔄 Restoring active video:', activeVideo.filename);
+        setVideoId(activeVideoId);
+        setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/frame/0`);
+        setVideoNativeWidth(activeVideo.metadata.width);
+        setVideoNativeHeight(activeVideo.metadata.height);
+        setTotalFrames(activeVideo.metadata.totalFrames);
+      }
+    }
+  }, []); // Only run on mount
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
