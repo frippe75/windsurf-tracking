@@ -2093,16 +2093,14 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-2">
               <BackendSelector backendStatus={backendStatus} />
-              {managedVideos.length > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setVideoManagerOpen(true)}
-                >
-                  <Video className="h-4 w-4 mr-2" />
-                  My Videos ({managedVideos.length})
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setVideoManagerOpen(true)}
+              >
+                <Video className="h-4 w-4 mr-2" />
+                My Videos {managedVideos.length > 0 && `(${managedVideos.length})`}
+              </Button>
               <Button variant="outline" size="sm" onClick={handleSaveProject}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Project
