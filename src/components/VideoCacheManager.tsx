@@ -7,7 +7,11 @@ import { Trash2, HardDrive, RefreshCw } from "lucide-react";
 import { videoCache, type CacheStats } from "@/lib/videoCache";
 import { useToast } from "@/hooks/use-toast";
 
-export function VideoCacheManager() {
+interface VideoCacheManagerProps {
+  currentVideoId?: string;
+}
+
+export function VideoCacheManager({ currentVideoId }: VideoCacheManagerProps) {
   const [stats, setStats] = useState<CacheStats | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -139,30 +143,42 @@ export function VideoCacheManager() {
       {stats && stats.videos.length > 0 ? (
         <ScrollArea className="h-[300px] w-full border rounded-md">
           <div className="p-2 space-y-1.5">
-            {stats.videos.map((video) => (
-              <div
-                key={video.filename}
-                className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium truncate">{video.filename}</div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-xs h-5">
-                      {formatBytes(video.size)}
-                    </Badge>
-                    <span className="text-xs">{formatDate(video.cachedAt)}</span>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteVideo(video.filename)}
-                  className="ml-2 h-7 w-7 p-0"
+            {stats.videos.map((video) => {
+              const isActive = currentVideoId && video.videoId === currentVideoId;
+              return (
+                <div
+                  key={video.filename}
+                  className={`flex items-center justify-between p-2 rounded-md relative ${
+                    isActive
+                      ? "bg-primary/5 border-l-4 border-l-primary border-r border-t border-b border-border"
+                      : "bg-muted/50"
+                  }`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {isActive && (
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      )}
+                      <div className="text-xs font-medium truncate">{video.filename}</div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs h-5">
+                        {formatBytes(video.size)}
+                      </Badge>
+                      <span className="text-xs">{formatDate(video.cachedAt)}</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteVideo(video.filename)}
+                    className="ml-2 h-7 w-7 p-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </ScrollArea>
       ) : (

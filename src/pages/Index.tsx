@@ -1986,7 +1986,7 @@ const Index = () => {
                   />
                 </TabsContent>
                 <TabsContent value="cache" className="mt-4">
-                  <VideoCacheManager />
+                  <VideoCacheManager currentVideoId={videoId} />
                 </TabsContent>
               </Tabs>
             </div>
