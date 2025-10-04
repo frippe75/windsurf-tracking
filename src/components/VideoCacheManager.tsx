@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -83,107 +83,101 @@ export function VideoCacheManager() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Local Video Cache</CardTitle>
-          <CardDescription>Loading cache information...</CardDescription>
-        </CardHeader>
+      <Card className="p-4 bg-card border-border">
+        <div className="flex items-center gap-2 mb-3">
+          <HardDrive className="h-4 w-4" />
+          <h3 className="text-sm font-semibold">Local Video Cache</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">Loading cache information...</p>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <HardDrive className="h-5 w-5" />
-          Local Video Cache
-        </CardTitle>
-        <CardDescription>
-          Videos cached in your browser for instant loading
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Summary */}
-        <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-          <div>
-            <div className="text-2xl font-bold">{stats?.count || 0}</div>
-            <div className="text-sm text-muted-foreground">Videos Cached</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold">{formatBytes(stats?.totalSize || 0)}</div>
-            <div className="text-sm text-muted-foreground">Total Size</div>
-          </div>
-        </div>
+    <Card className="p-4 bg-card border-border">
+      <div className="flex items-center gap-2 mb-3">
+        <HardDrive className="h-4 w-4" />
+        <h3 className="text-sm font-semibold">Local Video Cache</h3>
+      </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadStats}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleClearCache}
-            disabled={!stats || stats.count === 0}
-            className="flex items-center gap-2"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear All
-          </Button>
+      {/* Summary */}
+      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg mb-3">
+        <div>
+          <div className="text-lg font-semibold">{stats?.count || 0}</div>
+          <div className="text-xs text-muted-foreground">Videos</div>
         </div>
+        <div>
+          <div className="text-lg font-semibold">{formatBytes(stats?.totalSize || 0)}</div>
+          <div className="text-xs text-muted-foreground">Total Size</div>
+        </div>
+      </div>
 
-        {/* Video List */}
-        {stats && stats.videos.length > 0 ? (
-          <ScrollArea className="h-[300px] w-full border rounded-md">
-            <div className="p-4 space-y-2">
-              {stats.videos.map((video) => (
-                <div
-                  key={video.filename}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-md"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{video.filename}</div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Badge variant="outline" className="text-xs">
-                        {formatBytes(video.size)}
-                      </Badge>
-                      <span className="text-xs">{formatDate(video.cachedAt)}</span>
-                    </div>
+      {/* Actions */}
+      <div className="flex gap-2 mb-3">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadStats}
+          className="flex items-center gap-1.5 text-xs h-8"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleClearCache}
+          disabled={!stats || stats.count === 0}
+          className="flex items-center gap-1.5 text-xs h-8"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Clear All
+        </Button>
+      </div>
+
+      {/* Video List */}
+      {stats && stats.videos.length > 0 ? (
+        <ScrollArea className="h-[300px] w-full border rounded-md">
+          <div className="p-2 space-y-1.5">
+            {stats.videos.map((video) => (
+              <div
+                key={video.filename}
+                className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">{video.filename}</div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-xs h-5">
+                      {formatBytes(video.size)}
+                    </Badge>
+                    <span className="text-xs">{formatDate(video.cachedAt)}</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteVideo(video.filename)}
-                    className="ml-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <HardDrive className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No videos cached yet</p>
-            <p className="text-sm">Upload a video to cache it locally</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteVideo(video.filename)}
+                  className="ml-2 h-7 w-7 p-0"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
           </div>
-        )}
-
-        {/* Info */}
-        <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-md">
-          <strong>About the cache:</strong> Videos are stored in your browser's IndexedDB
-          to enable instant loading. Cache data may be cleared by the browser if storage
-          is low. Cached videos are only stored locally and do not sync across devices.
+        </ScrollArea>
+      ) : (
+        <div className="text-center py-6 text-muted-foreground">
+          <HardDrive className="h-10 w-10 mx-auto mb-2 opacity-50" />
+          <p className="text-xs">No videos cached yet</p>
+          <p className="text-xs">Upload a video to cache it locally</p>
         </div>
-      </CardContent>
+      )}
+
+      {/* Info */}
+      <div className="text-xs text-muted-foreground p-2.5 bg-muted/30 rounded-md mt-3">
+        <strong>About:</strong> Videos are stored in your browser's IndexedDB for instant loading.
+        Cache may be cleared by the browser if storage is low.
+      </div>
     </Card>
   );
 }
