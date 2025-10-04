@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, getVideos, type SubJob } from "@/lib/api";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -389,21 +389,26 @@ const Index = () => {
     });
 
     try {
-      // Check if video already exists on backend
+      // Check if video already exists on backend by getting the videos list
       console.log("📤 handleVideoUpload: Checking for existing video:", file.name);
       let uploadResponse;
       
       try {
-        const existsCheck = await checkVideoExists(file.name);
-        console.log("📤 handleVideoUpload: Exists check response:", JSON.stringify(existsCheck));
-        console.log("📤 handleVideoUpload: existsCheck.exists type:", typeof existsCheck.exists, "value:", existsCheck.exists);
-        console.log("📤 handleVideoUpload: existsCheck.video_id:", existsCheck.video_id);
+        // Get all videos and check if this filename exists
+        const videosList = await getVideos();
+        const existingVideo = videosList.videos.find(v => v.filename === file.name);
         
-        if (existsCheck.exists && existsCheck.video_id) {
-          console.log("📤 handleVideoUpload: ✅ Video EXISTS - skipping upload, video_id:", existsCheck.video_id);
+        console.log("📤 handleVideoUpload: Videos list check:", {
+          totalVideos: videosList.videos.length,
+          foundMatch: !!existingVideo,
+          videoId: existingVideo?.video_id
+        });
+        
+        if (existingVideo) {
+          console.log("📤 handleVideoUpload: ✅ Video EXISTS - skipping upload, video_id:", existingVideo.video_id);
           
-          // Get video info for the existing video
-          const existingVideoInfo = await getVideoInfo(existsCheck.video_id);
+          // Get full video info
+          const existingVideoInfo = await getVideoInfo(existingVideo.video_id);
           
           toast({
             title: "Using cached video",
@@ -417,7 +422,7 @@ const Index = () => {
           }
           
           uploadResponse = {
-            video_id: existsCheck.video_id,
+            video_id: existingVideo.video_id,
             filename: existingVideoInfo.filename,
             duration: existingVideoInfo.duration,
             fps: existingVideoInfo.fps,
