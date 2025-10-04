@@ -155,12 +155,7 @@ export function VideoCacheManager({ currentVideoId }: VideoCacheManagerProps) {
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {isActive && (
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      )}
-                      <div className="text-xs font-medium truncate">{video.filename}</div>
-                    </div>
+                    <div className="text-xs font-medium truncate">{video.filename}</div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Badge variant="outline" className="text-xs h-5">
                         {formatBytes(video.size)}
