@@ -152,7 +152,7 @@ export function VideoManager({
       <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0">
         <div className="flex h-full">
           {/* Left Pane: Video List */}
-          <div className="w-[340px] border-r border-border flex flex-col">
+          <div className="w-[55%] border-r border-border flex flex-col">
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-lg font-semibold">My Videos</h2>
@@ -379,14 +379,14 @@ export function VideoManager({
                   <div className="p-6 space-y-8">
                     {/* File Upload */}
                     <div>
-                      <div className="flex items-center gap-2 mb-4">
+                      <div className="flex items-center gap-2 mb-3">
                         <Upload className="h-5 w-5" />
                         <h4 className="font-semibold">Upload from Computer</h4>
                       </div>
-                      <div className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary/50 hover:bg-accent/50 transition-all">
-                        <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                        <p className="text-sm font-medium mb-2">Drag & drop video here</p>
-                        <p className="text-xs text-muted-foreground mb-4">or click to browse</p>
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-accent/50 transition-all">
+                        <Upload className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+                        <p className="text-sm font-medium mb-1">Drag & drop video here</p>
+                        <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
                         <label htmlFor="file-upload">
                           <Button variant="outline" asChild disabled={isUploading}>
                             <span>Choose File</span>
@@ -400,8 +400,8 @@ export function VideoManager({
                           onChange={handleFileChange}
                           disabled={isUploading}
                         />
-                        <p className="text-xs text-muted-foreground mt-4">
-                          Supports MP4, MOV, AVI, and other common formats
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Supports MP4, MOV, AVI, and other formats
                         </p>
                       </div>
                     </div>
