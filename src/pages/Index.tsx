@@ -23,7 +23,7 @@ import { ManagedVideo } from "@/types/video";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
-import { VideoSourceDialog } from "@/components/VideoSourceDialog";
+
 import { config } from "@/lib/config";
 
 const SAIL_COLORS = [
@@ -79,7 +79,6 @@ const Index = () => {
     frame?: number;
     initialText?: string;
   }>({ isOpen: false });
-  const [videoSourceDialogOpen, setVideoSourceDialogOpen] = useState(false);
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>([]);
@@ -485,7 +484,7 @@ const Index = () => {
           // Create video URL from backend frame endpoint (frame 0)
           const videoFrameUrl = `${config.backendUrl}/api/videos/${statusResponse.video_id}/frame/0`;
           setVideoUrl(videoFrameUrl);
-          setVideoSourceDialogOpen(false);
+          setVideoManagerOpen(false);
 
           // Update managed video with final video_id and metadata
           setManagedVideos(prev => prev.map(v => 
@@ -657,7 +656,7 @@ const Index = () => {
     const url = URL.createObjectURL(file);
     console.log("📤 processVideoFile: Created blob URL:", url);
     setVideoUrl(url);
-    setVideoSourceDialogOpen(false);
+    setVideoManagerOpen(false);
     console.log("📤 processVideoFile: Called setVideoUrl with blob URL");
     
     // Start upload to backend
@@ -2122,7 +2121,7 @@ const Index = () => {
                 variant="default" 
                 size="sm" 
                 disabled={isUploading}
-                onClick={() => setVideoSourceDialogOpen(true)}
+                onClick={() => setVideoManagerOpen(true)}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 {isUploading ? "Processing..." : videoUrl ? "Add Video" : "Load Video"}
@@ -2146,7 +2145,7 @@ const Index = () => {
               </p>
               <Button 
                 variant="default" 
-                onClick={() => setVideoSourceDialogOpen(true)}
+                onClick={() => setVideoManagerOpen(true)}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Add Video
@@ -2288,14 +2287,6 @@ const Index = () => {
         )}
       </main>
 
-      <VideoSourceDialog
-        open={videoSourceDialogOpen}
-        onOpenChange={setVideoSourceDialogOpen}
-        onFileSelect={processVideoFile}
-        onYoutubeUrl={handleYoutubeUrl}
-        isUploading={isUploading}
-      />
-
       {/* Download Queue - Fixed position */}
       {downloadQueue.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 w-96">
@@ -2337,6 +2328,9 @@ const Index = () => {
         activeVideoId={activeVideoId}
         onVideoSelect={handleVideoSelect}
         onVideoDelete={handleVideoDelete}
+        onFileSelect={processVideoFile}
+        onYoutubeUrl={handleYoutubeUrl}
+        isUploading={isUploading}
       />
     </div>
   );
