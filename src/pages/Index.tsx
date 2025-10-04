@@ -399,34 +399,52 @@ const Index = () => {
         const cached = await videoCache.get(file.name);
         
         if (cached) {
-          console.log("💾 Cache HIT - using IndexedDB, skipping backend entirely");
+          console.log("💾 Cache HIT for:", file.name);
+          console.log("💾 Verifying video still exists on backend with videoId:", cached.videoId);
           
-          toast({
-            title: "Using local cache",
-            description: "Video loaded instantly from browser storage ⚡",
-          });
-          
-          // Simulate progress for UX
-          for (let i = 0; i <= 100; i += 25) {
-            setUploadProgress(i);
-            await new Promise(resolve => setTimeout(resolve, 30));
+          // Verify the cached video still exists on backend
+          try {
+            const videoInfo = await getVideoInfo(cached.videoId);
+            console.log("💾 Backend verification SUCCESS - video exists");
+            
+            toast({
+              title: "Using local cache",
+              description: "Video loaded instantly from browser storage ⚡",
+            });
+            
+            // Simulate progress for UX
+            for (let i = 0; i <= 100; i += 25) {
+              setUploadProgress(i);
+              await new Promise(resolve => setTimeout(resolve, 30));
+            }
+            
+            // Use cached data with verified backend videoId
+            setVideoId(cached.videoId);
+            setTotalFrames(cached.metadata.totalFrames);
+            setVideoNativeWidth(cached.metadata.width);
+            setVideoNativeHeight(cached.metadata.height);
+            setUploadProgress(100);
+            setIsUploading(false);
+            
+            toast({
+              title: "Video ready",
+              description: `${cached.metadata.totalFrames} frames at ${cached.metadata.fps} fps (${cached.metadata.width}×${cached.metadata.height})`,
+            });
+            
+            console.log("💾 Cache-based load complete - zero backend calls");
+            return; // EXIT EARLY - backend verified, cache is valid
+            
+          } catch (backendError) {
+            console.warn("💾 Backend verification FAILED - video deleted from backend, invalidating cache");
+            await videoCache.delete(file.name);
+            console.log("💾 Cache entry deleted, will re-upload to backend");
+            
+            toast({
+              title: "Cache invalidated",
+              description: "Video was deleted from backend, re-uploading...",
+            });
+            // Continue to backend upload below
           }
-          
-          // Use cached data, skip backend entirely
-          setVideoId(cached.videoId);
-          setTotalFrames(cached.metadata.totalFrames);
-          setVideoNativeWidth(cached.metadata.width);
-          setVideoNativeHeight(cached.metadata.height);
-          setUploadProgress(100);
-          setIsUploading(false);
-          
-          toast({
-            title: "Video ready",
-            description: `${cached.metadata.totalFrames} frames at ${cached.metadata.fps} fps (${cached.metadata.width}×${cached.metadata.height})`,
-          });
-          
-          console.log("💾 Cache-based load complete - zero backend calls");
-          return; // EXIT EARLY - skip all backend logic
         }
         
         console.log("💾 Cache MISS - proceeding to backend check");
