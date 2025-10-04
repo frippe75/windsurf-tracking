@@ -11,13 +11,15 @@ import { VideoCacheManager } from "@/components/VideoCacheManager";
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
 import { DownloadQueue, type DownloadJob } from "@/components/DownloadQueue";
+import { VideoManager } from "@/components/VideoManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
+import { ManagedVideo } from "@/types/video";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
@@ -79,6 +81,9 @@ const Index = () => {
   }>({ isOpen: false });
   const [videoSourceDialogOpen, setVideoSourceDialogOpen] = useState(false);
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
+  const [videoManagerOpen, setVideoManagerOpen] = useState(false);
+  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>([]);
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -376,6 +381,18 @@ const Index = () => {
       const downloadJob = await downloadFromYouTube({ url });
       const jobId = downloadJob.job_id;
       
+      // Create managed video entry (queued state)
+      const tempVideo: ManagedVideo = {
+        id: jobId, // Will be updated with real video_id when complete
+        filename: "Loading...",
+        status: 'downloading',
+        backendProgress: 0,
+        isActive: false,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      setManagedVideos(prev => [...prev, tempVideo]);
+      
       // Add to queue
       const newDownload: DownloadJob = {
         id: jobId,
@@ -387,7 +404,7 @@ const Index = () => {
 
       toast({
         title: "Download started",
-        description: "Your video is being downloaded...",
+        description: "Loading video from web...",
       });
 
       // Poll for status in background
@@ -427,6 +444,20 @@ const Index = () => {
             : d
         ));
 
+        // Update managed video progress
+        setManagedVideos(prev => prev.map(v => 
+          v.id === jobId
+            ? {
+                ...v,
+                status: statusResponse.status === 'completed' ? 'ready' : 
+                        statusResponse.current_step === 'syncing' ? 'syncing' : 'downloading',
+                backendProgress: statusResponse.current_step === 'downloading' ? statusResponse.progress : 100,
+                frontendProgress: statusResponse.current_step === 'syncing' ? statusResponse.progress : undefined,
+                filename: statusResponse.filename || v.filename,
+              }
+            : v
+        ));
+
         // Handle completion
         if (statusResponse.status === 'completed' && statusResponse.video_id) {
           console.log("📺 Download completed! video_id:", statusResponse.video_id);
@@ -455,6 +486,26 @@ const Index = () => {
           const videoFrameUrl = `${config.backendUrl}/api/videos/${statusResponse.video_id}/frame/0`;
           setVideoUrl(videoFrameUrl);
           setVideoSourceDialogOpen(false);
+
+          // Update managed video with final video_id and metadata
+          setManagedVideos(prev => prev.map(v => 
+            v.id === jobId
+              ? {
+                  ...v,
+                  id: statusResponse.video_id, // Update to real video_id
+                  status: 'ready',
+                  isActive: true,
+                  metadata: {
+                    duration: videoInfo.duration || 0,
+                    fps: statusResponse.fps || 0,
+                    width: videoInfo.width,
+                    height: videoInfo.height,
+                    totalFrames: statusResponse.total_frames || 0,
+                  },
+                }
+              : { ...v, isActive: false }
+          ));
+          setActiveVideoId(statusResponse.video_id);
 
           toast({
             title: "Video ready",
@@ -525,6 +576,65 @@ const Index = () => {
 
   const handleRemoveDownload = (jobId: string) => {
     setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
+  };
+
+  const handleVideoSelect = (videoId: string) => {
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video || video.status !== 'ready') return;
+
+    // Clear current editing context
+    setAnnotations([]);
+    setInstances([]);
+    setKeyframes([]);
+    setScenes([]);
+    setSelectedClassId(undefined);
+    setSelectedAnnotationId(undefined);
+    setSelectedScene(null);
+    setTrackingJobs([]);
+    setCurrentFrame(0);
+    setVideoMetadata({});
+
+    // Set new video as active
+    setActiveVideoId(videoId);
+    setVideoId(videoId);
+    setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/frame/0`);
+    
+    if (video.metadata) {
+      setVideoNativeWidth(video.metadata.width);
+      setVideoNativeHeight(video.metadata.height);
+      setTotalFrames(video.metadata.totalFrames);
+    }
+
+    // Update last accessed time
+    setManagedVideos(prev => prev.map(v =>
+      v.id === videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
+    ));
+
+    toast({
+      title: "Video loaded",
+      description: video.filename,
+    });
+  };
+
+  const handleVideoDelete = (videoId: string) => {
+    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
+    
+    // If deleting active video, clear it
+    if (videoId === activeVideoId) {
+      setActiveVideoId(null);
+      setVideoId("");
+      setVideoUrl("");
+      setAnnotations([]);
+      setInstances([]);
+      setKeyframes([]);
+      setScenes([]);
+      setCurrentFrame(0);
+    }
+
+    toast({
+      title: "Video removed",
+      description: "Video removed from library",
+    });
   };
 
   const processVideoFile = async (file: File) => {
@@ -708,6 +818,26 @@ const Index = () => {
         // Don't block on cache failure
       }
       
+      // Add to managed videos
+      const newManagedVideo: ManagedVideo = {
+        id: uploadResponse.video_id,
+        filename: file.name,
+        status: 'ready',
+        metadata: {
+          duration: uploadResponse.duration || videoInfo.duration || 0,
+          fps: uploadResponse.fps || videoInfo.fps || 0,
+          width: videoInfo.width,
+          height: videoInfo.height,
+          totalFrames: uploadResponse.total_frames || videoInfo.total_frames || 0,
+        },
+        isActive: true,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      
+      setManagedVideos(prev => [...prev.map(v => ({ ...v, isActive: false })), newManagedVideo]);
+      setActiveVideoId(uploadResponse.video_id);
+
       toast({
         title: "Video uploaded",
         description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
@@ -1963,6 +2093,16 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-2">
               <BackendSelector backendStatus={backendStatus} />
+              {managedVideos.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setVideoManagerOpen(true)}
+                >
+                  <Video className="h-4 w-4 mr-2" />
+                  My Videos ({managedVideos.length})
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleSaveProject}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Project
@@ -1987,7 +2127,7 @@ const Index = () => {
                 onClick={() => setVideoSourceDialogOpen(true)}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? "Processing..." : videoUrl ? "Change Video" : "Load Video"}
+                {isUploading ? "Processing..." : videoUrl ? "Add Video" : "Load Video"}
               </Button>
             </div>
           </div>
@@ -2191,6 +2331,14 @@ const Index = () => {
         onSave={handleSaveMetadata}
         initialText={metadataModal.initialText || ""}
         frame={metadataModal.frame}
+      />
+      <VideoManager
+        open={videoManagerOpen}
+        onOpenChange={setVideoManagerOpen}
+        videos={managedVideos}
+        activeVideoId={activeVideoId}
+        onVideoSelect={handleVideoSelect}
+        onVideoDelete={handleVideoDelete}
       />
     </div>
   );
