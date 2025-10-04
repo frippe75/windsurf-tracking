@@ -1989,17 +1989,6 @@ const Index = () => {
 
       {/* Main content */}
       <main className={`w-full ${maximizeVideo ? "px-0 py-2" : "px-4 py-6"}`}>
-        {/* Download Queue */}
-        {downloadQueue.length > 0 && (
-          <div className="mb-4">
-            <DownloadQueue 
-              downloads={downloadQueue}
-              onCancel={handleCancelDownload}
-              onRemove={handleRemoveDownload}
-            />
-          </div>
-        )}
-
         {!videoUrl && !videoId ? (
           <div className="flex items-center justify-center min-h-[600px]">
             <div className="text-center space-y-4">
@@ -2161,6 +2150,17 @@ const Index = () => {
         onYoutubeUrl={handleYoutubeUrl}
         isUploading={isUploading}
       />
+
+      {/* Download Queue - Fixed position */}
+      {downloadQueue.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 w-96">
+          <DownloadQueue 
+            downloads={downloadQueue}
+            onCancel={handleCancelDownload}
+            onRemove={handleRemoveDownload}
+          />
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu
