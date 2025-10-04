@@ -1458,13 +1458,14 @@ const Index = () => {
           }
 
           // Convert bbox from [x1, y1, x2, y2] to percentage-based format
+          // ⚠️ CRITICAL: Backend bbox is ALWAYS in native video coordinates, NOT mask coordinates
           const [x1, y1, x2, y2] = result.bbox;
           const bboxWidth = x2 - x1;
           const bboxHeight = y2 - y1;
           
-          // Use mask dimensions for bbox coordinate conversion when available
-          const baseW = maskWidth || videoNativeWidth || 1280;
-          const baseH = maskHeight || videoNativeHeight || 720;
+          // Always use video native dimensions for bbox conversion (backend returns video coords)
+          const baseW = videoNativeWidth || 1280;
+          const baseH = videoNativeHeight || 720;
           
           const bbox = {
             x: (x1 / baseW) * 100,
