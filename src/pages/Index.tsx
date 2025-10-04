@@ -600,6 +600,7 @@ const Index = () => {
               id: statusResponse.video_id!,
               filename: videoInfo.filename,
               status: 'ready' as const,
+              youtubeUrl: v.youtubeUrl,
               metadata: {
                 duration: videoInfo.duration,
                 fps: videoInfo.fps,
