@@ -162,8 +162,9 @@ export function VideoManager({
               <p className="text-sm text-muted-foreground">Select or add a video</p>
             </div>
 
-            <ScrollArea className="flex-1 min-h-0 px-4">
-              <div className="py-4 space-y-2">
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full px-4">
+                <div className="py-4 space-y-2">
                 {videos.length === 0 ? (
                   <div className="text-center py-12 px-4">
                     <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
@@ -252,8 +253,9 @@ export function VideoManager({
                     );
                   })
                 )}
-              </div>
-            </ScrollArea>
+                </div>
+              </ScrollArea>
+            </div>
 
             <div className="p-4 border-t border-border shrink-0">
               <Button 
