@@ -149,6 +149,15 @@ export function VideoPlayer({
     }
   }, [currentFrame, fps]);
 
+  // Force video reload when videoUrl changes (for video switching)
+  useEffect(() => {
+    if (videoRef.current && videoUrl) {
+      console.log('🔄 VideoPlayer: Reloading video with new URL:', videoUrl);
+      videoRef.current.load();
+      videoRef.current.currentTime = 0;
+    }
+  }, [videoUrl]);
+
   useEffect(() => {
     drawAnnotations();
   }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool, showLabels]);
