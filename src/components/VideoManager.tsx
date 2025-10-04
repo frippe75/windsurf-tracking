@@ -153,8 +153,8 @@ export function VideoManager({
       <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0">
         <div className="flex h-full">
           {/* Left Pane: Video List */}
-          <div className="w-[55%] border-r border-border flex flex-col">
-            <div className="p-6 border-b border-border">
+          <div className="w-[55%] border-r border-border flex flex-col h-full overflow-hidden">
+            <div className="p-6 border-b border-border shrink-0">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-lg font-semibold">My Videos</h2>
                 <Badge variant="secondary">{videos.length}</Badge>
@@ -162,7 +162,7 @@ export function VideoManager({
               <p className="text-sm text-muted-foreground">Select or add a video</p>
             </div>
 
-            <ScrollArea className="flex-1 px-4">
+            <ScrollArea className="flex-1 min-h-0 px-4">
               <div className="py-4 space-y-2">
                 {videos.length === 0 ? (
                   <div className="text-center py-12 px-4">
@@ -255,7 +255,7 @@ export function VideoManager({
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-border shrink-0">
               <Button 
                 variant="outline" 
                 className="w-full"
@@ -268,7 +268,7 @@ export function VideoManager({
           </div>
 
           {/* Right Pane: Contextual Actions */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
             {selectedVideo ? (
               // Video selected - show details
               <>
