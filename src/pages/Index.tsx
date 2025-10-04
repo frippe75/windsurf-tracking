@@ -380,9 +380,9 @@ const Index = () => {
       const downloadJob = await downloadFromYouTube({ url });
       const jobId = downloadJob.job_id;
       
-      // Create managed video entry (queued state)
+      // Create managed video entry (downloading state)
       const tempVideo: ManagedVideo = {
-        id: jobId, // Will be updated with real video_id when complete
+        id: jobId,
         filename: "Loading...",
         status: 'downloading',
         backendProgress: 0,
@@ -403,7 +403,7 @@ const Index = () => {
 
       toast({
         title: "Download started",
-        description: "Loading video from web...",
+        description: "Video will appear in your library when ready",
       });
 
       // Poll for status in background
@@ -461,74 +461,33 @@ const Index = () => {
         if (statusResponse.status === 'completed' && statusResponse.video_id) {
           console.log("📺 Download completed! video_id:", statusResponse.video_id);
           
-          // Clear previous video states
-          setAnnotations([]);
-          setInstances([]);
-          setKeyframes([]);
-          setScenes([]);
-          setSelectedClassId(undefined);
-          setSelectedAnnotationId(undefined);
-          setSelectedScene(null);
-          setTrackingJobs([]);
-          setCurrentFrame(0);
-          setVideoMetadata({});
-          
-          setVideoId(statusResponse.video_id);
-
           // Get full video info
           const videoInfo = await getVideoInfo(statusResponse.video_id);
-          setVideoNativeWidth(videoInfo.width);
-          setVideoNativeHeight(videoInfo.height);
-          setTotalFrames(statusResponse.total_frames || 0);
-
-          // Create video URL from backend frame endpoint (frame 0)
-          const videoFrameUrl = `${config.backendUrl}/api/videos/${statusResponse.video_id}/frame/0`;
-          setVideoUrl(videoFrameUrl);
-          setVideoManagerOpen(false);
-
+          
           // Update managed video with final video_id and metadata
-          setManagedVideos(prev => prev.map(v => 
-            v.id === jobId
-              ? {
-                  ...v,
-                  id: statusResponse.video_id, // Update to real video_id
-                  status: 'ready',
-                  isActive: true,
-                  metadata: {
-                    duration: videoInfo.duration || 0,
-                    fps: statusResponse.fps || 0,
-                    width: videoInfo.width,
-                    height: videoInfo.height,
-                    totalFrames: statusResponse.total_frames || 0,
-                  },
-                }
-              : { ...v, isActive: false }
+          setManagedVideos(prev => prev.map(v =>
+            v.id === jobId ? {
+              id: statusResponse.video_id!,
+              filename: videoInfo.filename,
+              status: 'ready' as const,
+              metadata: {
+                duration: videoInfo.duration,
+                fps: videoInfo.fps,
+                width: videoInfo.width,
+                height: videoInfo.height,
+                totalFrames: videoInfo.total_frames,
+                fileSize: videoInfo.file_size,
+              },
+              isActive: false,
+              createdAt: v.createdAt,
+              lastAccessedAt: Date.now(),
+            } : v
           ));
-          setActiveVideoId(statusResponse.video_id);
-
+          
           toast({
             title: "Video ready",
-            description: `${statusResponse.total_frames} frames at ${statusResponse.fps} fps`,
+            description: `${videoInfo.filename} is now available in your library`,
           });
-
-          // Auto-trigger scene detection
-          try {
-            const sceneResponse = await detectScenes(statusResponse.video_id);
-            const detectedScenes = sceneResponse.scenes.map(scene => ({
-              id: `scene-${scene.scene_id}`,
-              startFrame: scene.start_frame,
-              endFrame: scene.end_frame,
-              quality: scene.quality as "good" | "bad" | "unknown"
-            }));
-            
-            setScenes(detectedScenes);
-            toast({
-              title: "Scenes detected",
-              description: `Found ${sceneResponse.total_scenes} scenes`,
-            });
-          } catch (error) {
-            console.error("📺 Scene detection error:", error);
-          }
           
           // Remove from queue after successful load
           setTimeout(() => {
@@ -639,32 +598,24 @@ const Index = () => {
   const processVideoFile = async (file: File) => {
     console.log("📤 processVideoFile: Starting upload for file:", file.name, "size:", file.size);
 
-    // Clear all states for fresh start
-    console.log("📤 processVideoFile: Clearing all states");
-    setAnnotations([]);
-    setInstances([]);
-    setKeyframes([]);
-    setScenes([]);
-    setSelectedClassId(undefined);
-    setSelectedAnnotationId(undefined);
-    setSelectedScene(null);
-    setTrackingJobs([]);
-    setCurrentFrame(0);
-    setVideoMetadata({});
-
-    // Create local URL for immediate playback
-    const url = URL.createObjectURL(file);
-    console.log("📤 processVideoFile: Created blob URL:", url);
-    setVideoUrl(url);
-    setVideoManagerOpen(false);
-    console.log("📤 processVideoFile: Called setVideoUrl with blob URL");
+    // Create temporary managed video entry
+    const tempId = `temp-${Date.now()}`;
+    const tempVideo: ManagedVideo = {
+      id: tempId,
+      filename: file.name,
+      status: 'syncing',
+      frontendProgress: 0,
+      isActive: false,
+      createdAt: Date.now(),
+      lastAccessedAt: Date.now(),
+    };
+    setManagedVideos(prev => [...prev, tempVideo]);
     
     // Start upload to backend
     setIsUploading(true);
-    setUploadProgress(0);
     toast({
-      title: "Checking for existing video",
-      description: "Looking for cached version...",
+      title: "Processing video",
+      description: "Video will appear in your library when ready",
     });
 
     try {
@@ -684,31 +635,32 @@ const Index = () => {
             const videoInfo = await getVideoInfo(cached.videoId);
             console.log("💾 Backend verification SUCCESS - video exists");
             
-            toast({
-              title: "Using local cache",
-              description: "Video loaded instantly from browser storage ⚡",
-            });
+            // Add to managed videos as ready
+            const cachedManagedVideo: ManagedVideo = {
+              id: cached.videoId,
+              filename: file.name,
+              status: 'ready',
+              metadata: {
+                duration: cached.metadata.duration,
+                fps: cached.metadata.fps,
+                width: cached.metadata.width,
+                height: cached.metadata.height,
+                totalFrames: cached.metadata.totalFrames,
+              },
+              isActive: false,
+              createdAt: Date.now(),
+              lastAccessedAt: Date.now(),
+            };
             
-            // Simulate progress for UX
-            for (let i = 0; i <= 100; i += 25) {
-              setUploadProgress(i);
-              await new Promise(resolve => setTimeout(resolve, 30));
-            }
-            
-            // Use cached data with verified backend videoId
-            setVideoId(cached.videoId);
-            setTotalFrames(cached.metadata.totalFrames);
-            setVideoNativeWidth(cached.metadata.width);
-            setVideoNativeHeight(cached.metadata.height);
-            setUploadProgress(100);
+            setManagedVideos(prev => prev.filter(v => v.id !== tempId).concat(cachedManagedVideo));
             setIsUploading(false);
             
             toast({
               title: "Video ready",
-              description: `${cached.metadata.totalFrames} frames at ${cached.metadata.fps} fps (${cached.metadata.width}×${cached.metadata.height})`,
+              description: `${file.name} loaded from cache`,
             });
             
-            console.log("💾 Cache-based load complete - zero backend calls");
+            console.log("💾 Cache-based load complete - added to library");
             return; // EXIT EARLY - backend verified, cache is valid
             
           } catch (backendError) {
@@ -744,17 +696,6 @@ const Index = () => {
           // Get video info for the existing video
           const existingVideoInfo = await getVideoInfo(existsCheck.video_id);
           
-          toast({
-            title: "Using cached video",
-            description: "Video already exists on backend",
-          });
-          
-          // Simulate progress for UX
-          for (let i = 0; i <= 100; i += 20) {
-            setUploadProgress(i);
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-          
           uploadResponse = {
             video_id: existsCheck.video_id,
             filename: existingVideoInfo.filename,
@@ -775,26 +716,21 @@ const Index = () => {
       // Upload if not found
       if (!uploadResponse) {
         console.log("📤 handleVideoUpload: Starting backend upload");
-        toast({
-          title: "Uploading video",
-          description: "Uploading to backend...",
-        });
         
         uploadResponse = await uploadVideo(file, (percent) => {
-          setUploadProgress(percent);
+          // Update progress in managed video
+          setManagedVideos(prev => prev.map(v => 
+            v.id === tempId ? { ...v, frontendProgress: percent } : v
+          ));
         });
       }
       
       console.log("📤 handleVideoUpload: Backend upload complete, video_id:", uploadResponse.video_id);
-      setVideoId(uploadResponse.video_id);
-      console.log("📤 handleVideoUpload: Called setVideoId");
       
       // Fetch native video resolution from backend
       console.log("📤 handleVideoUpload: Fetching video info");
       const videoInfo = await getVideoInfo(uploadResponse.video_id);
       console.log("📤 handleVideoUpload: Video info received:", videoInfo.width, "x", videoInfo.height);
-      setVideoNativeWidth(videoInfo.width);
-      setVideoNativeHeight(videoInfo.height);
       
       // === STEP 3: Store in IndexedDB cache for future instant loads ===
       try {
@@ -817,7 +753,7 @@ const Index = () => {
         // Don't block on cache failure
       }
       
-      // Add to managed videos
+      // Update managed video with final status
       const newManagedVideo: ManagedVideo = {
         id: uploadResponse.video_id,
         filename: file.name,
@@ -828,73 +764,30 @@ const Index = () => {
           width: videoInfo.width,
           height: videoInfo.height,
           totalFrames: uploadResponse.total_frames || videoInfo.total_frames || 0,
+          fileSize: videoInfo.file_size,
         },
-        isActive: true,
+        isActive: false,
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),
       };
       
-      setManagedVideos(prev => [...prev.map(v => ({ ...v, isActive: false })), newManagedVideo]);
-      setActiveVideoId(uploadResponse.video_id);
+      setManagedVideos(prev => prev.filter(v => v.id !== tempId).concat(newManagedVideo));
 
       toast({
-        title: "Video uploaded",
-        description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
+        title: "Video ready",
+        description: `${file.name} is now available in your library`,
       });
-      console.log("📤 handleVideoUpload: Video upload complete, totalFrames:", uploadResponse.total_frames);
-
-      // Wait for backend to finish indexing the video (increased delay)
-      console.log("📤 handleVideoUpload: Waiting for backend indexing (2.5s)");
-      await new Promise(resolve => setTimeout(resolve, 2500));
-
-      // Auto-trigger scene detection after upload
-      try {
-        console.log("📤 handleVideoUpload: Starting auto scene detection");
-        toast({
-          title: "Detecting scenes",
-          description: "Analyzing video content...",
-        });
-        
-        const sceneResponse = await detectScenes(uploadResponse.video_id);
-        console.log("📤 handleVideoUpload: Scene detection complete, scenes:", sceneResponse.total_scenes);
-      
-        // Convert API response to app Scene format
-        const detectedScenes = sceneResponse.scenes.map(scene => ({
-          id: `scene-${scene.scene_id}`,
-          startFrame: scene.start_frame,
-          endFrame: scene.end_frame,
-          quality: scene.quality as "good" | "bad" | "unknown"
-        }));
-        
-        setScenes(detectedScenes);
-        setTotalFrames(uploadResponse.total_frames);
-        console.log("📤 handleVideoUpload: Scenes and totalFrames set");
-        
-        toast({
-          title: "Scenes detected",
-          description: `Found ${sceneResponse.total_scenes} scenes`,
-        });
-      } catch (sceneError) {
-        console.error("📤 handleVideoUpload: Scene detection failed:", sceneError);
-        toast({
-          title: "Scene detection failed",
-          description: "Video uploaded successfully, but scene detection failed. Try detecting scenes manually.",
-          variant: "destructive",
-        });
-      }
-      
-      // Ensure frame 0 is displayed after upload completes
-      // Force frame refresh by setting to -1 first, then to 0
-      console.log("📤 handleVideoUpload: Forcing frame 0 display");
-      setCurrentFrame(-1);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setCurrentFrame(0);
-      console.log("📤 handleVideoUpload: Frame 0 set");
+      console.log("📤 handleVideoUpload: Video added to library");
     } catch (error) {
       console.error("📤 handleVideoUpload: Upload failed:", error);
-      console.log("⚠️ handleVideoUpload: Clearing videoUrl due to error");
+      
+      // Update temp video to error state
+      setManagedVideos(prev => prev.map(v => 
+        v.id === tempId ? { ...v, status: 'error' as const, error: error instanceof Error ? error.message : "Upload failed" } : v
+      ));
+      
       toast({
-        title: "Error",
+        title: "Upload failed",
         description: error instanceof Error ? error.message : "Failed to process video",
         variant: "destructive",
       });
