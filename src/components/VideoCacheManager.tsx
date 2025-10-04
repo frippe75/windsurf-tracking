@@ -107,11 +107,11 @@ export function VideoCacheManager({ currentVideoId }: VideoCacheManagerProps) {
       {/* Summary */}
       <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg mb-3">
         <div>
-          <div className="text-lg font-semibold">{stats?.count || 0}</div>
+          <div className="text-sm font-semibold">{stats?.count || 0}</div>
           <div className="text-xs text-muted-foreground">Videos</div>
         </div>
         <div>
-          <div className="text-lg font-semibold">{formatBytes(stats?.totalSize || 0)}</div>
+          <div className="text-sm font-semibold">{formatBytes(stats?.totalSize || 0)}</div>
           <div className="text-xs text-muted-foreground">Total Size</div>
         </div>
       </div>
