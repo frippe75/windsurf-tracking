@@ -479,6 +479,11 @@ const Index = () => {
             console.error("📺 Scene detection error:", error);
           }
           
+          // Remove from queue after successful load
+          setTimeout(() => {
+            setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
+          }, 2000);
+          
           break;
         }
 
