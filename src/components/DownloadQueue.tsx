@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { X, Download, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, Download, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 export interface DownloadJob {
   id: string;
@@ -20,11 +21,40 @@ interface DownloadQueueProps {
 }
 
 export function DownloadQueue({ downloads, onCancel, onRemove }: DownloadQueueProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
   if (downloads.length === 0) return null;
+
+  const activeDownloads = downloads.filter(d => 
+    d.status === 'downloading' || d.status === 'processing' || d.status === 'queued'
+  );
 
   return (
     <Card className="p-4 space-y-3">
-      <h3 className="text-sm font-medium">Download Queue ({downloads.length})</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">
+          Download Queue ({downloads.length})
+          {activeDownloads.length > 0 && (
+            <span className="ml-2 text-xs text-muted-foreground">
+              {activeDownloads.length} active
+            </span>
+          )}
+        </h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          {isCollapsed ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronUp className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+      
+      {!isCollapsed && (
       <div className="space-y-2">
         {downloads.map((download) => (
           <div key={download.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
@@ -82,6 +112,7 @@ export function DownloadQueue({ downloads, onCancel, onRemove }: DownloadQueuePr
           </div>
         ))}
       </div>
+      )}
     </Card>
   );
 }
