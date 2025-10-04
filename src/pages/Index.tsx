@@ -7,6 +7,7 @@ import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
+import { VideoCacheManager } from "@/components/VideoCacheManager";
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
+import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
 
 const SAIL_COLORS = [
@@ -389,7 +391,51 @@ const Index = () => {
     });
 
     try {
-      // Check if video already exists on backend
+      // === STEP 1: Check IndexedDB cache first (instant) ===
+      console.log("💾 handleVideoUpload: Checking IndexedDB cache for:", file.name);
+      
+      try {
+        await videoCache.init();
+        const cached = await videoCache.get(file.name);
+        
+        if (cached) {
+          console.log("💾 Cache HIT - using IndexedDB, skipping backend entirely");
+          
+          toast({
+            title: "Using local cache",
+            description: "Video loaded instantly from browser storage ⚡",
+          });
+          
+          // Simulate progress for UX
+          for (let i = 0; i <= 100; i += 25) {
+            setUploadProgress(i);
+            await new Promise(resolve => setTimeout(resolve, 30));
+          }
+          
+          // Use cached data, skip backend entirely
+          setVideoId(cached.videoId);
+          setTotalFrames(cached.metadata.totalFrames);
+          setVideoNativeWidth(cached.metadata.width);
+          setVideoNativeHeight(cached.metadata.height);
+          setUploadProgress(100);
+          setIsUploading(false);
+          
+          toast({
+            title: "Video ready",
+            description: `${cached.metadata.totalFrames} frames at ${cached.metadata.fps} fps (${cached.metadata.width}×${cached.metadata.height})`,
+          });
+          
+          console.log("💾 Cache-based load complete - zero backend calls");
+          return; // EXIT EARLY - skip all backend logic
+        }
+        
+        console.log("💾 Cache MISS - proceeding to backend check");
+      } catch (cacheError) {
+        console.warn("💾 Cache check failed, falling back to backend:", cacheError);
+        // Continue to backend check on cache failure
+      }
+      
+      // === STEP 2: Check if video already exists on backend ===
       console.log("📤 handleVideoUpload: Checking for existing video:", file.name);
       let uploadResponse;
       
@@ -454,6 +500,27 @@ const Index = () => {
       console.log("📤 handleVideoUpload: Video info received:", videoInfo.width, "x", videoInfo.height);
       setVideoNativeWidth(videoInfo.width);
       setVideoNativeHeight(videoInfo.height);
+      
+      // === STEP 3: Store in IndexedDB cache for future instant loads ===
+      try {
+        await videoCache.set(file.name, {
+          videoId: uploadResponse.video_id,
+          filename: file.name,
+          blob: file,
+          metadata: {
+            duration: uploadResponse.duration || videoInfo.duration || 0,
+            fps: uploadResponse.fps || videoInfo.fps || 0,
+            width: videoInfo.width,
+            height: videoInfo.height,
+            totalFrames: uploadResponse.total_frames || videoInfo.total_frames || 0,
+            cachedAt: Date.now(),
+          }
+        });
+        console.log("💾 Video cached in IndexedDB for instant future loads");
+      } catch (cacheError) {
+        console.warn("💾 Failed to cache video in IndexedDB:", cacheError);
+        // Don't block on cache failure
+      }
       
       toast({
         title: "Video uploaded",
@@ -1868,9 +1935,10 @@ const Index = () => {
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
               <Tabs defaultValue="scenes" className="h-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
+                  <TabsTrigger value="cache">Cache</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -1898,6 +1966,9 @@ const Index = () => {
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
                   />
+                </TabsContent>
+                <TabsContent value="cache" className="mt-4">
+                  <VideoCacheManager />
                 </TabsContent>
               </Tabs>
             </div>
