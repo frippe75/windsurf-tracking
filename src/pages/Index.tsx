@@ -20,6 +20,7 @@ import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
+import { VideoSourceDialog } from "@/components/VideoSourceDialog";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -74,6 +75,7 @@ const Index = () => {
     frame?: number;
     initialText?: string;
   }>({ isOpen: false });
+  const [videoSourceDialogOpen, setVideoSourceDialogOpen] = useState(false);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -360,11 +362,45 @@ const Index = () => {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await processVideoFile(file);
+  };
 
-    console.log("📤 handleVideoUpload: Starting upload for file:", file.name, "size:", file.size);
+  const handleYoutubeUrl = async (url: string) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      toast({
+        title: "Downloading from YouTube",
+        description: "This may take a few moments...",
+      });
+
+      // TODO: Call backend API to download YouTube video
+      // For now, show an error that this feature is not implemented yet
+      toast({
+        title: "YouTube Download",
+        description: "Backend support for YouTube downloads needs to be implemented",
+        variant: "destructive",
+      });
+
+    } catch (error) {
+      console.error("YouTube download failed:", error);
+      toast({
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Failed to download YouTube video",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const processVideoFile = async (file: File) => {
+    console.log("📤 processVideoFile: Starting upload for file:", file.name, "size:", file.size);
 
     // Clear all states for fresh start
-    console.log("📤 handleVideoUpload: Clearing all states");
+    console.log("📤 processVideoFile: Clearing all states");
     setAnnotations([]);
     setInstances([]);
     setKeyframes([]);
@@ -378,9 +414,9 @@ const Index = () => {
 
     // Create local URL for immediate playback
     const url = URL.createObjectURL(file);
-    console.log("📤 handleVideoUpload: Created blob URL:", url);
+    console.log("📤 processVideoFile: Created blob URL:", url);
     setVideoUrl(url);
-    console.log("📤 handleVideoUpload: Called setVideoUrl with blob URL");
+    console.log("📤 processVideoFile: Called setVideoUrl with blob URL");
     
     // Start upload to backend
     setIsUploading(true);
@@ -1812,21 +1848,15 @@ const Index = () => {
                 <Keyboard className="h-4 w-4 mr-2" />
                 Shortcuts
               </Button>
-              <label>
-                <Button variant="default" size="sm" asChild disabled={isUploading}>
-                  <span>
-                    <Upload className="h-4 w-4 mr-2" />
-                    {isUploading ? "Uploading..." : videoUrl ? "Change Video" : "Load Video"}
-                  </span>
-                </Button>
-                <Input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoUpload}
-                  disabled={isUploading}
-                />
-              </label>
+              <Button 
+                variant="default" 
+                size="sm" 
+                disabled={isUploading}
+                onClick={() => setVideoSourceDialogOpen(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {isUploading ? "Processing..." : videoUrl ? "Change Video" : "Load Video"}
+              </Button>
             </div>
           </div>
         </div>
@@ -1842,22 +1872,15 @@ const Index = () => {
               </div>
               <h2 className="text-2xl font-semibold">Load a video to begin</h2>
               <p className="text-muted-foreground max-w-md">
-                Upload a video file to start annotating sails with multi-AI analysis support
+                Upload a video file or provide a YouTube link to start annotating with multi-AI analysis support
               </p>
-              <label>
-                <Button variant="default" asChild>
-                  <span>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose Video File
-                  </span>
-                </Button>
-                <Input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoUpload}
-                />
-              </label>
+              <Button 
+                variant="default" 
+                onClick={() => setVideoSourceDialogOpen(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Add Video
+              </Button>
             </div>
           </div>
         ) : (
@@ -1994,6 +2017,15 @@ const Index = () => {
           </div>
         )}
       </main>
+
+      <VideoSourceDialog
+        open={videoSourceDialogOpen}
+        onOpenChange={setVideoSourceDialogOpen}
+        onFileSelect={processVideoFile}
+        onYoutubeUrl={handleYoutubeUrl}
+        isUploading={isUploading}
+      />
+
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
