@@ -215,7 +215,7 @@ export function ScenesManager({
                           onSceneQualityChange(scene.id, "good");
                         }}
                       >
-                        {getQualityIcon(scene.quality === "good" ? "good" : "unknown")}
+                        <CheckCircle className={`h-4 w-4 ${scene.quality === "good" ? "text-[hsl(var(--sail-green))]" : "text-muted-foreground/40"}`} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -226,7 +226,7 @@ export function ScenesManager({
                           onSceneQualityChange(scene.id, "bad");
                         }}
                       >
-                        {getQualityIcon(scene.quality === "bad" ? "bad" : "unknown")}
+                        <XCircle className={`h-4 w-4 ${scene.quality === "bad" ? "text-destructive" : "text-muted-foreground/40"}`} />
                       </Button>
                     </div>
                   </div>
