@@ -75,23 +75,32 @@ export function ScenesManager({
   };
 
   const filteredScenes = scenes.filter((scene) => {
+    let result = false;
     switch (filter) {
       case "approved":
-        return scene.quality === "good";
+        result = scene.quality === "good";
+        break;
       case "active":
-        return scene.quality !== "bad"; // good or unknown
+        result = scene.quality !== "bad"; // good or unknown
+        break;
       case "rejected":
-        return scene.quality === "bad";
+        result = scene.quality === "bad";
+        break;
       case "pending":
-        return scene.quality === "unknown";
+        result = scene.quality === "unknown";
+        break;
       case "with-metadata":
-        return scene.quality !== "bad" && scene.metadata && Object.keys(scene.metadata).length > 0;
+        result = scene.quality !== "bad" && scene.metadata && Object.keys(scene.metadata).length > 0;
+        break;
       case "without-metadata":
-        return scene.quality !== "bad" && (!scene.metadata || Object.keys(scene.metadata).length === 0);
+        result = scene.quality !== "bad" && (!scene.metadata || Object.keys(scene.metadata).length === 0);
+        break;
       case "all":
       default:
-        return true;
+        result = true;
     }
+    console.log(`🔍 Filter="${filter}" Scene ${scene.id} quality="${scene.quality}" → ${result ? "SHOW" : "HIDE"}`);
+    return result;
   });
 
   return (
