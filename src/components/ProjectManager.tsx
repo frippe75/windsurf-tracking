@@ -222,7 +222,7 @@ export function ProjectManager({
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
           <div className="flex h-full min-h-0">
             {/* Left Pane: Video List */}
-            <div className="w-[55%] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
+            <div className="w-[420px] min-w-[420px] max-w-[420px] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
