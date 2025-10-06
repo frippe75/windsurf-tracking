@@ -200,19 +200,7 @@ export function ProjectManager({
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{videos.length}</Badge>
-                    <Button 
-                      size="sm"
-                      onClick={() => {
-                        setSelectedVideoId(null);
-                        setCurrentTab("videos");
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Video
-                    </Button>
-                  </div>
+                  <Badge variant="secondary">{videos.length}</Badge>
                 </div>
                 
                 {/* Filter Dropdown */}
