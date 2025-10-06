@@ -497,6 +497,172 @@ export interface SAM2SegmentationResponse {
   error?: string;     // Backend may return error message
 }
 
+// ============= Project Management Endpoints =============
+
+export interface ProjectCreateRequest {
+  name: string;
+  description?: string;
+  video_id: string;
+}
+
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  video_id: string;
+  video_filename?: string;
+  created_at: string;
+  last_modified: string;
+  description?: string;
+  settings?: Record<string, any>;
+  annotation_count?: number;
+  annotated_frames?: number;
+  video_metadata?: {
+    duration: number;
+    fps: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface ProjectListResponse {
+  projects: ProjectResponse[];
+  total: number;
+}
+
+export interface ProjectUpdateRequest {
+  name?: string;
+  description?: string;
+  settings?: Record<string, any>;
+}
+
+// Create new project
+export const createProject = async (request: ProjectCreateRequest): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: `mock-project-${Date.now()}`,
+      name: request.name,
+      video_id: request.video_id,
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      description: request.description,
+      settings: {},
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Get all projects
+export const getProjects = async (): Promise<ProjectListResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      projects: [],
+      total: 0,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get projects: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Get single project details
+export const getProject = async (projectId: string): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: projectId,
+      name: "Mock Project",
+      video_id: "mock-video-id",
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      annotation_count: 0,
+      annotated_frames: 0,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Update project
+export const updateProject = async (
+  projectId: string,
+  updates: ProjectUpdateRequest
+): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: projectId,
+      name: updates.name || "Mock Project",
+      video_id: "mock-video-id",
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      description: updates.description,
+      settings: updates.settings,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Delete project
+export const deleteProject = async (projectId: string): Promise<void> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return;
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete project: ${response.statusText}`);
+  }
+};
+
+// ============= End Project Management =============
+
 // SAM2 segmentation endpoint
 export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise<SAM2SegmentationResponse> => {
   console.log('🎯 SAM2 segmentation request:', request);

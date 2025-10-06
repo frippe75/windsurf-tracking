@@ -22,7 +22,7 @@ import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
 
@@ -86,23 +86,10 @@ const Index = () => {
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   
-  // Load persisted projects from localStorage
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      const saved = localStorage.getItem('projects');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-  
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('activeProjectId');
-    } catch {
-      return null;
-    }
-  });
+  // Backend-synced projects state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   
   // Load persisted video library from localStorage
   const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
@@ -114,14 +101,50 @@ const Index = () => {
     }
   });
 
-  // Persist projects to localStorage
+  // Load projects from backend on mount
   useEffect(() => {
-    try {
-      localStorage.setItem('projects', JSON.stringify(projects));
-    } catch (error) {
-      console.error('Failed to save projects:', error);
-    }
-  }, [projects]);
+    const loadProjects = async () => {
+      try {
+        setIsLoadingProjects(true);
+        const response = await getProjects();
+        
+        // Convert backend projects to frontend format
+        const loadedProjects: Project[] = response.projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          videoId: p.video_id,
+          videoFilename: p.video_filename || '',
+          createdAt: new Date(p.created_at).getTime(),
+          lastModified: new Date(p.last_modified).getTime(),
+          classes: [],
+          instances: [],
+          annotations: [],
+          keyframes: [],
+          scenes: [],
+          videoMetadata: {},
+        }));
+        
+        setProjects(loadedProjects);
+        
+        // Try to restore last active project from localStorage
+        const savedActiveId = localStorage.getItem('activeProjectId');
+        if (savedActiveId && loadedProjects.some(p => p.id === savedActiveId)) {
+          setActiveProjectId(savedActiveId);
+        }
+      } catch (error) {
+        console.error('Failed to load projects from backend:', error);
+        toast({
+          title: "Failed to load projects",
+          description: "Could not load projects from server",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    
+    loadProjects();
+  }, []);
   
   // Persist active project ID to localStorage
   useEffect(() => {
@@ -145,26 +168,48 @@ const Index = () => {
     }
   }, [managedVideos]);
   
-  // Auto-save current project annotations
+  // Auto-save current project annotations to backend (debounced)
   useEffect(() => {
-    if (activeProjectId) {
-      const project = projects.find(p => p.id === activeProjectId);
-      if (project) {
-        // Update project with current annotation state
-        const updatedProject: Project = {
-          ...project,
-          classes,
-          instances,
-          annotations,
-          keyframes,
-          scenes,
-          videoMetadata,
-          lastModified: Date.now(),
-        };
-        
-        setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
+    if (!activeProjectId) return;
+    
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) return;
+    
+    // Update local state
+    const updatedProject: Project = {
+      ...project,
+      classes,
+      instances,
+      annotations,
+      keyframes,
+      scenes,
+      videoMetadata,
+      lastModified: Date.now(),
+    };
+    
+    setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
+    
+    // Debounced backend save
+    const timeoutId = setTimeout(async () => {
+      try {
+        await updateProject(activeProjectId, {
+          name: project.name,
+          settings: {
+            classes,
+            instances,
+            annotations,
+            keyframes,
+            scenes,
+            videoMetadata,
+          },
+        });
+        console.log('💾 Auto-saved project to backend');
+      } catch (error) {
+        console.error('Failed to auto-save project:', error);
       }
-    }
+    }, 2000); // Save 2 seconds after last change
+    
+    return () => clearTimeout(timeoutId);
   }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata]);
 
   // Restore active project on mount
@@ -730,14 +775,44 @@ const Index = () => {
     let project = projects.find(p => p.videoId === videoId);
     
     if (!project) {
-      // Create new project for this video
-      project = createEmptyProject(videoId, video.filename);
-      setProjects(prev => [...prev, project!]);
-      
-      toast({
-        title: "Project created",
-        description: `New project "${project.name}" created`,
-      });
+      // Create new project via backend
+      try {
+        const response = await createProject({
+          name: video.filename.replace(/\.[^/.]+$/, ""),
+          video_id: videoId,
+          description: `Annotation project for ${video.filename}`,
+        });
+        
+        project = {
+          id: response.id,
+          name: response.name,
+          videoId: response.video_id,
+          videoFilename: video.filename,
+          createdAt: new Date(response.created_at).getTime(),
+          lastModified: new Date(response.last_modified).getTime(),
+          classes: [],
+          instances: [],
+          annotations: [],
+          keyframes: [],
+          scenes: [],
+          videoMetadata: {},
+        };
+        
+        setProjects(prev => [...prev, project!]);
+        
+        toast({
+          title: "Project created",
+          description: `New project "${project.name}" created`,
+        });
+      } catch (error) {
+        console.error('Failed to create project:', error);
+        toast({
+          title: "Failed to create project",
+          description: "Could not save project to server",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     // Switch to this project
