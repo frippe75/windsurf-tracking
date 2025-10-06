@@ -44,7 +44,7 @@ export function ProjectManager({
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [videoFilter, setVideoFilter] = useState<"all" | "youtube" | "uploaded">("all");
-  const [currentTab, setCurrentTab] = useState<"project" | "videos">("project");
+  const [currentTab, setCurrentTab] = useState<"project" | "overview" | "videos">("project");
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingSwitchVideoId, setPendingSwitchVideoId] = useState<string | null>(null);
 
@@ -132,6 +132,7 @@ export function ProjectManager({
 
   const handleVideoClick = (videoId: string) => {
     setSelectedVideoId(videoId);
+    setCurrentTab("overview");
   };
 
   const handleSwitchVideo = () => {
