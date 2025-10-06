@@ -245,8 +245,8 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto px-4">
-                <div className="py-4 space-y-2">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 max-w-full">
+                <div className="py-4 space-y-2 w-full">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
                       <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
@@ -268,14 +268,14 @@ export function ProjectManager({
                         key={video.id}
                         onClick={() => handleVideoClick(video.id)}
                         className={`
-                          w-full text-left rounded-lg p-3 transition-all block
+                          w-full max-w-full text-left rounded-lg p-3 transition-all block overflow-hidden
                           ${isSelected 
                             ? 'bg-primary/10 border-2 border-primary' 
                             : 'bg-card border border-border hover:border-primary/50'
                           }
                         `}
                       >
-                        <div className="flex items-start gap-3 w-full overflow-hidden">
+                        <div className="flex items-start gap-3 max-w-full min-w-0">
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
