@@ -272,19 +272,17 @@ export function ProjectManager({
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start gap-2 mb-1">
-                              <div className="mt-0.5 shrink-0">
+                              <div className="mt-0.5 shrink-0 flex flex-col items-center gap-1">
                                 {getStatusIcon(video.status)}
+                                {video.youtubeUrl && (
+                                  <Youtube className="h-3.5 w-3.5 text-red-500" />
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
-                                      {video.filename}
-                                    </p>
-                                    {video.youtubeUrl && (
-                                      <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                                    )}
-                                  </div>
+                                  <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                                    {video.filename}
+                                  </p>
                                   {isActive && (
                                     <Badge variant="default" className="shrink-0 text-xs">Active</Badge>
                                   )}
