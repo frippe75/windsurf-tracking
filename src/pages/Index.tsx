@@ -86,10 +86,25 @@ const Index = () => {
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   
-  // Backend-synced projects state
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  // Projects state with localStorage fallback
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const saved = localStorage.getItem('projects');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('activeProjectId');
+    } catch {
+      return null;
+    }
+  });
+  
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   
   // Load persisted video library from localStorage
   const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
@@ -101,15 +116,17 @@ const Index = () => {
     }
   });
 
-  // Load projects from backend on mount
+  // Sync projects with backend (when online)
   useEffect(() => {
-    const loadProjects = async () => {
+    const syncWithBackend = async () => {
+      if (backendStatus !== 'healthy') return;
+      
       try {
         setIsLoadingProjects(true);
         const response = await getProjects();
         
         // Convert backend projects to frontend format
-        const loadedProjects: Project[] = response.projects.map(p => ({
+        const backendProjects: Project[] = response.projects.map(p => ({
           id: p.id,
           name: p.name,
           videoId: p.video_id,
@@ -124,27 +141,40 @@ const Index = () => {
           videoMetadata: {},
         }));
         
-        setProjects(loadedProjects);
-        
-        // Try to restore last active project from localStorage
-        const savedActiveId = localStorage.getItem('activeProjectId');
-        if (savedActiveId && loadedProjects.some(p => p.id === savedActiveId)) {
-          setActiveProjectId(savedActiveId);
-        }
-      } catch (error) {
-        console.error('Failed to load projects from backend:', error);
-        toast({
-          title: "Failed to load projects",
-          description: "Could not load projects from server",
-          variant: "destructive",
+        // Merge with localStorage projects (keep newer ones)
+        const mergedProjects = [...projects];
+        backendProjects.forEach(bp => {
+          const existingIdx = mergedProjects.findIndex(p => p.id === bp.id);
+          if (existingIdx >= 0) {
+            // Keep the one with latest modification
+            if (bp.lastModified > mergedProjects[existingIdx].lastModified) {
+              mergedProjects[existingIdx] = bp;
+            }
+          } else {
+            mergedProjects.push(bp);
+          }
         });
+        
+        setProjects(mergedProjects);
+      } catch (error) {
+        console.error('Failed to sync with backend:', error);
+        // Continue with localStorage projects
       } finally {
         setIsLoadingProjects(false);
       }
     };
     
-    loadProjects();
-  }, []);
+    syncWithBackend();
+  }, [backendStatus]);
+  
+  // Persist projects to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save projects:', error);
+    }
+  }, [projects]);
   
   // Persist active project ID to localStorage
   useEffect(() => {
@@ -168,7 +198,7 @@ const Index = () => {
     }
   }, [managedVideos]);
   
-  // Auto-save current project annotations to backend (debounced)
+  // Auto-save current project annotations
   useEffect(() => {
     if (!activeProjectId) return;
     
@@ -189,28 +219,30 @@ const Index = () => {
     
     setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
     
-    // Debounced backend save
-    const timeoutId = setTimeout(async () => {
-      try {
-        await updateProject(activeProjectId, {
-          name: project.name,
-          settings: {
-            classes,
-            instances,
-            annotations,
-            keyframes,
-            scenes,
-            videoMetadata,
-          },
-        });
-        console.log('💾 Auto-saved project to backend');
-      } catch (error) {
-        console.error('Failed to auto-save project:', error);
-      }
-    }, 2000); // Save 2 seconds after last change
-    
-    return () => clearTimeout(timeoutId);
-  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata]);
+    // Try to save to backend if online (debounced)
+    if (backendStatus === 'healthy') {
+      const timeoutId = setTimeout(async () => {
+        try {
+          await updateProject(activeProjectId, {
+            name: project.name,
+            settings: {
+              classes,
+              instances,
+              annotations,
+              keyframes,
+              scenes,
+              videoMetadata,
+            },
+          });
+          console.log('💾 Auto-saved project to backend');
+        } catch (error) {
+          console.error('Failed to auto-save to backend (offline mode active):', error);
+        }
+      }, 2000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
 
   // Restore active project on mount
   useEffect(() => {
@@ -775,44 +807,31 @@ const Index = () => {
     let project = projects.find(p => p.videoId === videoId);
     
     if (!project) {
-      // Create new project via backend
-      try {
-        const response = await createProject({
-          name: video.filename.replace(/\.[^/.]+$/, ""),
-          video_id: videoId,
-          description: `Annotation project for ${video.filename}`,
-        });
-        
-        project = {
-          id: response.id,
-          name: response.name,
-          videoId: response.video_id,
-          videoFilename: video.filename,
-          createdAt: new Date(response.created_at).getTime(),
-          lastModified: new Date(response.last_modified).getTime(),
-          classes: [],
-          instances: [],
-          annotations: [],
-          keyframes: [],
-          scenes: [],
-          videoMetadata: {},
-        };
-        
-        setProjects(prev => [...prev, project!]);
-        
-        toast({
-          title: "Project created",
-          description: `New project "${project.name}" created`,
-        });
-      } catch (error) {
-        console.error('Failed to create project:', error);
-        toast({
-          title: "Failed to create project",
-          description: "Could not save project to server",
-          variant: "destructive",
-        });
-        return;
+      // Create new project (try backend first, fallback to local)
+      project = createEmptyProject(videoId, video.filename);
+      
+      if (backendStatus === 'healthy') {
+        try {
+          const response = await createProject({
+            name: project.name,
+            video_id: videoId,
+            description: `Annotation project for ${video.filename}`,
+          });
+          
+          project.id = response.id;
+          project.createdAt = new Date(response.created_at).getTime();
+          project.lastModified = new Date(response.last_modified).getTime();
+        } catch (error) {
+          console.error('Failed to create project on backend, using local storage:', error);
+        }
       }
+      
+      setProjects(prev => [...prev, project!]);
+      
+      toast({
+        title: "Project created",
+        description: `New project "${project.name}" created`,
+      });
     }
     
     // Switch to this project
