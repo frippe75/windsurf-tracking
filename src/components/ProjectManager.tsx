@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, FileText, Filter, FolderOpen } from "lucide-react";
 import { config } from "@/lib/config";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +25,7 @@ interface ProjectManagerProps {
   onFileSelect: (file: File) => void;
   onYoutubeUrl: (url: string) => void;
   isUploading: boolean;
+  hasUnsavedChanges?: boolean;
 }
 
 export function ProjectManager({
@@ -35,12 +38,34 @@ export function ProjectManager({
   onFileSelect,
   onYoutubeUrl,
   isUploading,
+  hasUnsavedChanges = false,
 }: ProjectManagerProps) {
   const { toast } = useToast();
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [videoFilter, setVideoFilter] = useState<"all" | "youtube" | "uploaded">("all");
+  const [currentTab, setCurrentTab] = useState<"project" | "videos">("project");
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [pendingSwitchVideoId, setPendingSwitchVideoId] = useState<string | null>(null);
 
   const selectedVideo = videos.find(v => v.id === selectedVideoId);
+
+  // Auto-redirect to Videos tab if no active project
+  useEffect(() => {
+    if (open && !activeVideoId) {
+      setCurrentTab("videos");
+    } else if (open && activeVideoId) {
+      setCurrentTab("project");
+    }
+  }, [open, activeVideoId]);
+
+  // Filter videos based on source
+  const filteredVideos = videos.filter(video => {
+    if (videoFilter === "all") return true;
+    if (videoFilter === "youtube") return !!video.youtubeUrl;
+    if (videoFilter === "uploaded") return !video.youtubeUrl;
+    return true;
+  });
 
   const getStatusIcon = (status: ManagedVideo['status']) => {
     switch (status) {
@@ -110,10 +135,24 @@ export function ProjectManager({
   };
 
   const handleSwitchVideo = () => {
-    if (selectedVideoId) {
-      onVideoSelect(selectedVideoId);
-      onOpenChange(false);
+    if (!selectedVideoId) return;
+
+    // Check for unsaved changes
+    if (hasUnsavedChanges && selectedVideoId !== activeVideoId) {
+      setPendingSwitchVideoId(selectedVideoId);
+      setShowUnsavedWarning(true);
+      return;
     }
+
+    // Proceed with switch
+    proceedWithSwitch(selectedVideoId);
+  };
+
+  const proceedWithSwitch = (videoId: string) => {
+    onVideoSelect(videoId);
+    onOpenChange(false);
+    setShowUnsavedWarning(false);
+    setPendingSwitchVideoId(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,32 +189,51 @@ export function ProjectManager({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0">
-        <DialogTitle className="sr-only">Project Manager</DialogTitle>
-        <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
-        <div className="flex h-full">
-          {/* Left Pane: Video List */}
-          <div className="w-[55%] border-r border-border flex flex-col h-full overflow-hidden">
-            <div className="p-6 border-b border-border shrink-0">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-lg font-semibold">My Videos</h2>
-                <Badge variant="secondary">{videos.length}</Badge>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0">
+          <DialogTitle className="sr-only">Project Manager</DialogTitle>
+          <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
+          <div className="flex h-full">
+            {/* Left Pane: Video List */}
+            <div className="w-[55%] border-r border-border flex flex-col h-full overflow-hidden">
+              <div className="p-6 border-b border-border shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold">My Videos</h2>
+                  <Badge variant="secondary">{videos.length}</Badge>
+                </div>
+                
+                {/* Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Select value={videoFilter} onValueChange={(v: any) => setVideoFilter(v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Videos</SelectItem>
+                      <SelectItem value="youtube">YouTube Videos</SelectItem>
+                      <SelectItem value="uploaded">Uploaded Videos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">Select or add a video</p>
-            </div>
 
-            <div className="flex-1 min-h-0">
-              <ScrollArea className="h-full px-4">
-                <div className="py-4 space-y-2">
-                {videos.length === 0 ? (
-                  <div className="text-center py-12 px-4">
-                    <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-                    <p className="text-sm font-medium text-muted-foreground mb-1">No videos yet!</p>
-                    <p className="text-xs text-muted-foreground">Add one to get started →</p>
-                  </div>
-                ) : (
-                  videos.map((video) => {
+              <div className="flex-1 min-h-0">
+                <ScrollArea className="h-full px-4" type="auto">
+                  <div className="py-4 space-y-2">
+                  {filteredVideos.length === 0 ? (
+                    <div className="text-center py-12 px-4">
+                      <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        {videoFilter === "all" ? "No videos yet!" : `No ${videoFilter} videos`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {videoFilter === "all" ? "Add one to get started →" : "Try a different filter"}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredVideos.map((video) => {
                     const isActive = video.id === activeVideoId;
                     const isSelected = video.id === selectedVideoId;
                     const progress = getUnifiedProgress(video);
@@ -272,22 +330,69 @@ export function ProjectManager({
             </div>
           </div>
 
-          {/* Right Pane: Tabs */}
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <Tabs defaultValue={selectedVideo ? "overview" : "videos"} value={selectedVideo ? "overview" : "videos"} className="flex-1 flex flex-col">
-              <TabsList className="grid w-full grid-cols-2 rounded-none border-b shrink-0">
-                <TabsTrigger value="overview" disabled={!selectedVideo}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger value="videos">
-                  <VideoIcon className="h-4 w-4 mr-2" />
-                  Videos
-                </TabsTrigger>
-              </TabsList>
+            {/* Right Pane: Tabs */}
+            <div className="flex-1 flex flex-col h-full overflow-hidden">
+              <Tabs value={currentTab} onValueChange={(v: any) => setCurrentTab(v)} className="flex-1 flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 rounded-none border-b shrink-0">
+                  <TabsTrigger value="project" disabled={!activeVideoId}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Project
+                  </TabsTrigger>
+                  <TabsTrigger value="overview" disabled={!selectedVideo}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Video Details
+                  </TabsTrigger>
+                  <TabsTrigger value="videos">
+                    <VideoIcon className="h-4 w-4 mr-2" />
+                    Videos
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* Overview Tab */}
-              <TabsContent value="overview" className="flex-1 m-0 overflow-hidden">
+                {/* Project Tab */}
+                <TabsContent value="project" className="flex-1 m-0 overflow-hidden">
+                  {activeVideoId && (
+                    <>
+                      <div className="p-6 border-b border-border">
+                        <h3 className="text-lg font-semibold mb-2">Current Project</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Active project overview and actions
+                        </p>
+                      </div>
+
+                      <ScrollArea className="flex-1" type="auto">
+                        <div className="p-6 space-y-6">
+                          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                            <CheckCircle2 className="h-6 w-6 mb-2 text-primary" />
+                            <p className="text-sm font-medium mb-1">Project Active</p>
+                            <p className="text-xs text-muted-foreground">
+                              Currently editing: {videos.find(v => v.id === activeVideoId)?.filename}
+                            </p>
+                          </div>
+
+                          <Separator />
+
+                          <div>
+                            <h4 className="text-sm font-semibold mb-3">Switch Video</h4>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Select a different video from the list to switch projects
+                            </p>
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                              onClick={() => setCurrentTab("videos")}
+                            >
+                              <VideoIcon className="h-4 w-4 mr-2" />
+                              Browse Videos
+                            </Button>
+                          </div>
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )}
+                </TabsContent>
+
+                {/* Video Details Tab (was Overview) */}
+                <TabsContent value="overview" className="flex-1 m-0 overflow-hidden">
                 {selectedVideo && (
                   <>
                     <div className="p-6 border-b border-border">
@@ -315,7 +420,7 @@ export function ProjectManager({
                       </div>
                     </div>
 
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1" type="auto">
                       <div className="p-6 space-y-6">
                         {selectedVideo.status === 'ready' && selectedVideo.metadata && (
                           <>
@@ -431,10 +536,10 @@ export function ProjectManager({
                 )}
               </TabsContent>
 
-              {/* Videos Tab */}
-              <TabsContent value="videos" className="flex-1 m-0 overflow-hidden">
-                <ScrollArea className="h-full">
-                  <div className="p-6 space-y-6">
+                {/* Videos Tab */}
+                <TabsContent value="videos" className="flex-1 m-0 overflow-hidden">
+                  <ScrollArea className="h-full" type="auto">
+                    <div className="p-6 space-y-6">
                     {/* Upload Section */}
                     <div>
                       <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -494,13 +599,41 @@ export function ProjectManager({
                         </Button>
                       </div>
                     </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Warning */}
+      <AlertDialog open={showUnsavedWarning} onOpenChange={setShowUnsavedWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes in your current project. Switching videos will discard these changes. Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowUnsavedWarning(false);
+              setPendingSwitchVideoId(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingSwitchVideoId) {
+                proceedWithSwitch(pendingSwitchVideoId);
+              }
+            }}>
+              Switch Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

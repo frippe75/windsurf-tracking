@@ -2301,38 +2301,12 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <BackendSelector backendStatus={backendStatus} />
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm" 
                 onClick={() => setVideoManagerOpen(true)}
               >
                 <Video className="h-4 w-4 mr-2" />
-                My Videos {managedVideos.length > 0 && `(${managedVideos.length})`}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleSaveProject}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Project
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportData}>
-                <Download className="h-4 w-4 mr-2" />
-                Export...
-              </Button>
-              {videoUrl && (
-                <Button variant="outline" size="sm" onClick={() => setMaximizeVideo((v) => !v)}>
-                  {maximizeVideo ? "Exit Full Width" : "Full Width Video"}
-                </Button>
-              )}
-              <Button variant="outline" size="sm">
-                <Keyboard className="h-4 w-4 mr-2" />
-                Shortcuts
-              </Button>
-              <Button 
-                variant="default" 
-                size="sm" 
-                disabled={isUploading}
-                onClick={() => setVideoManagerOpen(true)}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? "Processing..." : videoUrl ? "Add Video" : "Load Video"}
+                My Projects
               </Button>
             </div>
           </div>
@@ -2539,6 +2513,13 @@ const Index = () => {
         onFileSelect={processVideoFile}
         onYoutubeUrl={handleYoutubeUrl}
         isUploading={isUploading}
+        hasUnsavedChanges={
+          classes.length > 0 || 
+          instances.length > 0 || 
+          annotations.length > 0 || 
+          keyframes.length > 0 || 
+          scenes.length > 0
+        }
       />
     </div>
   );
