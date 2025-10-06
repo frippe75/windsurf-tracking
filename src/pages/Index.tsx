@@ -592,6 +592,25 @@ const Index = () => {
     try {
       console.log("📺 Initiating YouTube download:", url);
       
+      // Extract YouTube video ID and thumbnail immediately
+      const getYouTubeVideoId = (url: string): string | null => {
+        const patterns = [
+          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+          /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+        ];
+        
+        for (const pattern of patterns) {
+          const match = url.match(pattern);
+          if (match && match[1]) {
+            return match[1];
+          }
+        }
+        return null;
+      };
+      
+      const videoId = getYouTubeVideoId(url);
+      const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined;
+      
       // Initiate download
       const downloadJob = await downloadFromYouTube({ url });
       const jobId = downloadJob.job_id;
@@ -603,6 +622,7 @@ const Index = () => {
         status: 'downloading',
         backendProgress: 0,
         youtubeUrl: url,
+        youtubeThumbnail: thumbnailUrl,
         isActive: false,
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),

@@ -146,12 +146,20 @@ export function ProjectManager({
   };
 
   const getThumbnailUrl = (video: ManagedVideo): string => {
+    // Use cached thumbnail if available
+    if (video.youtubeThumbnail) {
+      return video.youtubeThumbnail;
+    }
+    
+    // Fallback to extracting from URL
     if (video.youtubeUrl) {
       const videoId = getYouTubeVideoId(video.youtubeUrl);
       if (videoId) {
         return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
       }
     }
+    
+    // Default to backend frame
     return `${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`;
   };
 

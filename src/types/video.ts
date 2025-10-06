@@ -24,6 +24,7 @@ export interface ManagedVideo {
   
   // Source
   youtubeUrl?: string;           // Original YouTube URL if from YouTube
+  youtubeThumbnail?: string;     // Cached YouTube thumbnail URL
   
   // Error handling
   error?: string;
