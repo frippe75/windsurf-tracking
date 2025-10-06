@@ -192,10 +192,10 @@ export function ProjectManager({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0">
+        <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
           <DialogTitle className="sr-only">Project Manager</DialogTitle>
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
-          <div className="flex h-full">
+          <div className="flex h-full min-h-0">
             {/* Left Pane: Video List */}
             <div className="w-[55%] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
@@ -220,7 +220,7 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4">
                 <div className="py-4 space-y-2">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
