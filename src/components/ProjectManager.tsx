@@ -130,6 +130,31 @@ export function ProjectManager({
     return `${mb.toFixed(1)} MB`;
   };
 
+  const getYouTubeVideoId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return null;
+  };
+
+  const getThumbnailUrl = (video: ManagedVideo): string => {
+    if (video.youtubeUrl) {
+      const videoId = getYouTubeVideoId(video.youtubeUrl);
+      if (videoId) {
+        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      }
+    }
+    return `${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`;
+  };
+
   const handleVideoClick = (videoId: string) => {
     setSelectedVideoId(videoId);
     setCurrentTab("overview");
@@ -255,7 +280,7 @@ export function ProjectManager({
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
                               <img 
-                                src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
+                                src={getThumbnailUrl(video)}
                                 alt={video.filename}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
