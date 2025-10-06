@@ -197,7 +197,7 @@ export function ProjectManager({
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
           <div className="flex h-full">
             {/* Left Pane: Video List */}
-            <div className="w-[55%] border-r border-border flex flex-col h-full overflow-hidden">
+            <div className="w-[55%] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
@@ -220,7 +220,7 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 px-4" type="auto">
+              <ScrollArea className="h-0 flex-1 px-4" type="auto">
                 <div className="py-4 space-y-2 max-w-full overflow-hidden">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
