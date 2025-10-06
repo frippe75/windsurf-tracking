@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
@@ -83,6 +84,7 @@ const Index = () => {
   }>({ isOpen: false });
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   
   // Load persisted projects from localStorage
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -2301,6 +2303,14 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <BackendSelector backendStatus={backendStatus} />
               <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowShortcuts(true)}
+              >
+                <Keyboard className="h-4 w-4 mr-2" />
+                Shortcuts
+              </Button>
+              <Button 
                 variant="default" 
                 size="sm" 
                 onClick={() => setVideoManagerOpen(true)}
@@ -2521,6 +2531,108 @@ const Index = () => {
           scenes.length > 0
         }
       />
+      
+      {/* Keyboard Shortcuts Dialog */}
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Keyboard Shortcuts</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <h3 className="font-semibold mb-2">Video Navigation</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Play/Pause</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Space</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Previous Frame</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">←</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Next Frame</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">→</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Skip Back 30 Frames</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Shift + ←</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Skip Forward 30 Frames</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Shift + →</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Keyframes</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Add START Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">S</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add STOP Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">E</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add SKIP Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">X</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add META Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">T</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Tools</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Annotate Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">A</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Select Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">V</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Edit Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">P</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Annotation</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Add Positive Prompt</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Ctrl + Click</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add Negative Prompt</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Alt + Click</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cycle Annotations (Edit Mode)</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Tab</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Delete Annotation</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Delete / Backspace</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cancel / Deselect</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Esc</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
