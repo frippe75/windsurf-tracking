@@ -245,7 +245,7 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 max-w-full">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 max-w-full">
                 <div className="py-4 space-y-2 w-full">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
@@ -275,7 +275,7 @@ export function ProjectManager({
                           }
                         `}
                       >
-                        <div className="flex items-start gap-3 max-w-full min-w-0">
+                        <div className="flex items-start gap-3 w-full max-w-full min-w-0 overflow-hidden">
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
@@ -304,8 +304,8 @@ export function ProjectManager({
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                                <div className="flex items-start justify-between gap-2 min-w-0">
+                                  <p className={`text-sm font-medium truncate flex-1 min-w-0 whitespace-nowrap ${isSelected ? 'text-primary' : ''}`}> 
                                     {video.filename}
                                   </p>
                                   {isActive && (
