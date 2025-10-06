@@ -219,9 +219,8 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0">
-                <ScrollArea className="h-full px-4" type="auto">
-                  <div className="py-4 space-y-2">
+              <ScrollArea className="flex-1 px-4" type="auto">
+                <div className="py-4 space-y-2 max-w-full overflow-hidden">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
                       <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
@@ -243,7 +242,7 @@ export function ProjectManager({
                         key={video.id}
                         onClick={() => handleVideoClick(video.id)}
                         className={`
-                          w-full text-left rounded-lg p-3 transition-all
+                          w-full max-w-full text-left rounded-lg p-3 transition-all overflow-hidden
                           ${isSelected 
                             ? 'bg-primary/10 border-2 border-primary' 
                             : 'bg-card border border-border hover:border-primary/50'
@@ -314,10 +313,9 @@ export function ProjectManager({
                     );
                   })
                 )}
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
+                  </div>
+                </ScrollArea>
+              </div>
 
             {/* Right Pane: Tabs */}
             <div className="flex-1 flex flex-col h-full overflow-hidden">
