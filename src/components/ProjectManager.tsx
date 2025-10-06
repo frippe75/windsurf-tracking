@@ -220,8 +220,8 @@ export function ProjectManager({
                 </div>
               </div>
 
-              <ScrollArea className="h-0 flex-1 px-4" type="auto">
-                <div className="py-4 space-y-2 max-w-full overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-4">
+                <div className="py-4 space-y-2">
                   {filteredVideos.length === 0 ? (
                     <div className="text-center py-12 px-4">
                       <VideoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
@@ -315,7 +315,7 @@ export function ProjectManager({
                   })
                 )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
 
             {/* Right Pane: Tabs */}
