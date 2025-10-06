@@ -2532,12 +2532,8 @@ const Index = () => {
       <ProjectManager
         open={videoManagerOpen}
         onOpenChange={setVideoManagerOpen}
-        projects={projects}
         videos={managedVideos}
-        activeProjectId={activeProjectId}
-        onProjectSelect={handleProjectSelect}
-        onProjectDelete={handleProjectDelete}
-        onProjectRename={handleProjectRename}
+        activeVideoId={videoId}
         onVideoSelect={handleVideoSelect}
         onVideoDelete={handleVideoDelete}
         onFileSelect={processVideoFile}
