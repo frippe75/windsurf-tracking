@@ -243,14 +243,14 @@ export function ProjectManager({
                         key={video.id}
                         onClick={() => handleVideoClick(video.id)}
                         className={`
-                          w-full max-w-full text-left rounded-lg p-3 transition-all overflow-hidden
+                          w-full text-left rounded-lg p-3 transition-all block
                           ${isSelected 
                             ? 'bg-primary/10 border-2 border-primary' 
                             : 'bg-card border border-border hover:border-primary/50'
                           }
                         `}
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-3 w-full overflow-hidden">
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
