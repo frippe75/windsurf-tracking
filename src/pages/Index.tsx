@@ -11,7 +11,7 @@ import { VideoCacheManager } from "@/components/VideoCacheManager";
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
 import { DownloadQueue, type DownloadJob } from "@/components/DownloadQueue";
-import { VideoManager } from "@/components/VideoManager";
+import { ProjectManager } from "@/components/ProjectManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
+import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector } from "@/components/BackendSelector";
@@ -83,6 +84,24 @@ const Index = () => {
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   
+  // Load persisted projects from localStorage
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const saved = localStorage.getItem('projects');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('activeProjectId');
+    } catch {
+      return null;
+    }
+  });
+  
   // Load persisted video library from localStorage
   const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
     try {
@@ -92,15 +111,29 @@ const Index = () => {
       return [];
     }
   });
-  
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('activeVideoId');
-    } catch {
-      return null;
-    }
-  });
 
+  // Persist projects to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save projects:', error);
+    }
+  }, [projects]);
+  
+  // Persist active project ID to localStorage
+  useEffect(() => {
+    try {
+      if (activeProjectId) {
+        localStorage.setItem('activeProjectId', activeProjectId);
+      } else {
+        localStorage.removeItem('activeProjectId');
+      }
+    } catch (error) {
+      console.error('Failed to save active project ID:', error);
+    }
+  }, [activeProjectId]);
+  
   // Persist managed videos to localStorage
   useEffect(() => {
     try {
@@ -109,28 +142,48 @@ const Index = () => {
       console.error('Failed to save managed videos:', error);
     }
   }, [managedVideos]);
-
-  // Persist active video ID to localStorage
+  
+  // Auto-save current project annotations
   useEffect(() => {
-    try {
-      if (activeVideoId) {
-        localStorage.setItem('activeVideoId', activeVideoId);
-      } else {
-        localStorage.removeItem('activeVideoId');
+    if (activeProjectId) {
+      const project = projects.find(p => p.id === activeProjectId);
+      if (project) {
+        // Update project with current annotation state
+        const updatedProject: Project = {
+          ...project,
+          classes,
+          instances,
+          annotations,
+          keyframes,
+          scenes,
+          videoMetadata,
+          lastModified: Date.now(),
+        };
+        
+        setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
       }
-    } catch (error) {
-      console.error('Failed to save active video ID:', error);
     }
-  }, [activeVideoId]);
+  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata]);
 
-  // Restore active video on mount
+  // Restore active project on mount
   useEffect(() => {
-    const restoreActiveVideo = async () => {
-      if (activeVideoId && managedVideos.length > 0) {
-        const activeVideo = managedVideos.find(v => v.id === activeVideoId);
+    const restoreActiveProject = async () => {
+      if (activeProjectId && projects.length > 0 && managedVideos.length > 0) {
+        const activeProject = projects.find(p => p.id === activeProjectId);
+        if (!activeProject) return;
+        
+        const activeVideo = managedVideos.find(v => v.id === activeProject.videoId);
         if (activeVideo && activeVideo.status === 'ready' && activeVideo.metadata) {
-          console.log('🔄 Restoring active video:', activeVideo.filename);
-          setVideoId(activeVideoId);
+          console.log('🔄 Restoring active project:', activeProject.name);
+          setVideoId(activeProject.videoId);
+          
+          // Restore annotation state from project
+          setClasses(activeProject.classes);
+          setInstances(activeProject.instances);
+          setAnnotations(activeProject.annotations);
+          setKeyframes(activeProject.keyframes);
+          setScenes(activeProject.scenes);
+          setVideoMetadata(activeProject.videoMetadata);
           
           // Resolve video source (cache-first, then streaming)
           try {
@@ -144,11 +197,11 @@ const Index = () => {
               setVideoUrl(blobUrl);
             } else {
               console.log("🌐 Restored from backend stream");
-              setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/download`);
+              setVideoUrl(`${config.backendUrl}/api/videos/${activeProject.videoId}/download`);
             }
           } catch (error) {
             console.error("Failed to restore video:", error);
-            setVideoUrl(`${config.backendUrl}/api/videos/${activeVideoId}/download`);
+            setVideoUrl(`${config.backendUrl}/api/videos/${activeProject.videoId}/download`);
           }
           
           setVideoNativeWidth(activeVideo.metadata.width);
@@ -158,7 +211,7 @@ const Index = () => {
       }
     };
     
-    restoreActiveVideo();
+    restoreActiveProject();
   }, []); // Only run on mount
 
   // Cleanup blob URLs on unmount
@@ -669,13 +722,32 @@ const Index = () => {
 
   const handleVideoSelect = async (videoId: string) => {
     const video = managedVideos.find(v => v.id === videoId);
-    if (!video || video.status !== 'ready') return;
+    if (!video || video.status !== 'ready' || !video.metadata) return;
 
-    // Clear current editing context
-    setAnnotations([]);
-    setInstances([]);
-    setKeyframes([]);
-    setScenes([]);
+    // Check if project already exists for this video
+    let project = projects.find(p => p.videoId === videoId);
+    
+    if (!project) {
+      // Create new project for this video
+      project = createEmptyProject(videoId, video.filename);
+      setProjects(prev => [...prev, project!]);
+      
+      toast({
+        title: "Project created",
+        description: `New project "${project.name}" created`,
+      });
+    }
+    
+    // Switch to this project
+    setActiveProjectId(project.id);
+    
+    // Load project state
+    setClasses(project.classes);
+    setInstances(project.instances);
+    setAnnotations(project.annotations);
+    setKeyframes(project.keyframes);
+    setScenes(project.scenes);
+    setVideoMetadata(project.videoMetadata);
     setSelectedClassId(undefined);
     setSelectedAnnotationId(undefined);
     setSelectedScene(null);
@@ -683,8 +755,7 @@ const Index = () => {
     setCurrentFrame(0);
     setVideoMetadata({});
 
-    // Set new video as active
-    setActiveVideoId(videoId);
+    // Set video
     setVideoId(videoId);
     
     // Resolve video source (cache-first, then streaming)
@@ -728,25 +799,114 @@ const Index = () => {
       v.id === videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
     ));
   };
-
-  const handleVideoDelete = (videoId: string) => {
-    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
+  
+  const handleProjectSelect = async (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
     
-    // If deleting active video, clear it
-    if (videoId === activeVideoId) {
-      setActiveVideoId(null);
+    const video = managedVideos.find(v => v.id === project.videoId);
+    if (!video || video.status !== 'ready' || !video.metadata) return;
+    
+    console.log('🔄 Switching to project:', project.name);
+    setActiveProjectId(projectId);
+    setVideoId(project.videoId);
+    
+    // Load project state
+    setClasses(project.classes);
+    setInstances(project.instances);
+    setAnnotations(project.annotations);
+    setKeyframes(project.keyframes);
+    setScenes(project.scenes);
+    setVideoMetadata(project.videoMetadata);
+    
+    // Resolve video source (cache-first, then streaming)
+    try {
+      await videoCache.init();
+      const cached = await videoCache.get(video.filename);
+      
+      if (cached) {
+        console.log("💾 Loaded from IndexedDB cache");
+        const blobUrl = URL.createObjectURL(cached.blob);
+        blobUrlsRef.current.add(blobUrl);
+        setVideoUrl(blobUrl);
+      } else {
+        console.log("🌐 Streaming from backend");
+        setVideoUrl(`${config.backendUrl}/api/videos/${project.videoId}/download`);
+      }
+    } catch (error) {
+      console.error("Failed to load video:", error);
+      setVideoUrl(`${config.backendUrl}/api/videos/${project.videoId}/download`);
+    }
+    
+    setVideoNativeWidth(video.metadata.width);
+    setVideoNativeHeight(video.metadata.height);
+    setTotalFrames(video.metadata.totalFrames);
+    
+    // Update last accessed time
+    setManagedVideos(prev => prev.map(v =>
+      v.id === project.videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
+    ));
+    
+    toast({
+      title: "Project loaded",
+      description: `Switched to "${project.name}"`,
+    });
+  };
+  
+  const handleProjectDelete = (projectId: string) => {
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+    
+    // If deleting active project, clear it
+    if (projectId === activeProjectId) {
+      setActiveProjectId(null);
       setVideoId("");
       setVideoUrl("");
       setAnnotations([]);
       setInstances([]);
       setKeyframes([]);
       setScenes([]);
-      setCurrentFrame(0);
+      setClasses([]);
+      setVideoMetadata({});
+      
+      toast({
+        title: "Project deleted",
+        description: "Project has been removed",
+      });
+    } else {
+      toast({
+        title: "Project deleted",
+      });
     }
-
+  };
+  
+  const handleProjectRename = (projectId: string, newName: string) => {
+    setProjects(prev => prev.map(p => 
+      p.id === projectId ? { ...p, name: newName, lastModified: Date.now() } : p
+    ));
+    
     toast({
-      title: "Video removed",
-      description: "Video removed from library",
+      title: "Project renamed",
+      description: `Project renamed to "${newName}"`,
+    });
+  };
+
+  const handleVideoDelete = (videoId: string) => {
+    // Check if video is used by any project
+    const projectsUsingVideo = projects.filter(p => p.videoId === videoId);
+    if (projectsUsingVideo.length > 0) {
+      toast({
+        title: "Cannot delete video",
+        description: `This video is used by ${projectsUsingVideo.length} project(s). Delete the project(s) first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
+    
+    toast({
+      title: "Video deleted",
+      description: "Video has been removed from library",
     });
   };
 
@@ -2369,11 +2529,15 @@ const Index = () => {
         initialText={metadataModal.initialText || ""}
         frame={metadataModal.frame}
       />
-      <VideoManager
+      <ProjectManager
         open={videoManagerOpen}
         onOpenChange={setVideoManagerOpen}
+        projects={projects}
         videos={managedVideos}
-        activeVideoId={activeVideoId}
+        activeProjectId={activeProjectId}
+        onProjectSelect={handleProjectSelect}
+        onProjectDelete={handleProjectDelete}
+        onProjectRename={handleProjectRename}
         onVideoSelect={handleVideoSelect}
         onVideoDelete={handleVideoDelete}
         onFileSelect={processVideoFile}
