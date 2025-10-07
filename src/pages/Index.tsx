@@ -343,12 +343,9 @@ const Index = () => {
       for (const backend of backendsToProbe) {
         const isActiveBackend = backend.id === currentBackendId;
         
-        // Store original URL and temporarily override for this check
-        const originalUrl = (window as any).__LOVABLE_BACKEND_URL__;
-        (window as any).__LOVABLE_BACKEND_URL__ = backend.url;
-        
         try {
-          const health = await checkBackendHealth();
+          // Pass the backend URL directly to checkBackendHealth
+          const health = await checkBackendHealth(backend.url);
           const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
           
           if (isActiveBackend) {
@@ -384,9 +381,6 @@ const Index = () => {
             setBackendStatus("offline");
           }
           setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
-        } finally {
-          // Restore original URL
-          (window as any).__LOVABLE_BACKEND_URL__ = originalUrl;
         }
       }
     };
@@ -405,11 +399,8 @@ const Index = () => {
         const interval = setInterval(() => {
           // Only check this specific backend
           const checkSingleBackend = async () => {
-            const originalUrl = (window as any).__LOVABLE_BACKEND_URL__;
-            (window as any).__LOVABLE_BACKEND_URL__ = backend.url;
-            
             try {
-              const health = await checkBackendHealth();
+              const health = await checkBackendHealth(backend.url);
               const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
               
               if (backend.id === currentBackendId) {
@@ -421,8 +412,6 @@ const Index = () => {
                 setBackendStatus("offline");
               }
               setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
-            } finally {
-              (window as any).__LOVABLE_BACKEND_URL__ = originalUrl;
             }
           };
           

@@ -8,7 +8,7 @@ export interface HealthCheckResponse {
 }
 
 // Health check endpoint
-export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> => {
+export const checkBackendHealth = async (customUrl?: string): Promise<HealthCheckResponse | null> => {
   if (config.useMockApi) {
     // Mock mode - always healthy
     return {
@@ -18,9 +18,11 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
     };
   }
 
+  const url = customUrl || config.backendUrl;
+
   try {
-    console.log('🔍 Checking backend health at:', config.backendUrl);
-    const response = await fetch(`${config.backendUrl}/`, {
+    console.log('🔍 Checking backend health at:', url);
+    const response = await fetch(`${url}/`, {
       method: 'GET',
       mode: 'cors',
     });
@@ -31,7 +33,7 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
 
     return await response.json();
   } catch (error) {
-    console.error('❌ Backend health check failed for', config.backendUrl, ':', error);
+    console.error('❌ Backend health check failed for', url, ':', error);
     return null;
   }
 };
