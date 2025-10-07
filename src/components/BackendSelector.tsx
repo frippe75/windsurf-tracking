@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { Settings2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -163,86 +163,83 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Select
-          value={selectedBackend?.id || ""}
-          onValueChange={(value) => {
-            const backend = backends.find(b => b.id === value);
-            if (backend) handleSelectBackend(backend);
-          }}
-        >
-          <SelectTrigger className="w-[240px] h-auto min-h-[40px] py-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="w-[240px] h-auto min-h-[40px] py-2 justify-between">
             {selectedBackend ? (
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
-                {backendStatus === "offline" ? (
-                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                    <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
-                  </span>
-                ) : (
-                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                    <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                    <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
-                  </span>
-                )}
+                  {backendStatus === "offline" ? (
+                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
+                      <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                    </span>
+                  ) : (
+                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                      <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                      <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                    </span>
+                  )}
                 </div>
                 <span className="col-start-2 row-start-1 font-bold leading-tight">{selectedBackend.name}</span>
                 <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{selectedBackend.url}</span>
               </div>
             ) : (
-              <SelectValue placeholder="Select backend" />
+              <span>Select backend</span>
             )}
-          </SelectTrigger>
-          <SelectContent>
-            {backends.map((backend) => (
-              <SelectItem key={backend.id} value={backend.id} className="[&>span:first-child]:hidden !pl-2">
-                <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
-                  <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
-                    {(selectedBackend?.id === backend.id || backend.enableProbe) ? (
-                      (selectedBackend?.id === backend.id ? backendStatus : backend.probeStatus) === "offline" ? (
-                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                          <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                          <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
-                        </span>
-                      ) : (
-                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                          <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                          <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
-                        </span>
-                      )
-                    ) : (
-                      <span className="block h-[9px] w-[9px]" />
-                    )}
-                  </span>
-                  <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
-                  <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleAddBackend}
-          title="Add custom backend"
-        >
-          <Settings2 className="h-4 w-4" />
-        </Button>
-        
-        {selectedBackend && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => handleEditBackend(selectedBackend)}
-            title="Edit current backend"
-          >
-            Edit
+            <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
           </Button>
-        )}
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[280px]">
+          {backends.map((backend) => (
+            <DropdownMenuItem
+              key={backend.id}
+              className="grid grid-cols-[16px,1fr,auto,auto] grid-rows-2 gap-x-2 items-center p-2 cursor-pointer group"
+              onClick={() => handleSelectBackend(backend)}
+            >
+              <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-1">
+                {(selectedBackend?.id === backend.id || backend.enableProbe) ? (
+                  (selectedBackend?.id === backend.id ? backendStatus : backend.probeStatus) === "offline" ? (
+                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
+                      <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                    </span>
+                  ) : (
+                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                      <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                      <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                    </span>
+                  )
+                ) : (
+                  <span className="block h-[9px] w-[9px]" />
+                )}
+              </div>
+              <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
+              <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
+              <button
+                className="col-start-3 row-start-1 row-span-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditBackend(backend);
+                }}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              {selectedBackend?.id === backend.id && (
+                <Check className="col-start-4 row-start-1 row-span-2 h-4 w-4" />
+              )}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="gap-2 cursor-pointer"
+            onClick={handleAddBackend}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add New Backend</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
