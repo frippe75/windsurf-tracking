@@ -165,7 +165,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
             if (backend) handleSelectBackend(backend);
           }}
         >
-          <SelectTrigger className="w-[280px] h-auto min-h-[40px] py-2">
+          <SelectTrigger className="w-[240px] h-auto min-h-[40px] py-2">
             {selectedBackend ? (
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
