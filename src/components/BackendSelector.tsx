@@ -174,14 +174,14 @@ export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSele
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
                   {backendStatus === "offline" ? (
-                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
                       <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
-                      <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                      <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
                     </span>
                   ) : (
-                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
                       <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                      <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                      <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                     </span>
                   )}
                 </div>
@@ -208,29 +208,29 @@ export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSele
                   
                   // Only show indicator if this is the active backend OR it has enableProbe AND has a status
                   if (!isSelected && !backend.enableProbe) {
-                    return <span className="block h-[9px] w-[9px]" />;
+                    return <span className="block h-[8px] w-[8px]" />;
                   }
                   
                   // Show checking state for undefined status when probe is enabled
                   if (!isSelected && backend.enableProbe && !status) {
-                    return <span className="block h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />;
+                    return <span className="block h-[5px] w-[5px] rounded-full bg-muted-foreground/30" />;
                   }
                   
                   // Show red for offline
                   if (status === "offline") {
                     return (
-                      <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                      <span className="relative flex items-center justify-center h-[8px] w-[8px]">
                         <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
-                        <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                        <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
                       </span>
                     );
                   }
                   
                   // Show green for healthy
                   return (
-                    <span className="relative flex items-center justify-center h-[9px] w-[9px]">
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
                       <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                      <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                      <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
                     </span>
                   );
                 })()}
