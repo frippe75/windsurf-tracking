@@ -31,6 +31,7 @@ export interface Backend {
 
 interface BackendSelectorProps {
   backendStatus?: "checking" | "healthy" | "offline";
+  onBackendsChange?: (backends: Backend[]) => void;
 }
 
 const DEFAULT_BACKENDS: Backend[] = [
@@ -43,7 +44,7 @@ const DEFAULT_BACKENDS: Backend[] = [
 const STORAGE_KEY = "selected-backend";
 const CUSTOM_BACKENDS_KEY = "custom-backends";
 
-export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) => {
+export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
   const [selectedBackend, setSelectedBackend] = useState<Backend | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -65,6 +66,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
     }
     
     setBackends(allBackends);
+    onBackendsChange?.(allBackends);
     
     if (storedBackendId) {
       const backend = allBackends.find(b => b.id === storedBackendId);
@@ -75,7 +77,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
       // Default to local
       setSelectedBackend(DEFAULT_BACKENDS[0]);
     }
-  }, []);
+  }, [onBackendsChange]);
 
   // Update config when backend changes
   useEffect(() => {
@@ -116,6 +118,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
     localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
 
     setBackends(updatedBackends);
+    onBackendsChange?.(updatedBackends);
     
     if (selectedBackend?.id === editingBackend.id) {
       setSelectedBackend(editingBackend);
@@ -146,6 +149,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
     if (isNewBackend) {
       const updatedBackends = [...backends, editingBackend];
       setBackends(updatedBackends);
+      onBackendsChange?.(updatedBackends);
       
       const customBackends = updatedBackends.filter(
         b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
@@ -343,5 +347,16 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
 export const getProbeBackends = (backends: Backend[], activeBackendId: string) => {
   return backends.filter(b => 
     b.id === activeBackendId || b.enableProbe === true
+  );
+};
+
+// Helper to update probe status for a specific backend
+export const updateBackendProbeStatus = (
+  backends: Backend[], 
+  backendId: string, 
+  status: "checking" | "healthy" | "offline"
+): Backend[] => {
+  return backends.map(b => 
+    b.id === backendId ? { ...b, probeStatus: status } : b
   );
 };

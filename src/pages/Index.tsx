@@ -24,7 +24,7 @@ import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
-import { BackendSelector } from "@/components/BackendSelector";
+import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 
 import { config } from "@/lib/config";
 
@@ -46,6 +46,7 @@ const Index = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
+  const [backends, setBackends] = useState<Backend[]>([]);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -332,44 +333,108 @@ const Index = () => {
     }
   });
 
-  // Check backend health periodically
+  // Check backend health periodically for all backends that need probing
   useEffect(() => {
     const checkHealth = async () => {
-      const health = await checkBackendHealth();
-      const newStatus = health && health.status === "healthy" ? "healthy" : "offline";
+      const currentBackendId = localStorage.getItem('selected-backend') || 'local';
+      const backendsToProbe = getProbeBackends(backends, currentBackendId);
       
-      // Only show toast if status changed
-      setBackendStatus((prevStatus) => {
-        if (prevStatus !== "checking" && prevStatus !== newStatus) {
-          toast({
-            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-            description: newStatus === "healthy" 
-              ? `${health!.message} v${health!.version}`
-              : "Upload and scene detection unavailable.",
-            variant: newStatus === "healthy" ? "default" : "destructive",
-          });
-        } else if (prevStatus === "checking") {
-          // First check - always show status
-          toast({
-            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-            description: newStatus === "healthy" 
-              ? `${health!.message} v${health!.version}`
-              : "Running in offline mode.",
-            variant: newStatus === "healthy" ? "default" : "destructive",
-          });
+      // Check each backend that needs probing
+      for (const backend of backendsToProbe) {
+        const isActiveBackend = backend.id === currentBackendId;
+        
+        // Store original URL and temporarily override for this check
+        const originalUrl = (window as any).__LOVABLE_BACKEND_URL__;
+        (window as any).__LOVABLE_BACKEND_URL__ = backend.url;
+        
+        try {
+          const health = await checkBackendHealth();
+          const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
+          
+          if (isActiveBackend) {
+            // Update active backend status
+            setBackendStatus((prevStatus) => {
+              if (prevStatus !== "checking" && prevStatus !== newStatus) {
+                toast({
+                  title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                  description: newStatus === "healthy" 
+                    ? `${health!.message} v${health!.version}`
+                    : "Upload and scene detection unavailable.",
+                  variant: newStatus === "healthy" ? "default" : "destructive",
+                });
+              } else if (prevStatus === "checking") {
+                // First check - always show status
+                toast({
+                  title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                  description: newStatus === "healthy" 
+                    ? `${health!.message} v${health!.version}`
+                    : "Running in offline mode.",
+                  variant: newStatus === "healthy" ? "default" : "destructive",
+                });
+              }
+              return newStatus;
+            });
+          }
+          
+          // Update probe status for this backend
+          setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, newStatus));
+        } catch (error) {
+          // On error, mark as offline
+          if (isActiveBackend) {
+            setBackendStatus("offline");
+          }
+          setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
+        } finally {
+          // Restore original URL
+          (window as any).__LOVABLE_BACKEND_URL__ = originalUrl;
         }
-        return newStatus;
-      });
+      }
     };
     
-    // Initial check
-    checkHealth();
-    
-    // Check every 5 seconds
-    const interval = setInterval(checkHealth, 5000);
-    
-    return () => clearInterval(interval);
-  }, [toast]);
+    // Only run if we have backends loaded
+    if (backends.length > 0) {
+      // Initial check
+      checkHealth();
+      
+      // Set up intervals for each backend based on their probe intervals
+      const intervals: NodeJS.Timeout[] = [];
+      const currentBackendId = localStorage.getItem('selected-backend') || 'local';
+      const backendsToProbe = getProbeBackends(backends, currentBackendId);
+      
+      backendsToProbe.forEach(backend => {
+        const interval = setInterval(() => {
+          // Only check this specific backend
+          const checkSingleBackend = async () => {
+            const originalUrl = (window as any).__LOVABLE_BACKEND_URL__;
+            (window as any).__LOVABLE_BACKEND_URL__ = backend.url;
+            
+            try {
+              const health = await checkBackendHealth();
+              const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
+              
+              if (backend.id === currentBackendId) {
+                setBackendStatus(newStatus);
+              }
+              setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, newStatus));
+            } catch (error) {
+              if (backend.id === currentBackendId) {
+                setBackendStatus("offline");
+              }
+              setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
+            } finally {
+              (window as any).__LOVABLE_BACKEND_URL__ = originalUrl;
+            }
+          };
+          
+          checkSingleBackend();
+        }, (backend.probeInterval || 30) * 1000);
+        
+        intervals.push(interval);
+      });
+      
+      return () => intervals.forEach(interval => clearInterval(interval));
+    }
+  }, [toast, backends]);
 
   // Auto-create tracking jobs from START->STOP keyframe pairs
   useEffect(() => {
@@ -2415,7 +2480,10 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
             </div>
             <div className="flex items-center gap-2">
-              <BackendSelector backendStatus={backendStatus} />
+              <BackendSelector 
+                backendStatus={backendStatus} 
+                onBackendsChange={setBackends}
+              />
               <Button 
                 variant="ghost" 
                 size="sm" 
