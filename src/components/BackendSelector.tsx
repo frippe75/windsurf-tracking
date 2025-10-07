@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,9 @@ export interface Backend {
   id: string;
   name: string;
   url: string;
+  enableProbe?: boolean;
+  probeInterval?: number; // in seconds
+  probeStatus?: "checking" | "healthy" | "offline";
 }
 
 interface BackendSelectorProps {
@@ -125,6 +129,8 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
       id: `custom-${Date.now()}`,
       name: "New Backend",
       url: "http://localhost:8000",
+      enableProbe: false,
+      probeInterval: 30,
     };
     setEditingBackend(newBackend);
     setIsEditDialogOpen(true);
@@ -193,8 +199,8 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
               <SelectItem key={backend.id} value={backend.id} className="[&>span:first-child]:hidden !pl-2">
                 <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
                   <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
-                    {selectedBackend?.id === backend.id ? (
-                      backendStatus === "offline" ? (
+                    {(selectedBackend?.id === backend.id || backend.enableProbe) ? (
+                      (selectedBackend?.id === backend.id ? backendStatus : backend.probeStatus) === "offline" ? (
                         <span className="relative flex items-center justify-center h-[9px] w-[9px]">
                           <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
                           <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
@@ -270,6 +276,40 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                 placeholder="http://localhost:8000"
               />
             </div>
+            <div className="flex items-start space-x-2 pt-2">
+              <Checkbox 
+                id="enableProbe"
+                checked={editingBackend?.enableProbe ?? false}
+                onCheckedChange={(checked) => 
+                  setEditingBackend(prev => 
+                    prev ? { ...prev, enableProbe: checked as boolean } : null
+                  )
+                }
+              />
+              <div className="grid gap-2 flex-1">
+                <Label htmlFor="enableProbe" className="text-sm font-normal cursor-pointer leading-tight">
+                  Monitor health status (even when inactive)
+                </Label>
+                {editingBackend?.enableProbe && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="probeInterval" className="text-xs">
+                      Probe interval (seconds)
+                    </Label>
+                    <Input
+                      id="probeInterval"
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={editingBackend?.probeInterval ?? 30}
+                      onChange={(e) => setEditingBackend(prev => 
+                        prev ? { ...prev, probeInterval: parseInt(e.target.value) || 30 } : null
+                      )}
+                      className="w-24"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
@@ -282,5 +322,12 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
         </DialogContent>
       </Dialog>
     </>
+  );
+};
+
+// Helper to get all backends that should be probed
+export const getProbeBackends = (backends: Backend[], activeBackendId: string) => {
+  return backends.filter(b => 
+    b.id === activeBackendId || b.enableProbe === true
   );
 };
