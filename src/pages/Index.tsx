@@ -391,15 +391,20 @@ const Index = () => {
       }
     };
 
-    // Initial check
-    checkHealth();
+    // Initial check (slightly delayed to allow BackendSelector to push backends)
+    const initialKick = setTimeout(() => {
+      checkHealth();
+    }, 250);
 
     // Use a single interval to probe all marked backends
     const interval = setInterval(() => {
       checkHealth();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialKick);
+      clearInterval(interval);
+    };
   }, [toast]);
 
 
@@ -2450,6 +2455,7 @@ const Index = () => {
               <BackendSelector 
                 backendStatus={backendStatus} 
                 onBackendsChange={setBackends}
+                probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
               />
               <Button 
                 variant="ghost" 

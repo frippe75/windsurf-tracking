@@ -31,6 +31,7 @@ export interface Backend {
 interface BackendSelectorProps {
   backendStatus?: "checking" | "healthy" | "offline";
   onBackendsChange?: (backends: Backend[]) => void;
+  probeStatuses?: Record<string, "checking" | "healthy" | "offline">;
 }
 
 const DEFAULT_BACKENDS: Backend[] = [
@@ -43,7 +44,7 @@ const DEFAULT_BACKENDS: Backend[] = [
 const STORAGE_KEY = "selected-backend";
 const CUSTOM_BACKENDS_KEY = "custom-backends";
 
-export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSelectorProps = {}) => {
+export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
   const [selectedBackend, setSelectedBackend] = useState<Backend | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -202,7 +203,8 @@ export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSele
               <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-1">
                 {(() => {
                   const isSelected = selectedBackend?.id === backend.id;
-                  const status = isSelected ? backendStatus : backend.probeStatus;
+                  const externalStatus = probeStatuses?.[backend.id];
+                  const status = isSelected ? backendStatus : (externalStatus ?? backend.probeStatus);
                   
                   // Only show indicator if this is the active backend OR it has enableProbe AND has a status
                   if (!isSelected && !backend.enableProbe) {
