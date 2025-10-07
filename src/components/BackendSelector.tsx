@@ -43,6 +43,7 @@ const DEFAULT_BACKENDS: Backend[] = [
 
 const STORAGE_KEY = "selected-backend";
 const CUSTOM_BACKENDS_KEY = "custom-backends";
+const SELECTED_BACKEND_JSON_KEY = "selected-backend-json";
 
 export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
@@ -54,6 +55,7 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
   useEffect(() => {
     const storedBackendId = localStorage.getItem(STORAGE_KEY);
     const storedCustomBackends = localStorage.getItem(CUSTOM_BACKENDS_KEY);
+    const storedSelectedJson = localStorage.getItem(SELECTED_BACKEND_JSON_KEY);
     
     let allBackends = [...DEFAULT_BACKENDS];
     if (storedCustomBackends) {
@@ -65,17 +67,38 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       }
     }
     
+    // Try to resolve selection from ID first
+    let resolved: Backend | null = null;
+    if (storedBackendId) {
+      resolved = allBackends.find(b => b.id === storedBackendId) || null;
+    }
+
+    // If not found, try to restore from JSON snapshot
+    if (!resolved && storedSelectedJson) {
+      try {
+        const restored: Backend = JSON.parse(storedSelectedJson);
+        // If missing in list, add it to backends so it persists
+        if (!allBackends.find(b => b.id === restored.id)) {
+          allBackends = [...allBackends, restored];
+        }
+        resolved = restored;
+      } catch (e) {
+        console.error("Failed to parse selected backend snapshot", e);
+      }
+    }
+
+    // Commit backends to state and parent
     setBackends(allBackends);
     onBackendsChange?.(allBackends);
-    
-    if (storedBackendId) {
-      const backend = allBackends.find(b => b.id === storedBackendId);
-      if (backend) {
-        setSelectedBackend(backend);
-      }
+
+    if (resolved) {
+      setSelectedBackend(resolved);
+      // Ensure the ID is persisted (in case we restored from JSON)
+      localStorage.setItem(STORAGE_KEY, resolved.id);
     } else {
-      // Default to local
-      setSelectedBackend(DEFAULT_BACKENDS[0]);
+      // Avoid defaulting to localhost; prefer a non-local default if available
+      const nonLocalDefault = DEFAULT_BACKENDS.find(b => b.id !== 'local' && b.url);
+      setSelectedBackend(nonLocalDefault || DEFAULT_BACKENDS[0]);
     }
   }, [onBackendsChange]);
 
@@ -84,6 +107,7 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
     if (selectedBackend) {
       // Store in localStorage
       localStorage.setItem(STORAGE_KEY, selectedBackend.id);
+      localStorage.setItem(SELECTED_BACKEND_JSON_KEY, JSON.stringify(selectedBackend));
       
       // Update the global config by reloading
       // This is a simple approach - in production you might use a state manager
