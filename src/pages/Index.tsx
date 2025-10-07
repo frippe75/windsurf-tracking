@@ -25,7 +25,7 @@ import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
-
+import { getToolPreferences, saveToolPreferences } from "@/lib/settings";
 import { config } from "@/lib/config";
 
 const SAIL_COLORS = [
@@ -58,17 +58,16 @@ const Index = () => {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>();
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
-  const [overlays, setOverlays] = useState({
-    segments: true,
-    bboxes: true,
-    points: true,
-  });
+  
+  // Load tool preferences from settings
+  const toolPrefs = getToolPreferences();
+  const [overlays, setOverlays] = useState(toolPrefs.overlays);
   const [colorIndex, setColorIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
-  const [autoTrack, setAutoTrack] = useState(true);
-  const [autoDetect, setAutoDetect] = useState(true);
-  const [useSAM2, setUseSAM2] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
+  const [autoTrack, setAutoTrack] = useState(toolPrefs.autoTrack);
+  const [autoDetect, setAutoDetect] = useState(toolPrefs.autoDetect);
+  const [useSAM2, setUseSAM2] = useState(toolPrefs.useSAM2);
+  const [showLabels, setShowLabels] = useState(toolPrefs.showLabels);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -77,7 +76,7 @@ const Index = () => {
   const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
-  const [maximizeVideo, setMaximizeVideo] = useState(false);
+  const [maximizeVideo, setMaximizeVideo] = useState(toolPrefs.maximizeVideo);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [metadataModal, setMetadataModal] = useState<{
@@ -246,6 +245,18 @@ const Index = () => {
       return () => clearTimeout(timeoutId);
     }
   }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
+
+  // Auto-persist tool preferences to settings
+  useEffect(() => {
+    saveToolPreferences({
+      autoTrack,
+      autoDetect,
+      useSAM2,
+      showLabels,
+      overlays,
+      maximizeVideo,
+    });
+  }, [autoTrack, autoDetect, useSAM2, showLabels, overlays, maximizeVideo]);
 
   // Restore active project on mount
   useEffect(() => {

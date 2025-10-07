@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getBackendSettings, saveBackendSettings } from "@/lib/settings";
 
 export interface Backend {
   id: string;
@@ -41,9 +42,10 @@ const DEFAULT_BACKENDS: Backend[] = [
   { id: "custom", name: "Custom", url: "" },
 ];
 
-const STORAGE_KEY = "selected-backend";
-const CUSTOM_BACKENDS_KEY = "custom-backends";
-const SELECTED_BACKEND_JSON_KEY = "selected-backend-json";
+// Legacy keys for migration
+const LEGACY_STORAGE_KEY = "selected-backend";
+const LEGACY_CUSTOM_BACKENDS_KEY = "custom-backends";
+const LEGACY_SELECTED_BACKEND_JSON_KEY = "selected-backend-json";
 
 export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
@@ -51,40 +53,58 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingBackend, setEditingBackend] = useState<Backend | null>(null);
 
-  // Load from localStorage on mount
+  // Load from settings on mount (with legacy migration)
   useEffect(() => {
-    const storedBackendId = localStorage.getItem(STORAGE_KEY);
-    const storedCustomBackends = localStorage.getItem(CUSTOM_BACKENDS_KEY);
-    const storedSelectedJson = localStorage.getItem(SELECTED_BACKEND_JSON_KEY);
+    const backendSettings = getBackendSettings();
     
-    let allBackends = [...DEFAULT_BACKENDS];
-    if (storedCustomBackends) {
-      try {
-        const customBackends = JSON.parse(storedCustomBackends);
-        allBackends = [...DEFAULT_BACKENDS, ...customBackends];
-      } catch (e) {
-        console.error("Failed to parse custom backends", e);
+    // Migrate legacy localStorage if exists
+    const legacyId = localStorage.getItem(LEGACY_STORAGE_KEY);
+    const legacyCustom = localStorage.getItem(LEGACY_CUSTOM_BACKENDS_KEY);
+    const legacySnapshot = localStorage.getItem(LEGACY_SELECTED_BACKEND_JSON_KEY);
+    
+    if (legacyId || legacyCustom || legacySnapshot) {
+      // Migrate to new settings system
+      if (legacyCustom) {
+        try {
+          backendSettings.customBackends = JSON.parse(legacyCustom);
+        } catch (e) {
+          console.error("Failed to migrate custom backends", e);
+        }
       }
+      if (legacySnapshot) {
+        try {
+          backendSettings.selectedBackendSnapshot = JSON.parse(legacySnapshot);
+        } catch (e) {
+          console.error("Failed to migrate backend snapshot", e);
+        }
+      }
+      if (legacyId) {
+        backendSettings.selectedBackendId = legacyId;
+      }
+      saveBackendSettings(backendSettings);
+      
+      // Clean up legacy keys
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_CUSTOM_BACKENDS_KEY);
+      localStorage.removeItem(LEGACY_SELECTED_BACKEND_JSON_KEY);
     }
+    
+    let allBackends = [...DEFAULT_BACKENDS, ...backendSettings.customBackends];
     
     // Try to resolve selection from ID first
     let resolved: Backend | null = null;
-    if (storedBackendId) {
-      resolved = allBackends.find(b => b.id === storedBackendId) || null;
+    if (backendSettings.selectedBackendId) {
+      resolved = allBackends.find(b => b.id === backendSettings.selectedBackendId) || null;
     }
 
-    // If not found, try to restore from JSON snapshot
-    if (!resolved && storedSelectedJson) {
-      try {
-        const restored: Backend = JSON.parse(storedSelectedJson);
-        // If missing in list, add it to backends so it persists
-        if (!allBackends.find(b => b.id === restored.id)) {
-          allBackends = [...allBackends, restored];
-        }
-        resolved = restored;
-      } catch (e) {
-        console.error("Failed to parse selected backend snapshot", e);
+    // If not found, try to restore from snapshot
+    if (!resolved && backendSettings.selectedBackendSnapshot) {
+      const restored = backendSettings.selectedBackendSnapshot;
+      // If missing in list, add it to backends so it persists
+      if (!allBackends.find(b => b.id === restored.id)) {
+        allBackends = [...allBackends, restored];
       }
+      resolved = restored;
     }
 
     // Commit backends to state and parent
@@ -93,8 +113,6 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
 
     if (resolved) {
       setSelectedBackend(resolved);
-      // Ensure the ID is persisted (in case we restored from JSON)
-      localStorage.setItem(STORAGE_KEY, resolved.id);
     } else {
       // Avoid defaulting to localhost; prefer a non-local default if available
       const nonLocalDefault = DEFAULT_BACKENDS.find(b => b.id !== 'local' && b.url);
@@ -102,15 +120,20 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
     }
   }, [onBackendsChange]);
 
-  // Update config when backend changes
+  // Update settings when backend changes
   useEffect(() => {
     if (selectedBackend) {
-      // Store in localStorage
-      localStorage.setItem(STORAGE_KEY, selectedBackend.id);
-      localStorage.setItem(SELECTED_BACKEND_JSON_KEY, JSON.stringify(selectedBackend));
+      // Save to settings system
+      saveBackendSettings({
+        selectedBackendId: selectedBackend.id,
+        selectedBackendSnapshot: {
+          id: selectedBackend.id,
+          name: selectedBackend.name,
+          url: selectedBackend.url,
+        },
+      });
       
-      // Update the global config by reloading
-      // This is a simple approach - in production you might use a state manager
+      // Update the global config
       if (typeof window !== 'undefined') {
         (window as any).__LOVABLE_BACKEND_URL__ = selectedBackend.url;
       }
@@ -135,11 +158,11 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       b.id === editingBackend.id ? editingBackend : b
     );
 
-    // If it's a custom backend (not in defaults), save to localStorage
+    // Save custom backends to settings
     const customBackends = updatedBackends.filter(
       b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
     );
-    localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+    saveBackendSettings({ customBackends });
 
     setBackends(updatedBackends);
     onBackendsChange?.(updatedBackends);
@@ -177,7 +200,7 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       const customBackends = updatedBackends.filter(
         b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
       );
-      localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+      saveBackendSettings({ customBackends });
       
       setSelectedBackend(editingBackend);
     } else {
