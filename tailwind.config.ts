@@ -82,7 +82,7 @@ export default {
         },
         "ping-slow": {
           "75%, 100%": {
-            transform: "scale(2)",
+            transform: "scale(1.78)",
             opacity: "0",
           },
         },
