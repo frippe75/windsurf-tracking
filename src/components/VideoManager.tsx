@@ -230,22 +230,22 @@ export function VideoManager({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
-                                    {isActive && (
-                                      <Badge variant="default" className="text-xs">Active</Badge>
-                                    )}
                                     {(video.status === 'downloading' || video.status === 'syncing') && (
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-6 w-6 relative z-10"
+                                        className="h-6 w-6 relative z-10 hover:bg-destructive/10 hover:text-destructive"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           onVideoDelete(video.id);
                                         }}
-                                        title="Cancel"
+                                        title="Cancel operation"
                                       >
-                                        <X className="h-3 w-3" />
+                                        <Trash2 className="h-3 w-3" />
                                       </Button>
+                                    )}
+                                    {isActive && (
+                                      <Badge variant="default" className="text-xs">Active</Badge>
                                     )}
                                   </div>
                                  </div>
