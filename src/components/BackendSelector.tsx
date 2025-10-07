@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, ChevronDown, Pencil, Plus } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -226,6 +226,29 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
     setIsEditDialogOpen(false);
   };
 
+  const handleDeleteBackend = (backend: Backend) => {
+    // Remove from backends list
+    const updatedBackends = backends.filter(b => b.id !== backend.id);
+    setBackends(updatedBackends);
+    onBackendsChange?.(updatedBackends);
+
+    // Update custom backends in settings
+    const customBackends = updatedBackends.filter(b => {
+      const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+      return !defaultBackend || 
+             defaultBackend.name !== b.name || 
+             defaultBackend.url !== b.url ||
+             defaultBackend.enableProbe !== b.enableProbe;
+    });
+    saveBackendSettings({ customBackends });
+
+    // If deleted backend was selected, switch to first non-local or first available
+    if (selectedBackend?.id === backend.id) {
+      const nonLocalDefault = updatedBackends.find(b => b.id !== 'local' && b.url);
+      setSelectedBackend(nonLocalDefault || updatedBackends[0] || null);
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -299,15 +322,26 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
               </div>
               <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
               <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
-              <button
-                className="col-start-3 row-start-1 row-span-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEditBackend(backend);
-                }}
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
+              <div className="col-start-3 row-start-1 row-span-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  className="p-1 hover:bg-accent rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditBackend(backend);
+                  }}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  className="p-1 hover:bg-destructive/10 rounded text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteBackend(backend);
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
               {selectedBackend?.id === backend.id && (
                 <Check className="col-start-4 row-start-1 row-span-2 h-4 w-4" />
               )}
