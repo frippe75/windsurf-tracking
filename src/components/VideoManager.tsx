@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play } from "lucide-react";
+import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, X } from "lucide-react";
 import { config } from "@/lib/config";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
@@ -294,8 +294,19 @@ export function VideoManager({
                         variant="ghost"
                         size="icon"
                         onClick={() => onVideoDelete(selectedVideo.id)}
+                        title="Delete video"
                       >
                         <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(selectedVideo.status === 'downloading' || selectedVideo.status === 'syncing') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onVideoDelete(selectedVideo.id)}
+                        title="Cancel operation"
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
