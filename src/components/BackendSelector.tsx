@@ -337,7 +337,12 @@ export const updateBackendProbeStatus = (
   backendId: string, 
   status: "checking" | "healthy" | "offline"
 ): Backend[] => {
-  return backends.map(b => 
-    b.id === backendId ? { ...b, probeStatus: status } : b
-  );
+  let didChange = false;
+  const updated = backends.map(b => {
+    if (b.id !== backendId) return b;
+    if (b.probeStatus === status) return b;
+    didChange = true;
+    return { ...b, probeStatus: status };
+  });
+  return didChange ? updated : backends;
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
@@ -47,6 +47,8 @@ const Index = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
   const [backends, setBackends] = useState<Backend[]>([]);
+  const backendsRef = useRef<Backend[]>([]);
+  const isCheckingRef = useRef(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -333,71 +335,73 @@ const Index = () => {
     }
   });
 
-  // Check backend health periodically for all backends that need probing
+  // Keep a ref in sync with latest backends to avoid re-creating intervals
+  useEffect(() => {
+    backendsRef.current = backends;
+  }, [backends]);
+
+  // Check backend health periodically for all backends that need probing (single global interval)
   useEffect(() => {
     const checkHealth = async () => {
-      const currentBackendId = localStorage.getItem('selected-backend') || 'local';
-      const backendsToProbe = getProbeBackends(backends, currentBackendId);
-      
-      // Check each backend that needs probing
-      for (const backend of backendsToProbe) {
-        const isActiveBackend = backend.id === currentBackendId;
+      if (isCheckingRef.current) return; // prevent overlapping probes
+      isCheckingRef.current = true;
+      try {
+        const currentBackendId = localStorage.getItem('selected-backend') || 'local';
+        const backendsToProbe = getProbeBackends(backendsRef.current, currentBackendId);
         
-        try {
-          // Pass the backend URL directly to checkBackendHealth
-          const health = await checkBackendHealth(backend.url);
-          const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
-          
-          if (isActiveBackend) {
-            // Update active backend status
-            setBackendStatus((prevStatus) => {
-              if (prevStatus !== "checking" && prevStatus !== newStatus) {
-                toast({
-                  title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-                  description: newStatus === "healthy" 
-                    ? `${health!.message} v${health!.version}`
-                    : "Upload and scene detection unavailable.",
-                  variant: newStatus === "healthy" ? "default" : "destructive",
-                });
-              } else if (prevStatus === "checking") {
-                // First check - always show status
-                toast({
-                  title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-                  description: newStatus === "healthy" 
-                    ? `${health!.message} v${health!.version}`
-                    : "Running in offline mode.",
-                  variant: newStatus === "healthy" ? "default" : "destructive",
-                });
-              }
-              return newStatus;
-            });
+        for (const backend of backendsToProbe) {
+          const isActiveBackend = backend.id === currentBackendId;
+          try {
+            const health = await checkBackendHealth(backend.url);
+            const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
+
+            if (isActiveBackend) {
+              setBackendStatus((prevStatus) => {
+                if (prevStatus !== "checking" && prevStatus !== newStatus) {
+                  toast({
+                    title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                    description: newStatus === "healthy"
+                      ? `${health!.message} v${health!.version}`
+                      : "Upload and scene detection unavailable.",
+                    variant: newStatus === "healthy" ? "default" : "destructive",
+                  });
+                } else if (prevStatus === "checking") {
+                  toast({
+                    title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                    description: newStatus === "healthy"
+                      ? `${health!.message} v${health!.version}`
+                      : "Running in offline mode.",
+                    variant: newStatus === "healthy" ? "default" : "destructive",
+                  });
+                }
+                return newStatus;
+              });
+            }
+
+            setBackends(prev => updateBackendProbeStatus(prev, backend.id, newStatus));
+          } catch (error) {
+            if (isActiveBackend) {
+              setBackendStatus("offline");
+            }
+            setBackends(prev => updateBackendProbeStatus(prev, backend.id, "offline"));
           }
-          
-          // Update probe status for this backend
-          setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, newStatus));
-        } catch (error) {
-          // On error, mark as offline
-          if (isActiveBackend) {
-            setBackendStatus("offline");
-          }
-          setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
         }
+      } finally {
+        isCheckingRef.current = false;
       }
     };
-    
-    // Only run if we have backends loaded
-    if (backends.length > 0) {
-      // Initial check
+
+    // Initial check
+    checkHealth();
+
+    // Use a single interval to probe all marked backends
+    const interval = setInterval(() => {
       checkHealth();
-      
-      // Use a single interval to probe all marked backends
-      const interval = setInterval(() => {
-        checkHealth();
-      }, 30000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [toast, backends]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [toast]);
+
 
   // Auto-create tracking jobs from START->STOP keyframe pairs
   useEffect(() => {
