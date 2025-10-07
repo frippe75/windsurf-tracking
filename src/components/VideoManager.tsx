@@ -180,18 +180,21 @@ export function VideoManager({
                     const progress = getUnifiedProgress(video);
 
                     return (
-                      <button
+                      <div
                         key={video.id}
-                        onClick={() => handleVideoClick(video.id)}
                         className={`
-                          w-full text-left rounded-lg p-3 transition-all
+                          w-full text-left rounded-lg p-3 transition-all relative
                           ${isSelected 
                             ? 'bg-primary/10 border-2 border-primary' 
                             : 'bg-card border border-border hover:border-primary/50'
                           }
                         `}
                       >
-                        <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => handleVideoClick(video.id)}
+                          className="absolute inset-0"
+                        />
+                        <div className="flex items-start gap-3 relative">
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
@@ -226,10 +229,26 @@ export function VideoManager({
                                       <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
                                     )}
                                   </div>
-                                  {isActive && (
-                                    <Badge variant="default" className="shrink-0 text-xs">Active</Badge>
-                                  )}
-                                </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {isActive && (
+                                      <Badge variant="default" className="text-xs">Active</Badge>
+                                    )}
+                                    {(video.status === 'downloading' || video.status === 'syncing') && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 relative z-10"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onVideoDelete(video.id);
+                                        }}
+                                        title="Cancel"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                 </div>
                                 {video.metadata ? (
                                   <p className="text-xs text-muted-foreground">
                                     {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
@@ -251,7 +270,7 @@ export function VideoManager({
                             )}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })
                 )}
