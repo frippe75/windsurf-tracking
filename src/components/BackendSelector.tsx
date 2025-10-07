@@ -25,7 +25,6 @@ export interface Backend {
   name: string;
   url: string;
   enableProbe?: boolean;
-  probeInterval?: number; // in seconds
   probeStatus?: "checking" | "healthy" | "offline";
 }
 
@@ -133,7 +132,6 @@ export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSele
       name: "New Backend",
       url: "http://localhost:8000",
       enableProbe: false,
-      probeInterval: 30,
     };
     setEditingBackend(newBackend);
     setIsEditDialogOpen(true);
@@ -308,24 +306,7 @@ export const BackendSelector = ({ backendStatus, onBackendsChange }: BackendSele
                 <Label htmlFor="enableProbe" className="text-sm font-normal cursor-pointer leading-tight">
                   Monitor health status (even when inactive)
                 </Label>
-                {editingBackend?.enableProbe && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="probeInterval" className="text-xs">
-                      Probe interval (seconds)
-                    </Label>
-                    <Input
-                      id="probeInterval"
-                      type="number"
-                      min="5"
-                      max="300"
-                      value={editingBackend?.probeInterval ?? 30}
-                      onChange={(e) => setEditingBackend(prev => 
-                        prev ? { ...prev, probeInterval: parseInt(e.target.value) || 30 } : null
-                      )}
-                      className="w-24"
-                    />
-                  </div>
-                )}
+                {/* Probing uses a global interval now; no per-backend interval */}
               </div>
             </div>
           </div>

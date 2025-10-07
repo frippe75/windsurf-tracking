@@ -390,38 +390,12 @@ const Index = () => {
       // Initial check
       checkHealth();
       
-      // Set up intervals for each backend based on their probe intervals
-      const intervals: NodeJS.Timeout[] = [];
-      const currentBackendId = localStorage.getItem('selected-backend') || 'local';
-      const backendsToProbe = getProbeBackends(backends, currentBackendId);
+      // Use a single interval to probe all marked backends
+      const interval = setInterval(() => {
+        checkHealth();
+      }, 30000);
       
-      backendsToProbe.forEach(backend => {
-        const interval = setInterval(() => {
-          // Only check this specific backend
-          const checkSingleBackend = async () => {
-            try {
-              const health = await checkBackendHealth(backend.url);
-              const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
-              
-              if (backend.id === currentBackendId) {
-                setBackendStatus(newStatus);
-              }
-              setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, newStatus));
-            } catch (error) {
-              if (backend.id === currentBackendId) {
-                setBackendStatus("offline");
-              }
-              setBackends(prevBackends => updateBackendProbeStatus(prevBackends, backend.id, "offline"));
-            }
-          };
-          
-          checkSingleBackend();
-        }, (backend.probeInterval || 30) * 1000);
-        
-        intervals.push(interval);
-      });
-      
-      return () => intervals.forEach(interval => clearInterval(interval));
+      return () => clearInterval(interval);
     }
   }, [toast, backends]);
 
