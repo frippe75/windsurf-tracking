@@ -25,7 +25,7 @@ import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
-import { getToolPreferences, saveToolPreferences } from "@/lib/settings";
+import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
 
 const SAIL_COLORS = [
@@ -357,7 +357,8 @@ const Index = () => {
       if (isCheckingRef.current) return; // prevent overlapping probes
       isCheckingRef.current = true;
       try {
-        const currentBackendId = localStorage.getItem('selected-backend') || 'local';
+        const { selectedBackendId, selectedBackendSnapshot } = getBackendSettings();
+        const currentBackendId = selectedBackendId || selectedBackendSnapshot?.id || 'local';
         const backendsToProbe = getProbeBackends(backendsRef.current, currentBackendId);
         
         for (const backend of backendsToProbe) {
