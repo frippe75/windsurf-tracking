@@ -89,7 +89,13 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       localStorage.removeItem(LEGACY_SELECTED_BACKEND_JSON_KEY);
     }
     
-    let allBackends = [...DEFAULT_BACKENDS, ...backendSettings.customBackends];
+    // Merge custom backends with defaults, allowing customs to override defaults by ID
+    const customMap = new Map(backendSettings.customBackends.map(b => [b.id, b]));
+    let allBackends = DEFAULT_BACKENDS.map(defBackend => 
+      customMap.has(defBackend.id) ? customMap.get(defBackend.id)! : defBackend
+    ).concat(
+      backendSettings.customBackends.filter(b => !DEFAULT_BACKENDS.find(db => db.id === b.id))
+    );
     
     // Try to resolve selection from ID first
     let resolved: Backend | null = null;
@@ -158,10 +164,15 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       b.id === editingBackend.id ? editingBackend : b
     );
 
-    // Save custom backends to settings
-    const customBackends = updatedBackends.filter(
-      b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
-    );
+    // Save custom backends to settings (include edited defaults as overrides)
+    const customBackends = updatedBackends.filter(b => {
+      const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+      // Save if: not a default, OR is a default but was modified
+      return !defaultBackend || 
+             defaultBackend.name !== b.name || 
+             defaultBackend.url !== b.url ||
+             defaultBackend.enableProbe !== b.enableProbe;
+    });
     saveBackendSettings({ customBackends });
 
     setBackends(updatedBackends);
@@ -197,9 +208,13 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       setBackends(updatedBackends);
       onBackendsChange?.(updatedBackends);
       
-      const customBackends = updatedBackends.filter(
-        b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
-      );
+      const customBackends = updatedBackends.filter(b => {
+        const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+        return !defaultBackend || 
+               defaultBackend.name !== b.name || 
+               defaultBackend.url !== b.url ||
+               defaultBackend.enableProbe !== b.enableProbe;
+      });
       saveBackendSettings({ customBackends });
       
       setSelectedBackend(editingBackend);
