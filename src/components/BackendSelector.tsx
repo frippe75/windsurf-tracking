@@ -57,6 +57,13 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
   useEffect(() => {
     const backendSettings = getBackendSettings();
     
+    console.log('🔄 Loading backend settings:', {
+      selectedId: backendSettings.selectedBackendId,
+      snapshot: backendSettings.selectedBackendSnapshot,
+      customCount: backendSettings.customBackends.length,
+      customs: backendSettings.customBackends
+    });
+    
     // Migrate legacy localStorage if exists
     const legacyId = localStorage.getItem(LEGACY_STORAGE_KEY);
     const legacyCustom = localStorage.getItem(LEGACY_CUSTOM_BACKENDS_KEY);
@@ -97,6 +104,8 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       backendSettings.customBackends.filter(b => !DEFAULT_BACKENDS.find(db => db.id === b.id))
     );
     
+    console.log('✅ Merged backends:', allBackends.map(b => ({ id: b.id, name: b.name, url: b.url })));
+    
     // Try to resolve selection from ID first
     let resolved: Backend | null = null;
     if (backendSettings.selectedBackendId) {
@@ -112,6 +121,8 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
       }
       resolved = restored;
     }
+
+    console.log('🎯 Selected backend:', resolved);
 
     // Commit backends to state and parent
     setBackends(allBackends);
@@ -173,6 +184,13 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
              defaultBackend.url !== b.url ||
              defaultBackend.enableProbe !== b.enableProbe;
     });
+    
+    console.log('💾 Saving backend changes:', {
+      edited: editingBackend,
+      allCustomBackends: customBackends,
+      isEditingDefault: !!DEFAULT_BACKENDS.find(db => db.id === editingBackend.id)
+    });
+    
     saveBackendSettings({ customBackends });
 
     setBackends(updatedBackends);
