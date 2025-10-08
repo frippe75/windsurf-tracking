@@ -956,10 +956,6 @@ export function VideoPlayer({
             <SkipForward className="h-4 w-4" />
           </Button>
         </div>
-
-        <div className="text-xs text-muted-foreground text-center">
-          Space: Play/Pause • Arrows: Frame • Shift+Arrows: 1 sec • M: Edit mode • Tab/Shift+Tab: Cycle annotations
-        </div>
       </div>
     </Card>
   );
