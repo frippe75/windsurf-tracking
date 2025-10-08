@@ -90,7 +90,7 @@ export function ProjectManager_v2({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh]">
+      <DialogContent className="max-w-6xl h-[85vh]">
         {activeProject ? (
           <>
             <DialogHeader>
@@ -113,156 +113,159 @@ export function ProjectManager_v2({
               </div>
             </DialogHeader>
 
-            <div className="flex-1 flex flex-col gap-4">
-              {/* Project Stats */}
-              <div className="grid grid-cols-4 gap-4">
-                <Card className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Video className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Videos</span>
+            <div className="flex-1 flex gap-6 min-h-0">
+              {/* Left: Project Stats */}
+              <div className="flex flex-col gap-4 w-64 flex-shrink-0">
+                <div className="space-y-3">
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Video className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Videos</span>
+                    </div>
+                    <p className="text-3xl font-bold">{videoCount}</p>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Classes</span>
+                    </div>
+                    <p className="text-3xl font-bold">{classCount}</p>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Instances</span>
+                    </div>
+                    <p className="text-3xl font-bold">{instanceCount}</p>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Annotations</span>
+                    </div>
+                    <p className="text-3xl font-bold">{annotationCount}</p>
+                  </Card>
+                </div>
+
+                <div className="mt-auto pt-4 border-t">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                    <Calendar className="h-3 w-3" />
+                    <span>
+                      Last modified {formatDistanceToNow(activeProject.lastModified, { addSuffix: true })}
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold">{videoCount}</p>
-                </Card>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Classes</span>
-                  </div>
-                  <p className="text-2xl font-bold">{classCount}</p>
-                </Card>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Instances</span>
-                  </div>
-                  <p className="text-2xl font-bold">{instanceCount}</p>
-                </Card>
-                <Card className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Layers className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Annotations</span>
-                  </div>
-                  <p className="text-2xl font-bold">{annotationCount}</p>
-                </Card>
+                  <span className="text-xs font-mono text-muted-foreground">{activeProject.id}</span>
+                </div>
               </div>
 
-              {/* Videos in Project */}
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Videos in Project</h3>
-                <Button onClick={onOpenAddResources}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Resources
-                </Button>
-              </div>
+              {/* Right: Videos in Project */}
+              <div className="flex-1 flex flex-col gap-4 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Videos in Project</h3>
+                  <Button onClick={onOpenAddResources}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Resources
+                  </Button>
+                </div>
 
-              <ScrollArea className="flex-1">
-                <div className="space-y-2">
-                  {projectVideos.map((video) => {
-                    const isCurrentVideo = video.id === currentVideoId;
+                <ScrollArea className="flex-1">
+                  <div className="space-y-2 pr-4">
+                    {projectVideos.map((video) => {
+                      const isCurrentVideo = video.id === currentVideoId;
 
-                    return (
-                      <Card
-                        key={video.id}
-                        className={`p-4 transition-all ${
-                          isCurrentVideo 
-                            ? 'border-blue-500 bg-blue-500/5' 
-                            : 'hover:bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          {/* Status Icon */}
-                          <div className="mt-1">
-                            {getStatusIcon(video)}
-                          </div>
+                      return (
+                        <Card
+                          key={video.id}
+                          className={`p-4 transition-all ${
+                            isCurrentVideo 
+                              ? 'border-blue-500 bg-blue-500/5' 
+                              : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            {/* Status Icon */}
+                            <div className="mt-1">
+                              {getStatusIcon(video)}
+                            </div>
 
-                          {/* Video Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-medium truncate">{video.filename}</h4>
-                              {isCurrentVideo && (
-                                <Badge variant="default" className="bg-blue-500">
-                                  <PlayCircle className="h-3 w-3 mr-1" />
-                                  Currently Loaded
-                                </Badge>
+                            {/* Video Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className="font-medium truncate">{video.filename}</h4>
+                                {isCurrentVideo && (
+                                  <Badge variant="default" className="bg-blue-500">
+                                    <PlayCircle className="h-3 w-3 mr-1" />
+                                    Currently Loaded
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {video.metadata && (
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <span>{video.metadata.width}×{video.metadata.height}</span>
+                                <span>{formatDuration(video.metadata.duration)}</span>
+                                <span>{video.metadata.totalFrames} frames</span>
+                                <span>{formatFileSize(video)}</span>
+                                </div>
+                              )}
+
+                              {/* Progress bars for downloading/syncing */}
+                              {(video.status === 'downloading' || video.status === 'syncing') && (
+                                <div className="mt-2">
+                                  <Progress 
+                                    value={video.status === 'downloading' ? video.backendProgress : video.frontendProgress} 
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {getStatusText(video)}
+                                  </p>
+                                </div>
+                              )}
+
+                              {video.status === 'error' && (
+                                <p className="text-sm text-destructive mt-1">
+                                  {video.error || 'Failed to process video'}
+                                </p>
                               )}
                             </div>
 
-                            {video.metadata && (
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span>{video.metadata.width}×{video.metadata.height}</span>
-                              <span>{formatDuration(video.metadata.duration)}</span>
-                              <span>{video.metadata.totalFrames} frames</span>
-                              <span>{formatFileSize(video)}</span>
-                              </div>
-                            )}
-
-                            {/* Progress bars for downloading/syncing */}
-                            {(video.status === 'downloading' || video.status === 'syncing') && (
-                              <div className="mt-2">
-                                <Progress 
-                                  value={video.status === 'downloading' ? video.backendProgress : video.frontendProgress} 
-                                />
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {getStatusText(video)}
-                                </p>
-                              </div>
-                            )}
-
-                            {video.status === 'error' && (
-                              <p className="text-sm text-destructive mt-1">
-                                {video.error || 'Failed to process video'}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex gap-2">
-                            {video.status === 'ready' && !isCurrentVideo && (
+                            {/* Actions */}
+                            <div className="flex gap-2">
+                              {video.status === 'ready' && !isCurrentVideo && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => onLoadVideo(video.id)}
+                                >
+                                  <PlayCircle className="h-4 w-4 mr-2" />
+                                  Load
+                                </Button>
+                              )}
                               <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onLoadVideo(video.id)}
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onRemoveVideo(video.id)}
                               >
-                                <PlayCircle className="h-4 w-4 mr-2" />
-                                Load
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onRemoveVideo(video.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            </div>
                           </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
+                        </Card>
+                      );
+                    })}
 
-                  {projectVideos.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <Video className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                      <p>No videos in this project</p>
-                      <p className="text-sm mb-4">Add videos to start annotating</p>
-                      <Button onClick={onOpenAddResources}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Resources
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-
-              {/* Project Info Footer */}
-              <div className="border-t pt-4 flex items-center justify-between text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    Last modified {formatDistanceToNow(activeProject.lastModified, { addSuffix: true })}
-                  </span>
-                </div>
-                <span className="text-xs font-mono">{activeProject.id}</span>
+                    {projectVideos.length === 0 && (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Video className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                        <p>No videos in this project</p>
+                        <p className="text-sm mb-4">Add videos to start annotating</p>
+                        <Button onClick={onOpenAddResources}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Resources
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
             </div>
           </>
