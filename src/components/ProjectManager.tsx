@@ -382,7 +382,7 @@ export function ProjectManager({
                       <div className="p-6 border-b border-border">
                         <h3 className="text-lg font-semibold mb-2">{activeProject.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {activeProject.videoIds.length} video{activeProject.videoIds.length !== 1 ? 's' : ''} in dataset
+                          {activeProject.videoIds?.length || 0} video{(activeProject.videoIds?.length || 0) !== 1 ? 's' : ''} in dataset
                         </p>
                       </div>
 
@@ -391,7 +391,7 @@ export function ProjectManager({
                           <div>
                             <h4 className="text-sm font-semibold mb-3">Videos in Project</h4>
                             <div className="space-y-2">
-                              {activeProject.videoIds.map((videoId) => {
+                              {(activeProject.videoIds || []).map((videoId) => {
                                 const video = videos.find(v => v.id === videoId);
                                 if (!video) return null;
                                 

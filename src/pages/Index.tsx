@@ -96,7 +96,29 @@ const Index = () => {
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
       const saved = localStorage.getItem('projects');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      
+      const parsed = JSON.parse(saved);
+      
+      // Migrate old project format (videoId) to new format (videoIds array)
+      return parsed.map((project: any) => {
+        // If project has old videoId property, convert to videoIds array
+        if (project.videoId && !project.videoIds) {
+          return {
+            ...project,
+            videoIds: [project.videoId],
+            videoId: undefined, // Remove old property
+          };
+        }
+        // If project has no videoIds, initialize to empty array
+        if (!project.videoIds) {
+          return {
+            ...project,
+            videoIds: [],
+          };
+        }
+        return project;
+      });
     } catch {
       return [];
     }
