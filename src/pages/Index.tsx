@@ -12,13 +12,16 @@ import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
 import { DownloadQueue, type DownloadJob } from "@/components/DownloadQueue";
 import { ProjectManager } from "@/components/ProjectManager";
+import { ProjectManager_v2 } from "@/components/ProjectManager_v2";
+import { AddResourcesDialog } from "@/components/AddResourcesDialog";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video, FolderOpen } from "lucide-react";
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
@@ -88,6 +91,9 @@ const Index = () => {
   }>({ isOpen: false });
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
+  const [showProjectManager_v2, setShowProjectManager_v2] = useState(false);
+  const [showAddResources, setShowAddResources] = useState(false);
+  const [showProjectSwitcher, setShowProjectSwitcher] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
@@ -2546,6 +2552,84 @@ const Index = () => {
     });
   };
 
+  const handleProjectCreate = (name: string) => {
+    const newProject = createEmptyProject(name);
+    setProjects(prev => [...prev, newProject]);
+    setActiveProjectId(newProject.id);
+    toast({
+      title: "Project created",
+      description: name,
+    });
+  };
+
+  // === Additional Project Management Handlers (v2) ===
+  const handleAddVideosToProject = (videoIds: string[]) => {
+    if (!activeProjectId) {
+      toast({
+        title: "No active project",
+        description: "Please select a project first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const newVideoIds = [...(p.videoIds || [])];
+        videoIds.forEach(id => {
+          if (!newVideoIds.includes(id)) {
+            newVideoIds.push(id);
+          }
+        });
+        return { ...p, videoIds: newVideoIds, lastModified: Date.now() };
+      }
+      return p;
+    }));
+
+    toast({
+      title: "Videos added to project",
+      description: `${videoIds.length} video${videoIds.length > 1 ? 's' : ''} added`,
+    });
+
+    setShowAddResources(false);
+  };
+
+  const handleRemoveVideoFromProject = (videoId: string) => {
+    if (!activeProjectId) return;
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        return {
+          ...p,
+          videoIds: (p.videoIds || []).filter(id => id !== videoId),
+          lastModified: Date.now(),
+        };
+      }
+      return p;
+    }));
+
+    toast({
+      title: "Video removed from project",
+    });
+  };
+
+  const handleLoadVideoInProject = async (videoId: string) => {
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video || video.status !== 'ready' || !video.metadata) {
+      toast({
+        title: "Video not ready",
+        description: "Please wait for the video to finish processing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use the existing handleVideoSelect
+    await handleVideoSelect(videoId);
+    setCurrentVideoIdInProject(videoId);
+    setShowProjectManager_v2(false);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -2581,12 +2665,22 @@ const Index = () => {
                 Shortcuts
               </Button>
               <Button 
-                variant="default" 
+                variant="outline" 
                 size="sm" 
                 onClick={() => setVideoManagerOpen(true)}
               >
                 <Video className="h-4 w-4 mr-2" />
-                My Projects
+                My Projects (Old)
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => setShowProjectManager_v2(true)}
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                {activeProjectId 
+                  ? projects.find(p => p.id === activeProjectId)?.name || "Open Project"
+                  : "Open Project"}
               </Button>
             </div>
           </div>
@@ -2810,6 +2904,40 @@ const Index = () => {
           keyframes.length > 0 || 
           scenes.length > 0
         }
+      />
+
+      {/* New Project Management System */}
+      <ProjectManager_v2
+        open={showProjectManager_v2}
+        onOpenChange={setShowProjectManager_v2}
+        activeProject={activeProjectId ? projects.find(p => p.id === activeProjectId) || null : null}
+        videos={managedVideos}
+        currentVideoId={videoId}
+        onOpenAddResources={() => setShowAddResources(true)}
+        onOpenProjectSwitcher={() => setShowProjectSwitcher(true)}
+        onLoadVideo={handleLoadVideoInProject}
+        onRemoveVideo={handleRemoveVideoFromProject}
+      />
+
+      <AddResourcesDialog
+        open={showAddResources}
+        onOpenChange={setShowAddResources}
+        projectVideoIds={activeProjectId ? (projects.find(p => p.id === activeProjectId)?.videoIds || []) : []}
+        availableVideos={managedVideos}
+        onAddToProject={handleAddVideosToProject}
+        onFileSelect={processVideoFile}
+        onYoutubeUrl={handleYoutubeUrl}
+        isUploading={isUploading}
+      />
+
+      <ProjectSwitcher
+        open={showProjectSwitcher}
+        onOpenChange={setShowProjectSwitcher}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onProjectSelect={handleProjectSelect}
+        onProjectCreate={handleProjectCreate}
+        onProjectDelete={handleProjectDelete}
       />
       
       {/* Keyboard Shortcuts Dialog */}
