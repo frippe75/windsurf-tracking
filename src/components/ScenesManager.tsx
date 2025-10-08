@@ -74,6 +74,17 @@ export function ScenesManager({
     return currentFrame >= scene.startFrame && currentFrame <= scene.endFrame;
   };
 
+  // Calculate counts for each filter
+  const filterCounts = {
+    all: scenes.length,
+    approved: scenes.filter(s => s.quality === "good").length,
+    active: scenes.filter(s => s.quality !== "bad").length,
+    pending: scenes.filter(s => s.quality === "unknown").length,
+    rejected: scenes.filter(s => s.quality === "bad").length,
+    withMetadata: scenes.filter(s => s.quality !== "bad" && s.metadata && Object.keys(s.metadata).length > 0).length,
+    withoutMetadata: scenes.filter(s => s.quality !== "bad" && (!s.metadata || Object.keys(s.metadata).length === 0)).length,
+  };
+
   const filteredScenes = scenes.filter((scene) => {
     let result = false;
     switch (filter) {
@@ -137,13 +148,48 @@ export function ScenesManager({
               <SelectValue placeholder="Filter scenes" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Scenes</SelectItem>
-              <SelectItem value="approved">Approved Only</SelectItem>
-              <SelectItem value="active">Active Scenes</SelectItem>
-              <SelectItem value="pending">Pending Review</SelectItem>
-              <SelectItem value="rejected">Rejected Only</SelectItem>
-              <SelectItem value="with-metadata">With Metadata</SelectItem>
-              <SelectItem value="without-metadata">Without Metadata</SelectItem>
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <span>All Scenes</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.all}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="approved">
+                <div className="flex items-center gap-2">
+                  <span>Approved Only</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.approved}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="active">
+                <div className="flex items-center gap-2">
+                  <span>Active Scenes</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.active}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="pending">
+                <div className="flex items-center gap-2">
+                  <span>Pending Review</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.pending}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="rejected">
+                <div className="flex items-center gap-2">
+                  <span>Rejected Only</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.rejected}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="with-metadata">
+                <div className="flex items-center gap-2">
+                  <span>With Metadata</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.withMetadata}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="without-metadata">
+                <div className="flex items-center gap-2">
+                  <span>Without Metadata</span>
+                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.withoutMetadata}</Badge>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
