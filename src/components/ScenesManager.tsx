@@ -244,7 +244,7 @@ export function ScenesManager({
               return (
                 <div
                   key={scene.id}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-all ml-4 relative ${
+                  className={`flex gap-2 py-1.5 px-2 rounded-lg border cursor-pointer transition-all ml-4 relative ${
                     isBad 
                       ? "opacity-50 bg-muted/20 border-destructive/20 hover:opacity-60" 
                       : selectedScene?.id === scene.id
@@ -255,60 +255,65 @@ export function ScenesManager({
                   }`}
                   onClick={() => !isBad && handleSceneClick(scene)}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {showThumbnail && (
-                        <SceneThumbnail
-                          videoId={videoId}
-                          filename={videoFilename}
-                          startFrame={scene.startFrame}
-                          fps={videoFps}
-                          eager={eagerLoad}
-                        />
-                      )}
-                      {isActive && !selectedScene && (
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      )}
-                      <Badge variant="secondary" className="text-xs">
-                        Scene {index + 1}
-                      </Badge>
-                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
-                      )}
-                    </div>
-                    <div className="flex gap-1 items-center">
-                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <Flag className="h-4 w-4 mr-1" fill="hsl(var(--muted-foreground))" color="hsl(var(--muted-foreground))" />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSceneQualityChange(scene.id, "good");
-                        }}
-                      >
-                        <CheckCircle className={`h-4 w-4 ${scene.quality === "good" ? "text-[hsl(var(--sail-green))]" : "text-muted-foreground/40"}`} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSceneQualityChange(scene.id, "bad");
-                        }}
-                      >
-                        <XCircle className={`h-4 w-4 ${scene.quality === "bad" ? "text-destructive" : "text-muted-foreground/40"}`} />
-                      </Button>
-                    </div>
-                  </div>
-                  {!isBad && (
-                    <div className="text-xs text-muted-foreground text-right">
-                      {scene.endFrame - scene.startFrame + 1} frames
-                    </div>
+                  {/* Thumbnail */}
+                  {showThumbnail && (
+                    <SceneThumbnail
+                      videoId={videoId}
+                      filename={videoFilename}
+                      startFrame={scene.startFrame}
+                      fps={videoFps}
+                      eager={eagerLoad}
+                    />
                   )}
+                  
+                  {/* Rest of content */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {isActive && !selectedScene && (
+                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse flex-shrink-0" />
+                        )}
+                        <Badge variant="secondary" className="text-xs flex-shrink-0">
+                          #{index + 1}
+                        </Badge>
+                        {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                          <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))] flex-shrink-0" />
+                        )}
+                        {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                          <Flag className="h-3.5 w-3.5 flex-shrink-0" fill="hsl(var(--muted-foreground))" color="hsl(var(--muted-foreground))" />
+                        )}
+                      </div>
+                      <div className="flex gap-1 items-center flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSceneQualityChange(scene.id, "good");
+                          }}
+                        >
+                          <CheckCircle className={`h-4 w-4 ${scene.quality === "good" ? "text-[hsl(var(--sail-green))]" : "text-muted-foreground/40"}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSceneQualityChange(scene.id, "bad");
+                          }}
+                        >
+                          <XCircle className={`h-4 w-4 ${scene.quality === "bad" ? "text-destructive" : "text-muted-foreground/40"}`} />
+                        </Button>
+                      </div>
+                    </div>
+                    {!isBad && (
+                      <div className="text-xs text-muted-foreground">
+                        {scene.endFrame - scene.startFrame + 1} frames
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })
