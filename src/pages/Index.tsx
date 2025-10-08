@@ -20,7 +20,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
-import labelBeeSailLogo from "@/assets/labelbee-sail-logo.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
@@ -91,7 +90,7 @@ const Index = () => {
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
-  const logos = [labelBeeLogoNoByline, labelBeeSailLogo, labelBeeDarkSailLogo];
+  const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
   
   // Projects state with localStorage fallback
   const [projects, setProjects] = useState<Project[]>(() => {
