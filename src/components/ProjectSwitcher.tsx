@@ -165,7 +165,7 @@ export function ProjectSwitcher({
                                 e.stopPropagation();
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="h-7 font-semibold"
+                              className="h-auto py-0 px-0 font-semibold border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                               autoFocus
                             />
                           ) : (
