@@ -92,17 +92,17 @@ export function ProjectManager_v2({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[85vh]">
+      <DialogContent className="max-w-6xl h-[85vh] p-0">
         {activeProject ? (
           <>
-            <DialogHeader>
+            <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
                     <FolderOpen className="h-5 w-5 text-green-500" />
                   </div>
                   <div>
-                    <DialogTitle>{activeProject.name}</DialogTitle>
+                    <h2 className="text-lg font-semibold">{activeProject.name}</h2>
                     <p className="text-sm text-muted-foreground">
                       Active Project
                     </p>
@@ -113,13 +113,11 @@ export function ProjectManager_v2({
                   Switch Project
                 </Button>
               </div>
-            </DialogHeader>
+            </div>
 
-            <Separator />
-
-            <div className="flex-1 flex gap-6 min-h-0">
+            <div className="flex-1 flex min-h-0">
               {/* Left: Statistics */}
-              <div className="flex-1 flex flex-col border-r border-border">
+              <div className="flex-1 flex flex-col border-r border-border bg-card">
                 <div className="p-4 border-b border-border">
                   <h3 className="text-sm font-semibold">Statistics</h3>
                 </div>
@@ -167,7 +165,7 @@ export function ProjectManager_v2({
               </div>
 
               {/* Right: Videos */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 bg-card">
                 <div className="p-4 border-b border-border flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Videos</h3>
                   <Button onClick={onOpenAddResources} size="sm">
@@ -309,10 +307,10 @@ export function ProjectManager_v2({
           </>
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle>No Active Project</DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-lg font-semibold">No Active Project</h2>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground bg-card">
               <FolderOpen className="h-16 w-16 mb-4 opacity-20" />
               <p className="mb-2">No project is currently active</p>
               <p className="text-sm mb-6">Create or open a project to get started</p>
