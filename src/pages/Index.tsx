@@ -2465,8 +2465,8 @@ const Index = () => {
                 className="h-16 w-auto mx-4 my-1"
               />
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
-                  Video Annotation Tool
+                <h1 className="text-2xl font-bold">
+                  AI Annotation
                 </h1>
                 <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
               </div>
