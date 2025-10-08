@@ -58,6 +58,7 @@ export function ProjectSwitcher({
 
   const startEditing = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log('Starting edit with project name:', project.name);
     setEditingProjectId(project.id);
     setEditValue(project.name);
   };
@@ -170,7 +171,7 @@ export function ProjectSwitcher({
                             />
                           ) : (
                             <h3 
-                              className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
+                              className="font-semibold truncate cursor-pointer hover:underline transition-all"
                               onClick={(e) => startEditing(project, e)}
                               title="Click to rename"
                             >

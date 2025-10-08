@@ -55,6 +55,7 @@ export function ProjectManager_v2({
   const [editNameValue, setEditNameValue] = useState("");
   const startEditingName = () => {
     if (activeProject) {
+      console.log('Starting edit with project name:', activeProject.name);
       setEditNameValue(activeProject.name);
       setIsEditingName(true);
     }
@@ -139,12 +140,12 @@ export function ProjectManager_v2({
                           if (e.key === "Enter") saveNameEdit();
                           if (e.key === "Escape") cancelEditingName();
                         }}
-                        className="h-auto py-0 px-0 text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="h-auto py-0 px-0 !text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                         autoFocus
                       />
                     ) : (
                       <h2 
-                        className="text-lg font-semibold cursor-pointer hover:text-primary transition-colors"
+                        className="text-lg font-semibold cursor-pointer hover:underline transition-all"
                         onClick={startEditingName}
                         title="Click to rename"
                       >
