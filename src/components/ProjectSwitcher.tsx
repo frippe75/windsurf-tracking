@@ -25,6 +25,7 @@ interface ProjectSwitcherProps {
   onProjectSelect: (projectId: string) => void;
   onProjectCreate: (name: string) => void;
   onProjectDelete: (projectId: string) => void;
+  onProjectRename: (projectId: string, newName: string) => void;
 }
 
 export function ProjectSwitcher({
@@ -35,9 +36,12 @@ export function ProjectSwitcher({
   onProjectSelect,
   onProjectCreate,
   onProjectDelete,
+  onProjectRename,
 }: ProjectSwitcherProps) {
   const [newProjectName, setNewProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   const handleCreate = () => {
     if (newProjectName.trim()) {
@@ -50,6 +54,28 @@ export function ProjectSwitcher({
   const handleSelectProject = (projectId: string) => {
     onProjectSelect(projectId);
     onOpenChange(false);
+  };
+
+  const startEditing = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProjectId(project.id);
+    setEditValue(project.name);
+  };
+
+  const cancelEditing = () => {
+    setEditingProjectId(null);
+    setEditValue("");
+  };
+
+  const saveEdit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && editingProjectId) {
+      const project = projects.find(p => p.id === editingProjectId);
+      if (project && trimmed !== project.name) {
+        onProjectRename(editingProjectId, trimmed);
+      }
+    }
+    cancelEditing();
   };
 
   const sortedProjects = [...projects].sort((a, b) => {
@@ -128,7 +154,29 @@ export function ProjectSwitcher({
                       {/* Project Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold truncate">{project.name}</h3>
+                          {editingProjectId === project.id ? (
+                            <Input
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={saveEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveEdit();
+                                if (e.key === "Escape") cancelEditing();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-7 font-semibold"
+                              autoFocus
+                            />
+                          ) : (
+                            <h3 
+                              className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
+                              onClick={(e) => startEditing(project, e)}
+                              title="Click to rename"
+                            >
+                              {project.name}
+                            </h3>
+                          )}
                           {isActive && (
                             <Badge variant="default" className="bg-green-500">
                               <CheckCircle2 className="h-3 w-3 mr-1" />

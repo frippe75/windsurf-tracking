@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,7 @@ interface ProjectManager_v2Props {
   onOpenProjectSwitcher: () => void;
   onLoadVideo: (videoId: string) => void;
   onRemoveVideo: (videoId: string) => void;
+  onRenameProject: (projectId: string, newName: string) => void;
 }
 
 export function ProjectManager_v2({
@@ -46,7 +49,31 @@ export function ProjectManager_v2({
   onOpenProjectSwitcher,
   onLoadVideo,
   onRemoveVideo,
+  onRenameProject,
 }: ProjectManager_v2Props) {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
+  const startEditingName = () => {
+    if (activeProject) {
+      setEditNameValue(activeProject.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const cancelEditingName = () => {
+    setIsEditingName(false);
+    setEditNameValue("");
+  };
+
+  const saveNameEdit = () => {
+    const trimmed = editNameValue.trim();
+    if (trimmed && activeProject && trimmed !== activeProject.name) {
+      onRenameProject(activeProject.id, trimmed);
+    }
+    setIsEditingName(false);
+    setEditNameValue("");
+  };
+
   const getStatusIcon = (video: ManagedVideo) => {
     switch (video.status) {
       case "ready": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
@@ -102,8 +129,28 @@ export function ProjectManager_v2({
                   <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
                     <FolderOpen className="h-5 w-5 text-green-500" />
                   </div>
-                  <div>
-                    <h2 className="text-lg font-semibold">{activeProject.name}</h2>
+                  <div className="flex-1 min-w-0">
+                    {isEditingName ? (
+                      <Input
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        onBlur={saveNameEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveNameEdit();
+                          if (e.key === "Escape") cancelEditingName();
+                        }}
+                        className="h-7 text-lg font-semibold"
+                        autoFocus
+                      />
+                    ) : (
+                      <h2 
+                        className="text-lg font-semibold cursor-pointer hover:text-primary transition-colors"
+                        onClick={startEditingName}
+                        title="Click to rename"
+                      >
+                        {activeProject.name}
+                      </h2>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Active Project
                     </p>

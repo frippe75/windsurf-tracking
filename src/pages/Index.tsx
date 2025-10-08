@@ -2918,6 +2918,7 @@ const Index = () => {
         onOpenProjectSwitcher={() => setShowProjectSwitcher(true)}
         onLoadVideo={handleLoadVideoInProject}
         onRemoveVideo={handleRemoveVideoFromProject}
+        onRenameProject={handleProjectRename}
       />
 
       <AddResourcesDialog
@@ -2939,6 +2940,7 @@ const Index = () => {
         onProjectSelect={handleProjectSelect}
         onProjectCreate={handleProjectCreate}
         onProjectDelete={handleProjectDelete}
+        onProjectRename={handleProjectRename}
       />
       
       {/* Keyboard Shortcuts Dialog */}
