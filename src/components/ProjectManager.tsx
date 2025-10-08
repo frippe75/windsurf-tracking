@@ -15,13 +15,18 @@ import { config } from "@/lib/config";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
 
+import { Project } from "@/types/project";
+
 interface ProjectManagerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   videos: ManagedVideo[];
+  activeProject: Project | null;
   activeVideoId: string | null;
   onVideoSelect: (videoId: string) => void;
   onVideoDelete: (videoId: string) => void;
+  onVideoAddToProject: (videoId: string) => void;
+  onVideoRemoveFromProject: (videoId: string) => void;
   onFileSelect: (file: File) => void;
   onYoutubeUrl: (url: string) => void;
   isUploading: boolean;
@@ -32,9 +37,12 @@ export function ProjectManager({
   open,
   onOpenChange,
   videos,
+  activeProject,
   activeVideoId,
   onVideoSelect,
   onVideoDelete,
+  onVideoAddToProject,
+  onVideoRemoveFromProject,
   onFileSelect,
   onYoutubeUrl,
   isUploading,
@@ -52,12 +60,12 @@ export function ProjectManager({
 
   // Auto-redirect to Videos tab if no active project
   useEffect(() => {
-    if (open && !activeVideoId) {
+    if (open && !activeProject) {
       setCurrentTab("videos");
-    } else if (open && activeVideoId) {
+    } else if (open && activeProject) {
       setCurrentTab("project");
     }
-  }, [open, activeVideoId]);
+  }, [open, activeProject]);
 
   // Filter videos based on source
   const filteredVideos = videos.filter(video => {
@@ -353,7 +361,7 @@ export function ProjectManager({
             <div className="flex-1 flex flex-col h-full overflow-hidden">
               <Tabs value={currentTab} onValueChange={(v: any) => setCurrentTab(v)} className="flex-1 flex flex-col">
                 <TabsList className="grid w-full grid-cols-3 rounded-none border-b shrink-0">
-                  <TabsTrigger value="project" disabled={!activeVideoId}>
+                  <TabsTrigger value="project" disabled={!activeProject}>
                     <FolderOpen className="h-4 w-4 mr-2" />
                     Project
                   </TabsTrigger>
@@ -363,45 +371,118 @@ export function ProjectManager({
                   </TabsTrigger>
                   <TabsTrigger value="videos">
                     <VideoIcon className="h-4 w-4 mr-2" />
-                    Videos
+                    Add Videos
                   </TabsTrigger>
                 </TabsList>
 
                 {/* Project Tab */}
                 <TabsContent value="project" className="flex-1 m-0 overflow-hidden">
-                  {activeVideoId && (
+                  {activeProject && (
                     <>
                       <div className="p-6 border-b border-border">
-                        <h3 className="text-lg font-semibold mb-2">Current Project</h3>
+                        <h3 className="text-lg font-semibold mb-2">{activeProject.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          Active project overview and actions
+                          {activeProject.videoIds.length} video{activeProject.videoIds.length !== 1 ? 's' : ''} in dataset
                         </p>
                       </div>
 
                       <ScrollArea className="flex-1" type="auto">
                         <div className="p-6 space-y-6">
-                          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                            <CheckCircle2 className="h-6 w-6 mb-2 text-primary" />
-                            <p className="text-sm font-medium mb-1">Project Active</p>
-                            <p className="text-xs text-muted-foreground">
-                              Currently editing: {videos.find(v => v.id === activeVideoId)?.filename}
-                            </p>
-                          </div>
-
-                          <Separator />
-
                           <div>
-                            <h4 className="text-sm font-semibold mb-3">Switch Video</h4>
+                            <h4 className="text-sm font-semibold mb-3">Videos in Project</h4>
+                            <div className="space-y-2">
+                              {activeProject.videoIds.map((videoId) => {
+                                const video = videos.find(v => v.id === videoId);
+                                if (!video) return null;
+                                
+                                const isActive = video.id === activeVideoId;
+                                
+                                return (
+                                  <div
+                                    key={video.id}
+                                    className={`
+                                      border rounded-lg p-3 transition-all
+                                      ${isActive 
+                                        ? 'bg-primary/10 border-primary' 
+                                        : 'bg-card border-border hover:border-primary/50'
+                                      }
+                                    `}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {/* Thumbnail */}
+                                      <div className="w-16 h-12 rounded overflow-hidden bg-muted shrink-0">
+                                        <img 
+                                          src={getThumbnailUrl(video)}
+                                          alt={video.filename}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                      
+                                      {/* Info */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className={`text-sm font-medium truncate ${isActive ? 'text-primary' : ''}`}>
+                                            {video.filename}
+                                          </p>
+                                          {isActive && (
+                                            <Badge variant="default" className="text-xs shrink-0">Active</Badge>
+                                          )}
+                                        </div>
+                                        {video.metadata && (
+                                          <p className="text-xs text-muted-foreground">
+                                            {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
+                                          </p>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Actions */}
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {!isActive && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => onVideoSelect(video.id)}
+                                          >
+                                            <Play className="h-3 w-3 mr-1" />
+                                            Load
+                                          </Button>
+                                        )}
+                                        {activeProject.videoIds.length > 1 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={() => onVideoRemoveFromProject(video.id)}
+                                            title="Remove from project"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          
+                          <Separator />
+                          
+                          <div>
+                            <h4 className="text-sm font-semibold mb-3">Add More Videos</h4>
                             <p className="text-xs text-muted-foreground mb-3">
-                              Select a different video from the list to switch projects
+                              Add additional videos to this dataset
                             </p>
                             <Button 
                               variant="outline" 
                               className="w-full"
                               onClick={() => setCurrentTab("videos")}
                             >
-                              <VideoIcon className="h-4 w-4 mr-2" />
-                              Browse Videos
+                              <Plus className="h-4 w-4 mr-2" />
+                              Browse Video Library
                             </Button>
                           </div>
                         </div>
@@ -490,14 +571,33 @@ export function ProjectManager({
 
                             <div className="space-y-3">
                               {selectedVideo.id !== activeVideoId ? (
-                                <Button 
-                                  onClick={handleSwitchVideo}
-                                  className="w-full"
-                                  size="lg"
-                                >
-                                  <Play className="h-4 w-4 mr-2" />
-                                  Switch to This Video
-                                </Button>
+                                <>
+                                  <Button 
+                                    onClick={handleSwitchVideo}
+                                    className="w-full"
+                                    size="lg"
+                                  >
+                                    <Play className="h-4 w-4 mr-2" />
+                                    Switch to This Video
+                                  </Button>
+                                  {activeProject && !activeProject.videoIds.includes(selectedVideo.id) && (
+                                    <Button 
+                                      onClick={() => {
+                                        onVideoAddToProject(selectedVideo.id);
+                                        toast({
+                                          title: "Video added to project",
+                                          description: `${selectedVideo.filename} added to ${activeProject.name}`,
+                                        });
+                                      }}
+                                      variant="outline"
+                                      className="w-full"
+                                      size="lg"
+                                    >
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Add to Current Project
+                                    </Button>
+                                  )}
+                                </>
                               ) : (
                                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center">
                                   <CheckCircle2 className="h-6 w-6 mx-auto mb-2 text-primary" />
@@ -555,7 +655,7 @@ export function ProjectManager({
                 )}
               </TabsContent>
 
-                {/* Videos Tab */}
+                {/* Add Videos Tab */}
                 <TabsContent value="videos" className="flex-1 m-0 overflow-hidden">
                   <ScrollArea className="h-full" type="auto">
                     <div className="p-6 space-y-6">

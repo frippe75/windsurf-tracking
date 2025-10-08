@@ -3,8 +3,7 @@ import { Class, Instance, Annotation, Keyframe, Scene } from "./annotation";
 export interface Project {
   id: string;                    // UUID
   name: string;                  // User-editable project name
-  videoId: string;               // Links to backend video
-  videoFilename: string;         // Display name
+  videoIds: string[];            // Array of video IDs in this dataset
   createdAt: number;             // Timestamp
   lastModified: number;          // Timestamp
   
@@ -35,12 +34,11 @@ export function getProjectMetrics(project: Project): ProjectMetrics {
   };
 }
 
-export function createEmptyProject(videoId: string, videoFilename: string): Project {
+export function createEmptyProject(name: string, videoIds: string[] = []): Project {
   return {
     id: crypto.randomUUID(),
-    name: videoFilename.replace(/\.[^/.]+$/, ""), // Remove extension
-    videoId,
-    videoFilename,
+    name,
+    videoIds,
     createdAt: Date.now(),
     lastModified: Date.now(),
     classes: [],
