@@ -286,7 +286,7 @@ export function ScenesManager({
                     </div>
                   </div>
                   {!isBad && (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground text-right">
                       {scene.endFrame - scene.startFrame + 1} frames
                     </div>
                   )}
