@@ -149,46 +149,32 @@ export function ScenesManager({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                <div className="flex items-center gap-2">
-                  <span>All Scenes</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.all}</Badge>
-                </div>
+                <span>All Scenes</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.all}</Badge>
               </SelectItem>
               <SelectItem value="approved">
-                <div className="flex items-center gap-2">
-                  <span>Approved Only</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.approved}</Badge>
-                </div>
+                <span>Approved Only</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.approved}</Badge>
               </SelectItem>
               <SelectItem value="active">
-                <div className="flex items-center gap-2">
-                  <span>Active Scenes</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.active}</Badge>
-                </div>
+                <span>Active Scenes</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.active}</Badge>
               </SelectItem>
               <SelectItem value="pending">
-                <div className="flex items-center gap-2">
-                  <span>Pending Review</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.pending}</Badge>
-                </div>
+                <span>Pending Review</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.pending}</Badge>
               </SelectItem>
               <SelectItem value="rejected">
-                <div className="flex items-center gap-2">
-                  <span>Rejected Only</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.rejected}</Badge>
-                </div>
+                <span>Rejected Only</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.rejected}</Badge>
               </SelectItem>
               <SelectItem value="with-metadata">
-                <div className="flex items-center gap-2">
-                  <span>With Metadata</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.withMetadata}</Badge>
-                </div>
+                <span>With Metadata</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.withMetadata}</Badge>
               </SelectItem>
               <SelectItem value="without-metadata">
-                <div className="flex items-center gap-2">
-                  <span>Without Metadata</span>
-                  <Badge variant="secondary" className="text-xs text-muted-foreground bg-muted">{filterCounts.withoutMetadata}</Badge>
-                </div>
+                <span>Without Metadata</span>
+                <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground bg-muted">{filterCounts.withoutMetadata}</Badge>
               </SelectItem>
             </SelectContent>
           </Select>
