@@ -2462,7 +2462,7 @@ const Index = () => {
               <img 
                 src={labelBeeLogo} 
                 alt="LabelBee Logo" 
-                className="h-20 w-auto"
+                className="h-20 w-auto mx-3 my-1"
               />
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
