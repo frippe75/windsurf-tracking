@@ -2458,11 +2458,11 @@ const Index = () => {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <img 
                 src={labelBeeLogo} 
                 alt="LabelBee Logo" 
-                className="h-16 w-auto mx-4 my-1"
+                className="h-16 w-auto ml-2 mr-4 my-1"
               />
               <div>
                 <h1 className="text-xl font-bold">
