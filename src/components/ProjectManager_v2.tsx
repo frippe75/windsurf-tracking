@@ -93,6 +93,7 @@ export function ProjectManager_v2({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[85vh] p-0">
+        <DialogTitle className="sr-only">Project Manager</DialogTitle>
         {activeProject ? (
           <>
             <div className="p-6 border-b border-border">
@@ -118,10 +119,10 @@ export function ProjectManager_v2({
             <div className="flex-1 flex min-h-0 p-4 gap-4">
               {/* Left: Statistics */}
               <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
-                <div className="p-3 border-b border-border">
+                <div className="p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">Statistics</h3>
-                </div
-                ><ScrollArea className="flex-1">
+                </div>
+                <ScrollArea className="flex-1">
                   <div className="p-4 space-y-3">
                   <Card className="p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -166,12 +167,8 @@ export function ProjectManager_v2({
 
               {/* Right: Videos */}
               <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
-                <div className="p-3 border-b border-border flex items-center justify-between">
+                <div className="p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">Videos</h3>
-                  <Button onClick={onOpenAddResources} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add
-                  </Button>
                 </div>
 
                 <ScrollArea className="flex-1">
@@ -293,15 +290,19 @@ export function ProjectManager_v2({
                       <div className="text-center py-12 text-muted-foreground">
                         <Video className="h-12 w-12 mx-auto mb-4 opacity-20" />
                         <p>No videos in this project</p>
-                        <p className="text-sm mb-4">Add videos to start annotating</p>
-                        <Button onClick={onOpenAddResources}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Resources
-                        </Button>
+                        <p className="text-sm">Add videos to start annotating</p>
                       </div>
                     )}
                   </div>
                 </ScrollArea>
+                
+                {/* Add button at bottom */}
+                <div className="p-3 border-t border-border">
+                  <Button onClick={onOpenAddResources} className="w-full" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Resources
+                  </Button>
+                </div>
               </div>
             </div>
           </>
