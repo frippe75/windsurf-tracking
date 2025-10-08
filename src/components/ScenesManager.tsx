@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags, Filter, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SceneThumbnail } from "./SceneThumbnail";
 
 interface Scene {
   id: string;
@@ -26,6 +27,9 @@ interface ScenesManagerProps {
   onGenerateMetadata: () => void;
   isDetecting?: boolean;
   isGenerating?: boolean;
+  videoId?: string;
+  videoFilename?: string;
+  videoFps?: number;
 }
 
 export function ScenesManager({
@@ -39,6 +43,9 @@ export function ScenesManager({
   onGenerateMetadata,
   isDetecting = false,
   isGenerating = false,
+  videoId,
+  videoFilename,
+  videoFps = 30,
 }: ScenesManagerProps) {
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("all");
@@ -231,6 +238,9 @@ export function ScenesManager({
             filteredScenes.map((scene, index) => {
               const isBad = scene.quality === "bad";
               const isActive = isSceneActive(scene);
+              const showThumbnail = videoId && videoFilename;
+              const eagerLoad = index < 10; // Preload first 10
+              
               return (
                 <div
                   key={scene.id}
@@ -247,6 +257,15 @@ export function ScenesManager({
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
+                      {showThumbnail && (
+                        <SceneThumbnail
+                          videoId={videoId}
+                          filename={videoFilename}
+                          startFrame={scene.startFrame}
+                          fps={videoFps}
+                          eager={eagerLoad}
+                        />
+                      )}
                       {isActive && !selectedScene && (
                         <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                       )}

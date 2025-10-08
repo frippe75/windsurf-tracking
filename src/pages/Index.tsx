@@ -2629,6 +2629,17 @@ const Index = () => {
                     onGenerateMetadata={handleGenerateMetadata}
                     isDetecting={isDetectingScenes}
                     isGenerating={isGeneratingMetadata}
+                    videoId={videoId}
+                    videoFilename={
+                      activeProjectId
+                        ? projects.find(p => p.id === activeProjectId)?.videoFilename
+                        : undefined
+                    }
+                    videoFps={
+                      videoId
+                        ? managedVideos.find(v => v.id === videoId)?.metadata?.fps
+                        : undefined
+                    }
                   />
                 </TabsContent>
                 <TabsContent value="tracking" className="mt-4 space-y-4">
