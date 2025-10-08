@@ -253,7 +253,7 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-[240px] h-auto min-h-[40px] py-2 justify-between">
+          <Button variant="outline" className="w-[252px] h-auto min-h-[40px] py-2 justify-between">
             {selectedBackend ? (
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
