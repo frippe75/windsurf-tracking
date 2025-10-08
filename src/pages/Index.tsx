@@ -2842,6 +2842,7 @@ const Index = () => {
                     jobs={trackingJobs}
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
+                    onFrameChange={setCurrentFrame}
                   />
                 </TabsContent>
               </Tabs>
