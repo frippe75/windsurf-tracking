@@ -2678,9 +2678,7 @@ const Index = () => {
                 onClick={() => setShowProjectManager_v2(true)}
               >
                 <FolderOpen className="h-4 w-4 mr-2" />
-                {activeProjectId 
-                  ? projects.find(p => p.id === activeProjectId)?.name || "Open Project"
-                  : "Open Project"}
+                Projects
               </Button>
             </div>
           </div>
