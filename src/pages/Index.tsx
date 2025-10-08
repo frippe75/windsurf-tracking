@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
+import labelBeeLogo from "@/assets/labelbee-logo.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
@@ -2457,11 +2458,18 @@ const Index = () => {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
-                Video Annotation Tool
-              </h1>
-              <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+            <div className="flex items-center gap-3">
+              <img 
+                src={labelBeeLogo} 
+                alt="LabelBee Logo" 
+                className="h-12 w-auto"
+              />
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
+                  Video Annotation Tool
+                </h1>
+                <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <BackendSelector 
