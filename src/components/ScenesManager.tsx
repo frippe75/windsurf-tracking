@@ -253,7 +253,17 @@ export function ScenesManager({
                       ? "bg-primary/5 border-l-4 border-l-primary border-r border-t border-b border-border"
                       : "bg-muted/30 border-border hover:bg-muted/50"
                   }`}
-                  onClick={() => !isBad && handleSceneClick(scene)}
+                  onClick={() => {
+                    if (isBad) {
+                      toast({
+                        title: "Scene rejected",
+                        description: "This scene is marked as bad and cannot be selected",
+                        variant: "destructive",
+                      });
+                    } else {
+                      handleSceneClick(scene);
+                    }
+                  }}
                 >
                   {/* Thumbnail */}
                   {showThumbnail && (
