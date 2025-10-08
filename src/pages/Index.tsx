@@ -7,7 +7,7 @@ import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
-import { VideoCacheManager } from "@/components/VideoCacheManager";
+
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
 import { DownloadQueue, type DownloadJob } from "@/components/DownloadQueue";
@@ -2605,10 +2605,9 @@ const Index = () => {
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
               <Tabs defaultValue="scenes" className="h-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
-                  <TabsTrigger value="cache">Cache</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -2636,9 +2635,6 @@ const Index = () => {
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
                   />
-                </TabsContent>
-                <TabsContent value="cache" className="mt-4">
-                  <VideoCacheManager currentVideoId={videoId} />
                 </TabsContent>
               </Tabs>
             </div>

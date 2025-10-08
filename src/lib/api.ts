@@ -407,7 +407,7 @@ export const downloadVideoFile = async (
     }
   }
   
-  const blob = new Blob(chunks, { type: 'video/mp4' });
+  const blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' });
   console.log('💾 Video blob downloaded:', `${(blob.size / 1024 / 1024).toFixed(2)} MB`);
   return blob;
 };
