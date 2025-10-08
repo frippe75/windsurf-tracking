@@ -115,7 +115,7 @@ export function ProjectManager_v2({
 
             <div className="flex-1 flex gap-6 min-h-0">
               {/* Left: Project Stats */}
-              <div className="flex flex-col gap-4 w-64 flex-shrink-0">
+              <div className="flex flex-col gap-4 flex-1">
                 <div className="space-y-3">
                   <Card className="p-4">
                     <div className="flex items-center gap-2 mb-2">
