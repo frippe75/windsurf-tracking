@@ -115,13 +115,13 @@ export function ProjectManager_v2({
               </div>
             </div>
 
-            <div className="flex-1 flex min-h-0">
+            <div className="flex-1 flex min-h-0 p-4 gap-4">
               {/* Left: Statistics */}
-              <div className="flex-1 flex flex-col border-r border-border bg-card">
-                <div className="p-4 border-b border-border">
-                  <h3 className="text-sm font-semibold">Statistics</h3>
-                </div>
-                <ScrollArea className="flex-1">
+              <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
+                <div className="p-3 border-b border-border">
+                  <h3 className="text-xs font-semibold text-muted-foreground">Statistics</h3>
+                </div
+                ><ScrollArea className="flex-1">
                   <div className="p-4 space-y-3">
                   <Card className="p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -165,9 +165,9 @@ export function ProjectManager_v2({
               </div>
 
               {/* Right: Videos */}
-              <div className="flex-1 flex flex-col min-w-0 bg-card">
-                <div className="p-4 border-b border-border flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Videos</h3>
+              <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
+                <div className="p-3 border-b border-border flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-muted-foreground">Videos</h3>
                   <Button onClick={onOpenAddResources} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
                     Add
