@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { Project } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
 import { 
@@ -21,6 +22,7 @@ import {
   Calendar
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { config } from "@/lib/config";
 
 interface ProjectManager_v2Props {
   open: boolean;
@@ -113,10 +115,16 @@ export function ProjectManager_v2({
               </div>
             </DialogHeader>
 
+            <Separator />
+
             <div className="flex-1 flex gap-6 min-h-0">
-              {/* Left: Project Stats */}
-              <div className="flex flex-col gap-4 flex-1">
-                <div className="space-y-3">
+              {/* Left: Statistics */}
+              <div className="flex-1 flex flex-col border-r border-border">
+                <div className="p-4 border-b border-border">
+                  <h3 className="text-sm font-semibold">Statistics</h3>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-3">
                   <Card className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Video className="h-4 w-4 text-muted-foreground" />
@@ -145,111 +153,141 @@ export function ProjectManager_v2({
                     </div>
                     <p className="text-3xl font-bold">{annotationCount}</p>
                   </Card>
-                </div>
-
-                <div className="mt-auto pt-4 border-t">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                    <Calendar className="h-3 w-3" />
-                    <span>
-                      Last modified {formatDistanceToNow(activeProject.lastModified, { addSuffix: true })}
-                    </span>
+                  <div className="pt-4 border-t border-border">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                      <Calendar className="h-3 w-3" />
+                      <span>
+                        Last modified {formatDistanceToNow(activeProject.lastModified, { addSuffix: true })}
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">{activeProject.id}</span>
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground">{activeProject.id}</span>
-                </div>
+                  </div>
+                </ScrollArea>
               </div>
 
-              {/* Right: Videos in Project */}
-              <div className="flex-1 flex flex-col gap-4 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Videos in Project</h3>
-                  <Button onClick={onOpenAddResources}>
+              {/* Right: Videos */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="p-4 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Videos</h3>
+                  <Button onClick={onOpenAddResources} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Resources
+                    Add
                   </Button>
                 </div>
 
                 <ScrollArea className="flex-1">
-                  <div className="space-y-2 pr-4">
+                  <div className="p-4 space-y-2">
                     {projectVideos.map((video) => {
                       const isCurrentVideo = video.id === currentVideoId;
+                      const progress = video.status === 'downloading' 
+                        ? video.backendProgress 
+                        : video.status === 'syncing' 
+                        ? video.frontendProgress 
+                        : null;
 
                       return (
-                        <Card
+                        <div
                           key={video.id}
-                          className={`p-4 transition-all ${
-                            isCurrentVideo 
-                              ? 'border-blue-500 bg-blue-500/5' 
-                              : 'hover:bg-muted/50'
-                          }`}
+                          className={`
+                            rounded-lg p-3 transition-all border
+                            ${isCurrentVideo 
+                              ? 'bg-primary/10 border-primary' 
+                              : 'bg-card border-border hover:border-primary/50'
+                            }
+                          `}
                         >
-                          <div className="flex items-start gap-4">
-                            {/* Status Icon */}
-                            <div className="mt-1">
-                              {getStatusIcon(video)}
-                            </div>
-
-                            {/* Video Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h4 className="font-medium truncate">{video.filename}</h4>
-                                {isCurrentVideo && (
-                                  <Badge variant="default" className="bg-blue-500">
-                                    <PlayCircle className="h-3 w-3 mr-1" />
-                                    Currently Loaded
-                                  </Badge>
-                                )}
+                          <div className="flex items-start gap-3">
+                            {/* Thumbnail */}
+                            {video.status === 'ready' && video.metadata ? (
+                              <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
+                                <img 
+                                  src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
+                                  alt={video.filename}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
                               </div>
-
-                              {video.metadata && (
-                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <span>{video.metadata.width}×{video.metadata.height}</span>
-                                <span>{formatDuration(video.metadata.duration)}</span>
-                                <span>{video.metadata.totalFrames} frames</span>
-                                <span>{formatFileSize(video)}</span>
+                            ) : (
+                              <div className="w-20 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
+                                <FileVideo className="h-6 w-6 text-muted-foreground/50" />
+                              </div>
+                            )}
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start gap-2 mb-1">
+                                <div className="mt-0.5 shrink-0">
+                                  {getStatusIcon(video)}
                                 </div>
-                              )}
-
-                              {/* Progress bars for downloading/syncing */}
-                              {(video.status === 'downloading' || video.status === 'syncing') && (
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-medium truncate">
+                                      {video.filename}
+                                    </p>
+                                    {isCurrentVideo && (
+                                      <Badge variant="default" className="text-xs">
+                                        <PlayCircle className="h-3 w-3 mr-1" />
+                                        Active
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {video.metadata ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                      {getStatusText(video)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Progress bar */}
+                              {progress !== null && progress !== undefined && (
                                 <div className="mt-2">
-                                  <Progress 
-                                    value={video.status === 'downloading' ? video.backendProgress : video.frontendProgress} 
-                                  />
+                                  <Progress value={progress} className="h-1" />
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    {getStatusText(video)}
+                                    {Math.round(progress)}%
                                   </p>
                                 </div>
                               )}
 
                               {video.status === 'error' && (
-                                <p className="text-sm text-destructive mt-1">
-                                  {video.error || 'Failed to process video'}
+                                <p className="text-xs text-destructive mt-1">
+                                  {video.error || 'Failed to process'}
                                 </p>
                               )}
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 shrink-0">
                               {video.status === 'ready' && !isCurrentVideo && (
                                 <Button
-                                  variant="outline"
-                                  size="sm"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
                                   onClick={() => onLoadVideo(video.id)}
+                                  title="Load video"
                                 >
-                                  <PlayCircle className="h-4 w-4 mr-2" />
-                                  Load
+                                  <PlayCircle className="h-4 w-4" />
                                 </Button>
                               )}
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-8 w-8"
                                 onClick={() => onRemoveVideo(video.id)}
+                                title="Remove video"
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </div>
                           </div>
-                        </Card>
+                        </div>
                       );
                     })}
 
