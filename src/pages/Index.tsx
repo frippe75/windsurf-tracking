@@ -19,7 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Keyboard, Save, Download, Video } from "lucide-react";
-import labelBeeLogo from "@/assets/labelbee-logo-no-byline.png";
+import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
+import labelBeeSailLogo from "@/assets/labelbee-sail-logo.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
@@ -88,6 +89,8 @@ const Index = () => {
   const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
   const [videoManagerOpen, setVideoManagerOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
+  const logos = [labelBeeLogoNoByline, labelBeeSailLogo];
   
   // Projects state with localStorage fallback
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -2460,9 +2463,10 @@ const Index = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <img 
-                src={labelBeeLogo} 
+                src={logos[currentLogoIndex]} 
                 alt="LabelBee Logo" 
-                className="h-16 w-auto ml-2 mr-4 my-1"
+                className="h-16 w-auto ml-2 mr-4 my-1 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
               />
               <div>
                 <h1 className="text-xl font-bold">
