@@ -2465,10 +2465,10 @@ const Index = () => {
                 className="h-16 w-auto mx-4 my-1"
               />
               <div>
-                <h1 className="text-2xl font-bold">
+                <h1 className="text-xl font-bold">
                   AI Annotation
                 </h1>
-                <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+                <p className="text-xs text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
