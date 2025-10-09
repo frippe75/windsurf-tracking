@@ -257,8 +257,8 @@ export function AddResourcesDialog({
           </TabsContent>
 
           {/* YouTube Tab */}
-          <TabsContent value="youtube" className="flex-1 min-h-0 flex flex-col">
-            <div className="">
+          <TabsContent value="youtube" asChild>
+            <div className="flex-1 min-h-0 flex flex-col">
               <div className="w-full max-w-md space-y-4">
                 <div className="text-center mb-8">
                   <Youtube className="h-12 w-12 mx-auto mb-4 text-red-500" />
