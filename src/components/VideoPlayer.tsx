@@ -90,7 +90,7 @@ export function VideoPlayer({
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [uploadPreviewFrames, setUploadPreviewFrames] = useState<string[]>([]);
-  const [showResetButton, setShowResetButton] = useState(true);
+  const [showResetButton, setShowResetButton] = useState(false);
   const resetButtonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Extract preview frames during upload
@@ -180,27 +180,21 @@ export function VideoPlayer({
     return () => ro.disconnect();
   }, []);
 
-  // Auto-hide reset button after 5 seconds when at 100% zoom
+  // Auto-hide reset button after 3 seconds when at 100% zoom
   useEffect(() => {
+    // Clear any existing timeout
+    if (resetButtonTimeoutRef.current) {
+      clearTimeout(resetButtonTimeoutRef.current);
+    }
+    
     if (zoom === 1 && pan.x === 0 && pan.y === 0) {
-      // Clear any existing timeout
-      if (resetButtonTimeoutRef.current) {
-        clearTimeout(resetButtonTimeoutRef.current);
-      }
-      
-      // Set button to visible first
-      setShowResetButton(true);
-      
-      // Fade out after 5 seconds
+      // At 100% zoom - fade out after 3 seconds
       resetButtonTimeoutRef.current = setTimeout(() => {
         setShowResetButton(false);
-      }, 5000);
+      }, 3000);
     } else {
-      // Show button when zoomed/panned
+      // Zoomed or panned - show button immediately
       setShowResetButton(true);
-      if (resetButtonTimeoutRef.current) {
-        clearTimeout(resetButtonTimeoutRef.current);
-      }
     }
 
     return () => {
