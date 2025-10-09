@@ -231,7 +231,7 @@ export function AddResourcesDialog({
 
           {/* Upload Tab */}
           <TabsContent value="upload" className="flex-1 min-h-0 flex flex-col">
-            <div className="">
+            <div className="flex-1 flex items-center justify-center">
               <label className="flex flex-col items-center justify-center w-full max-w-md h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <Upload className="h-12 w-12 mb-4 text-muted-foreground" />
