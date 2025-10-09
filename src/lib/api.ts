@@ -1,5 +1,20 @@
 import { config } from './config';
 
+const AUTH_TOKEN_KEY = 'auth_token';
+
+// Get auth header if token exists
+const getAuthHeaders = (): HeadersInit => {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Handle 401 responses
+const handleUnauthorized = () => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem('auth_user');
+  window.location.href = '/login';
+};
+
 // Backend Health Check Types
 export interface HealthCheckResponse {
   message: string;
@@ -25,6 +40,10 @@ export const checkBackendHealth = async (customUrl?: string): Promise<HealthChec
     const response = await fetch(`${url}/`, {
       method: 'GET',
       mode: 'cors',
+      headers: {
+        'Accept': 'application/json',
+        ...getAuthHeaders(),
+      },
     });
 
     if (!response.ok) {
@@ -179,10 +198,12 @@ export const detectScenes = async (videoId: string): Promise<SceneDetectionRespo
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Scene detection failed: ${response.statusText}`);
   }
 
@@ -231,9 +252,11 @@ export const getVideos = async (): Promise<VideoListResponse> => {
 
   const response = await fetch(`${config.backendUrl}/api/videos`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get videos list: ${response.statusText}`);
   }
 
@@ -255,9 +278,11 @@ export const checkVideoExists = async (filename: string): Promise<VideoExistsRes
 
   const response = await fetch(`${config.backendUrl}/api/videos/exists?filename=${encodeURIComponent(filename)}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to check video existence: ${response.statusText}`);
   }
 
@@ -283,9 +308,11 @@ export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> 
 
   const response = await fetch(`${config.backendUrl}/api/videos/${videoId}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get video info: ${response.statusText}`);
   }
 
@@ -344,6 +371,7 @@ export const uploadVideo = async (
           reject(new Error('Failed to parse upload response'));
         }
       } else {
+        if (xhr.status === 401) handleUnauthorized();
         reject(new Error(`Video upload failed: ${xhr.statusText}`));
       }
     });
@@ -359,6 +387,13 @@ export const uploadVideo = async (
 
     // Send request
     xhr.open('POST', `${config.backendUrl}/api/videos/upload`);
+    
+    // Add auth headers
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    
     xhr.send(formData);
   });
 };
@@ -380,9 +415,12 @@ export const downloadVideoFile = async (
     return new Blob(['mock video data'], { type: 'video/mp4' });
   }
 
-  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/download`);
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/download`, {
+    headers: getAuthHeaders(),
+  });
   
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to download video: ${response.statusText}`);
   }
   
@@ -464,11 +502,13 @@ export const detectWithDINO = async (request: DINODetectionRequest): Promise<DIN
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`DINO detection failed: ${response.statusText}`);
   }
 
@@ -556,11 +596,13 @@ export const createProject = async (request: ProjectCreateRequest): Promise<Proj
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to create project: ${response.statusText}`);
   }
 
@@ -579,9 +621,11 @@ export const getProjects = async (): Promise<ProjectListResponse> => {
 
   const response = await fetch(`${config.backendUrl}/api/projects`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get projects: ${response.statusText}`);
   }
 
@@ -605,9 +649,11 @@ export const getProject = async (projectId: string): Promise<ProjectResponse> =>
 
   const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get project: ${response.statusText}`);
   }
 
@@ -636,11 +682,13 @@ export const updateProject = async (
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(updates),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to update project: ${response.statusText}`);
   }
 
@@ -656,9 +704,11 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 
   const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to delete project: ${response.statusText}`);
   }
 };
@@ -706,11 +756,13 @@ export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     });
 
     if (!response.ok) {
+      if (response.status === 401) handleUnauthorized();
       const errorText = await response.text();
       console.error('❌ SAM2 API error:', response.status, errorText);
       throw new Error(`SAM2 segmentation failed: ${response.statusText}`);
@@ -771,9 +823,11 @@ export const getAIStatus = async (): Promise<AIStatusResponse> => {
 
   const response = await fetch(`${config.backendUrl}/api/ai/status`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`AI status check failed: ${response.statusText}`);
   }
 
@@ -868,11 +922,13 @@ export const createTrackingJob = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({ segments }),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to create tracking job: ${response.statusText}`);
   }
 
@@ -888,9 +944,11 @@ export const executeTrackingJob = async (jobId: string): Promise<{ job_id: strin
 
   const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/execute`, {
     method: 'POST',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to execute tracking job: ${response.statusText}`);
   }
 
@@ -943,11 +1001,13 @@ export const downloadFromYouTube = async (request: YouTubeDownloadRequest): Prom
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     const errorData = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(errorData.error || `YouTube download failed: ${response.statusText}`);
   }
@@ -996,9 +1056,11 @@ export const getYouTubeDownloadStatus = async (jobId: string): Promise<YouTubeDo
 
   const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}/status`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get download status: ${response.statusText}`);
   }
 
@@ -1014,9 +1076,11 @@ export const cancelYouTubeDownload = async (jobId: string): Promise<void> => {
 
   const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to cancel download: ${response.statusText}`);
   }
 };
@@ -1045,11 +1109,13 @@ export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobSt
     headers: {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
+      ...getAuthHeaders(),
     }
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get tracking job status: ${response.statusText}`);
   }
 
@@ -1111,10 +1177,16 @@ export const getTrackingJobResults = async (jobId: string): Promise<TrackingJobR
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/results`, {
       method: 'GET',
+      headers: getAuthHeaders(),
     });
 
     if (response.ok) {
       return await response.json();
+    }
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Unauthorized');
     }
 
     // Results can briefly 404 while the backend finalizes artifacts after completion

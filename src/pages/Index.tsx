@@ -30,6 +30,7 @@ import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
+import { UserMenu } from "@/components/UserMenu";
 import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
 
@@ -2656,6 +2657,7 @@ const Index = () => {
                 onBackendsChange={setBackends}
                 probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
               />
+              <UserMenu />
               <Button 
                 variant="ghost" 
                 size="sm" 
