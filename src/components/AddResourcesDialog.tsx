@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ManagedVideo } from "@/types/video";
@@ -145,7 +145,7 @@ export function AddResourcesDialog({
               )}
             </div>
 
-            <ScrollArea className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-auto">
               <div className="space-y-2">
                 {availableVideos.map((video) => {
                   const isInProject = projectVideoIds.includes(video.id);
@@ -226,7 +226,7 @@ export function AddResourcesDialog({
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </TabsContent>
 
           {/* Upload Tab */}
