@@ -116,8 +116,8 @@ export function AddResourcesDialog({
           <DialogTitle>Add Resources to Project</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="cache" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="cache" className="flex flex-col flex-1">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="cache">
               <Database className="h-4 w-4 mr-2" />
               Video Cache
