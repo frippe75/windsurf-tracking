@@ -133,7 +133,7 @@ export function AddResourcesDialog({
           </TabsList>
 
           {/* Cache Tab */}
-          <TabsContent value="cache" className="flex-1 flex flex-col">
+          <TabsContent value="cache" className="flex-1 min-h-0 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
                 {availableVideos.length} videos in cache
@@ -230,7 +230,7 @@ export function AddResourcesDialog({
           </TabsContent>
 
           {/* Upload Tab */}
-          <TabsContent value="upload" className="flex flex-col">
+          <TabsContent value="upload" className="flex-1 min-h-0 flex flex-col">
             <div className="">
               <label className="flex flex-col items-center justify-center w-full max-w-md h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -259,7 +259,7 @@ export function AddResourcesDialog({
           </TabsContent>
 
           {/* YouTube Tab */}
-          <TabsContent value="youtube" className="flex flex-col">
+          <TabsContent value="youtube" className="flex-1 min-h-0 flex flex-col">
             <div className="">
               <div className="w-full max-w-md space-y-4">
                 <div className="text-center mb-8">
