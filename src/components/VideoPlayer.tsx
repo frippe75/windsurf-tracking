@@ -90,6 +90,8 @@ export function VideoPlayer({
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [uploadPreviewFrames, setUploadPreviewFrames] = useState<string[]>([]);
+  const [showResetButton, setShowResetButton] = useState(true);
+  const resetButtonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Extract preview frames during upload
   useEffect(() => {
@@ -177,6 +179,36 @@ export function VideoPlayer({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Auto-hide reset button after 5 seconds when at 100% zoom
+  useEffect(() => {
+    if (zoom === 1 && pan.x === 0 && pan.y === 0) {
+      // Clear any existing timeout
+      if (resetButtonTimeoutRef.current) {
+        clearTimeout(resetButtonTimeoutRef.current);
+      }
+      
+      // Set button to visible first
+      setShowResetButton(true);
+      
+      // Fade out after 5 seconds
+      resetButtonTimeoutRef.current = setTimeout(() => {
+        setShowResetButton(false);
+      }, 5000);
+    } else {
+      // Show button when zoomed/panned
+      setShowResetButton(true);
+      if (resetButtonTimeoutRef.current) {
+        clearTimeout(resetButtonTimeoutRef.current);
+      }
+    }
+
+    return () => {
+      if (resetButtonTimeoutRef.current) {
+        clearTimeout(resetButtonTimeoutRef.current);
+      }
+    };
+  }, [zoom, pan.x, pan.y]);
 
   const drawAnnotations = () => {
     const canvas = canvasRef.current;
@@ -842,13 +874,19 @@ export function VideoPlayer({
         <Button
           variant="outline"
           size="icon"
-          className="absolute top-4 right-4 bg-black/50 border-white/20 hover:bg-black/70"
+          className={`absolute top-4 right-4 bg-black/50 border-white/20 hover:bg-black/70 transition-opacity duration-500 ${
+            showResetButton ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
           onClick={() => {
             setZoom(1);
             setPan({ x: 0, y: 0 });
             setShowZoomOverlay(false);
+            setShowResetButton(true);
             if (zoomTimeoutRef.current) {
               clearTimeout(zoomTimeoutRef.current);
+            }
+            if (resetButtonTimeoutRef.current) {
+              clearTimeout(resetButtonTimeoutRef.current);
             }
           }}
           disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
