@@ -322,43 +322,6 @@ export function VideoPlayer({
             ctx.save();
             ctx.drawImage(tempCanvas, 0, 0, img.width, img.height, x, y, w, h);
             ctx.restore();
-
-            // After mask is drawn, draw SAM2 prompts for this annotation so they appear on top
-            if (annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
-              annotation.sam2Prompts.forEach(prompt => {
-                const px = (prompt.x / 100) * canvas.width;
-                const py = (prompt.y / 100) * canvas.height;
-                const radius = 8 * dpr;
-
-                // Draw circle
-                ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-                ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
-                ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(204, 0, 0, 0.6)';
-                ctx.beginPath();
-                ctx.arc(px, py, radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                // Draw +/- sign
-                ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-                ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
-                const signSize = 4 * dpr;
-
-                // Horizontal line for both
-                ctx.beginPath();
-                ctx.moveTo(px - signSize, py);
-                ctx.lineTo(px + signSize, py);
-                ctx.stroke();
-
-                // Vertical line only for positive
-                if (prompt.type === 'positive') {
-                  ctx.beginPath();
-                  ctx.moveTo(px, py - signSize);
-                  ctx.lineTo(px, py + signSize);
-                  ctx.stroke();
-                }
-              });
-            }
           };
         } else if (annotation.points.length > 0) {
           ctx.fillStyle = color + "40"; // 25% opacity
@@ -444,26 +407,24 @@ export function VideoPlayer({
       }
 
       // Draw SAM2 prompts (positive/negative point markers)
-      if (!(annotation as any).maskBase64 && annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
+      if (annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
         annotation.sam2Prompts.forEach(prompt => {
           const x = (prompt.x / 100) * canvas.width;
           const y = (prompt.y / 100) * canvas.height;
           const radius = 8 * dpr;
           
-          console.log(`🎨 Drawing ${prompt.type} prompt at (${prompt.x}, ${prompt.y})`);
-          
           // Draw circle
-          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-          ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
-          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(204, 0, 0, 0.6)';
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff3333';
+          ctx.lineWidth = 2 * dpr;
+          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 51, 51, 0.5)';
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
           // Draw +/- sign
-          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-          ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff3333';
+          ctx.lineWidth = 2 * dpr;
           const signSize = 4 * dpr;
           
           // Horizontal line for both
