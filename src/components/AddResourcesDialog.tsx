@@ -145,7 +145,7 @@ export function AddResourcesDialog({
               )}
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 h-0">
               <div className="space-y-2">
                 {availableVideos.map((video) => {
                   const isInProject = projectVideoIds.includes(video.id);
