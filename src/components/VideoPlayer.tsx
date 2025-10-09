@@ -875,7 +875,7 @@ export function VideoPlayer({
             setZoom(1);
             setPan({ x: 0, y: 0 });
             setShowZoomOverlay(false);
-            setShowResetButton(true);
+            setShowResetButton(false);
             if (zoomTimeoutRef.current) {
               clearTimeout(zoomTimeoutRef.current);
             }
@@ -883,7 +883,6 @@ export function VideoPlayer({
               clearTimeout(resetButtonTimeoutRef.current);
             }
           }}
-          disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
         >
           <Maximize2 className="h-4 w-4 text-white" />
         </Button>
