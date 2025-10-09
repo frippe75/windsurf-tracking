@@ -414,16 +414,16 @@ export function VideoPlayer({
           const radius = 8 * dpr;
           
           // Draw circle
-          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff4444';
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff3333';
           ctx.lineWidth = 2 * dpr;
-          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 68, 68, 0.4)';
+          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 51, 51, 0.5)';
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
           // Draw +/- sign
-          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff4444';
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#ff3333';
           ctx.lineWidth = 2 * dpr;
           const signSize = 4 * dpr;
           
