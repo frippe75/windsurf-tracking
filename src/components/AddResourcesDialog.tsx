@@ -133,8 +133,8 @@ export function AddResourcesDialog({
           </TabsList>
 
           {/* Cache Tab */}
-          <TabsContent value="cache" className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+          <TabsContent value="cache" className="flex-1 min-h-0 overflow-hidden flex flex-col p-0">
+            <div className="flex items-center justify-between pb-4">
               <p className="text-sm text-muted-foreground">
                 {availableVideos.length} videos in cache
               </p>
