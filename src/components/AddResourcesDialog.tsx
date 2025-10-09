@@ -124,7 +124,7 @@ export function AddResourcesDialog({
             </TabsTrigger>
             <TabsTrigger value="upload">
               <Upload className="h-4 w-4 mr-2" />
-              Upload
+              <span className="text-red-500">Upload</span>
             </TabsTrigger>
             <TabsTrigger value="youtube">
               <Youtube className="h-4 w-4 mr-2" />
