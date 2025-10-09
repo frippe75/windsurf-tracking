@@ -868,7 +868,7 @@ export function VideoPlayer({
         <Button
           variant="outline"
           size="icon"
-          className={`absolute top-4 right-4 bg-black/50 border-white/20 hover:bg-black/70 transition-opacity duration-500 ${
+          className={`absolute top-4 right-4 bg-black/50 border-white/20 hover:bg-black/70 transition-opacity duration-1000 ${
             showResetButton ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
           onClick={() => {
