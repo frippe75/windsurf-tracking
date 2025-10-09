@@ -111,12 +111,12 @@ export function AddResourcesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh]">
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add Resources to Project</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="cache" className="flex flex-col">
+        <Tabs defaultValue="cache" className="flex-1 min-h-0 flex flex-col">
           <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="cache">
               <Database className="h-4 w-4 mr-2" />
