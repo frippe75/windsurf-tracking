@@ -117,7 +117,7 @@ export function AddResourcesDialog({
         </DialogHeader>
 
         <Tabs defaultValue="cache" className="flex-1 min-h-0 flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="cache">
               <Database className="h-4 w-4 mr-2" />
               Video Cache
