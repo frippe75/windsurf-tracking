@@ -111,7 +111,7 @@ export function AddResourcesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl h-[80vh] flex min-h-0 flex-col">
         <DialogHeader>
           <DialogTitle>Add Resources to Project</DialogTitle>
         </DialogHeader>
@@ -133,7 +133,7 @@ export function AddResourcesDialog({
           </TabsList>
 
           {/* Cache Tab */}
-          <TabsContent value="cache" className="flex-1 min-h-0 flex flex-col">
+          <TabsContent value="cache" className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
                 {availableVideos.length} videos in cache
@@ -145,7 +145,7 @@ export function AddResourcesDialog({
               )}
             </div>
 
-            <ScrollArea className="flex-1 h-0">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="space-y-2">
                 {availableVideos.map((video) => {
                   const isInProject = projectVideoIds.includes(video.id);
