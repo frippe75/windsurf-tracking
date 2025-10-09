@@ -413,6 +413,8 @@ export function VideoPlayer({
           const y = (prompt.y / 100) * canvas.height;
           const radius = 8 * dpr;
           
+          console.log(`🎨 Drawing ${prompt.type} prompt at (${prompt.x}, ${prompt.y})`);
+          
           // Draw circle
           ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
           ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
