@@ -133,98 +133,100 @@ export function AddResourcesDialog({
           </TabsList>
 
           {/* Cache Tab */}
-          <TabsContent value="cache" className="flex-1 min-h-0 overflow-hidden flex flex-col p-0">
-            <div className="flex items-center justify-between pb-4">
-              <p className="text-sm text-muted-foreground">
-                {availableVideos.length} videos in cache
-              </p>
-              {selectedVideoIds.length > 0 && (
-                <Button onClick={handleAddSelected}>
-                  Add {selectedVideoIds.length} Video{selectedVideoIds.length > 1 ? 's' : ''} to Project
-                </Button>
-              )}
-            </div>
+          <TabsContent value="cache" asChild>
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-0">
+              <div className="flex items-center justify-between pb-4">
+                <p className="text-sm text-muted-foreground">
+                  {availableVideos.length} videos in cache
+                </p>
+                {selectedVideoIds.length > 0 && (
+                  <Button onClick={handleAddSelected}>
+                    Add {selectedVideoIds.length} Video{selectedVideoIds.length > 1 ? 's' : ''} to Project
+                  </Button>
+                )}
+              </div>
 
-            <div className="flex-1 min-h-0 overflow-auto">
-              <div className="space-y-2">
-                {availableVideos.map((video) => {
-                  const isInProject = projectVideoIds.includes(video.id);
-                  const isSelected = selectedVideoIds.includes(video.id);
-                  const canSelect = !isInProject && video.status === 'ready';
+              <div className="flex-1 min-h-0 overflow-auto">
+                <div className="space-y-2">
+                  {availableVideos.map((video) => {
+                    const isInProject = projectVideoIds.includes(video.id);
+                    const isSelected = selectedVideoIds.includes(video.id);
+                    const canSelect = !isInProject && video.status === 'ready';
 
-                  return (
-                    <Card
-                      key={video.id}
-                      className={`p-4 cursor-pointer transition-colors ${
-                        isInProject 
-                          ? 'bg-muted/50 cursor-not-allowed' 
-                          : isSelected 
-                          ? 'border-primary bg-primary/5' 
-                          : 'hover:bg-muted/50'
-                      }`}
-                      onClick={() => canSelect && toggleVideoSelection(video.id)}
-                    >
-                      <div className="flex items-start gap-4">
-                        {/* Selection Checkbox */}
-                        <div className={`h-5 w-5 rounded border-2 flex items-center justify-center mt-1 ${
-                          isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
-                        }`}>
-                          {(isSelected || isInProject) && (
-                            <Check className="h-3 w-3 text-primary-foreground" />
-                          )}
-                        </div>
-
-                        {/* Video Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            {getStatusIcon(video)}
-                            <h4 className="font-medium truncate">{video.filename}</h4>
-                            {isInProject && (
-                              <Badge variant="secondary" className="ml-auto">
-                                Already in Project
-                              </Badge>
+                    return (
+                      <Card
+                        key={video.id}
+                        className={`p-4 cursor-pointer transition-colors ${
+                          isInProject 
+                            ? 'bg-muted/50 cursor-not-allowed' 
+                            : isSelected 
+                            ? 'border-primary bg-primary/5' 
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => canSelect && toggleVideoSelection(video.id)}
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Selection Checkbox */}
+                          <div className={`h-5 w-5 rounded border-2 flex items-center justify-center mt-1 ${
+                            isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+                          }`}>
+                            {(isSelected || isInProject) && (
+                              <Check className="h-3 w-3 text-primary-foreground" />
                             )}
                           </div>
 
-                          {video.metadata && (
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span>{video.metadata.width}×{video.metadata.height}</span>
-                              <span>{formatDuration(video.metadata.duration)}</span>
-                              <span>{video.metadata.totalFrames} frames</span>
-                              <span>{formatFileSize(video)}</span>
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getStatusIcon(video)}
+                              <h4 className="font-medium truncate">{video.filename}</h4>
+                              {isInProject && (
+                                <Badge variant="secondary" className="ml-auto">
+                                  Already in Project
+                                </Badge>
+                              )}
                             </div>
-                          )}
 
-                          {/* Progress bars for downloading/syncing */}
-                          {(video.status === 'downloading' || video.status === 'syncing') && (
-                            <div className="mt-2">
-                              <Progress 
-                                value={video.status === 'downloading' ? video.backendProgress : video.frontendProgress} 
-                              />
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {getStatusText(video)}
+                            {video.metadata && (
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <span>{video.metadata.width}×{video.metadata.height}</span>
+                                <span>{formatDuration(video.metadata.duration)}</span>
+                                <span>{video.metadata.totalFrames} frames</span>
+                                <span>{formatFileSize(video)}</span>
+                              </div>
+                            )}
+
+                            {/* Progress bars for downloading/syncing */}
+                            {(video.status === 'downloading' || video.status === 'syncing') && (
+                              <div className="mt-2">
+                                <Progress 
+                                  value={video.status === 'downloading' ? video.backendProgress : video.frontendProgress} 
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {getStatusText(video)}
+                                </p>
+                              </div>
+                            )}
+
+                            {video.status === 'error' && (
+                              <p className="text-sm text-destructive mt-1">
+                                {video.error || 'Failed to process video'}
                               </p>
-                            </div>
-                          )}
-
-                          {video.status === 'error' && (
-                            <p className="text-sm text-destructive mt-1">
-                              {video.error || 'Failed to process video'}
-                            </p>
-                          )}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </Card>
-                  );
-                })}
+                      </Card>
+                    );
+                  })}
 
-                {availableVideos.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Database className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>No videos in cache</p>
-                    <p className="text-sm">Upload or download videos to get started</p>
-                  </div>
-                )}
+                  {availableVideos.length === 0 && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Database className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>No videos in cache</p>
+                      <p className="text-sm">Upload or download videos to get started</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </TabsContent>
