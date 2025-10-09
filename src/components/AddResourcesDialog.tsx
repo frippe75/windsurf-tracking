@@ -260,27 +260,28 @@ export function AddResourcesDialog({
 
           {/* YouTube Tab */}
           <TabsContent value="youtube" asChild>
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 grid place-items-center">
               <div className="w-full max-w-md space-y-4">
                 <div className="text-center mb-8">
                   <Youtube className="h-12 w-12 mx-auto mb-4 text-red-500" />
                   <h3 className="text-lg font-semibold mb-2">Download from YouTube</h3>
                   <p className="text-sm text-muted-foreground">
-                    Paste a YouTube URL to download and add to your project
+                    Paste YouTube URLs (one per line) to download and add to your project
                   </p>
                 </div>
 
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://www.youtube.com/watch?v=..."
+                <div className="space-y-2">
+                  <textarea
+                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                    placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=..."
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleYoutubeSubmit()}
                     disabled={isUploading}
                   />
                   <Button
                     onClick={handleYoutubeSubmit}
                     disabled={!youtubeUrl.trim() || isUploading}
+                    className="w-full"
                   >
                     Download
                   </Button>
