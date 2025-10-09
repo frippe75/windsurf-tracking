@@ -245,9 +245,6 @@ export function VideoPlayer({
       console.log(`  - ${ann.id} (frame ${ann.frameCreated}, keyframe=${(ann as any).isKeyframe}, hasBbox=${!!ann.bbox})`);
     });
 
-    // Collect SAM2 prompts to draw last (on top of everything)
-    const promptsToDraw: Array<{ x: number; y: number; type: 'positive' | 'negative' }> = [];
-
     visibleAnnotations.forEach((annotation) => {
       // Check if this annotation OR any annotation from the same instance is selected
       const isSelected = selectedAnnotationId === annotation.id || 
@@ -409,62 +406,45 @@ export function VideoPlayer({
         ctx.fill();
       }
 
-      // Collect SAM2 prompts for drawing last (on top of all masks)
+      // Draw SAM2 prompts (positive/negative point markers)
       if (annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
         annotation.sam2Prompts.forEach(prompt => {
-          promptsToDraw.push({
-            x: prompt.x,
-            y: prompt.y,
-            type: prompt.type
-          });
+          const x = (prompt.x / 100) * canvas.width;
+          const y = (prompt.y / 100) * canvas.height;
+          const radius = 8 * dpr;
+          
+          console.log(`🎨 Drawing ${prompt.type} prompt at (${prompt.x}, ${prompt.y})`);
+          
+          // Draw circle
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
+          ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
+          ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(204, 0, 0, 0.6)';
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          
+          // Draw +/- sign
+          ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
+          ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
+          const signSize = 4 * dpr;
+          
+          // Horizontal line for both
+          ctx.beginPath();
+          ctx.moveTo(x - signSize, y);
+          ctx.lineTo(x + signSize, y);
+          ctx.stroke();
+          
+          // Vertical line only for positive
+          if (prompt.type === 'positive') {
+            ctx.beginPath();
+            ctx.moveTo(x, y - signSize);
+            ctx.lineTo(x, y + signSize);
+            ctx.stroke();
+          }
         });
       }
     });
-    
-    // Draw all SAM2 prompts on top of everything (after masks)
-    // Use setTimeout to ensure masks (which load asynchronously) are drawn first
-    setTimeout(() => {
-      promptsToDraw.forEach(prompt => {
-        const x = (prompt.x / 100) * canvas.width;
-        const y = (prompt.y / 100) * canvas.height;
-        const radius = 8 * dpr;
-        
-        console.log(`🎨 Drawing ${prompt.type} prompt at (${prompt.x}, ${prompt.y}) ON TOP`);
-        
-        ctx.save();
-        ctx.scale(dpr * zoom, dpr * zoom);
-        
-        // Draw circle
-        ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-        ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
-        ctx.fillStyle = prompt.type === 'positive' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(204, 0, 0, 0.6)';
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        
-        // Draw +/- sign
-        ctx.strokeStyle = prompt.type === 'positive' ? '#00ff00' : '#cc0000';
-        ctx.lineWidth = prompt.type === 'positive' ? 2 * dpr : 3 * dpr;
-        const signSize = 4 * dpr;
-        
-        // Horizontal line for both
-        ctx.beginPath();
-        ctx.moveTo(x - signSize, y);
-        ctx.lineTo(x + signSize, y);
-        ctx.stroke();
-        
-        // Vertical line only for positive
-        if (prompt.type === 'positive') {
-          ctx.beginPath();
-          ctx.moveTo(x, y - signSize);
-          ctx.lineTo(x, y + signSize);
-          ctx.stroke();
-        }
-        
-        ctx.restore();
-      });
-    }, 50); // Small delay to let masks load
     
     ctx.restore();
   };
