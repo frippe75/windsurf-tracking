@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { config } from '@/lib/config';
+import { getBackendSettings } from '@/lib/settings';
 
 interface AuthUser {
   id: string;
@@ -58,17 +59,14 @@ export const useAuth = () => {
   // Load stored auth on mount
   useEffect(() => {
     const loadStoredAuth = async () => {
-      // Load backend settings FIRST (synchronously before auth check)
-      const backendSettings = localStorage.getItem('backend_settings');
-      if (backendSettings) {
-        try {
-          const settings = JSON.parse(backendSettings);
-          if (settings.selected?.url) {
-            (window as any).__LOVABLE_BACKEND_URL__ = settings.selected.url;
-          }
-        } catch {
-          // Ignore parsing errors
+      // Load selected backend from centralized settings BEFORE auth check
+      try {
+        const { selectedBackendSnapshot } = getBackendSettings();
+        if (selectedBackendSnapshot?.url) {
+          (window as any).__LOVABLE_BACKEND_URL__ = selectedBackendSnapshot.url;
         }
+      } catch {
+        // Ignore settings errors
       }
 
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
