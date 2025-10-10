@@ -5,12 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
+import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 
 export const LoginPage = () => {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
+  const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +39,14 @@ export const LoginPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <div className="flex justify-center mb-4">
+            <img 
+              src={logos[currentLogoIndex]} 
+              alt="LabelBee Logo" 
+              className="h-20 w-auto cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
+            />
+          </div>
           <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
           <CardDescription>
             Enter your credentials to access the annotation tool
