@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,12 +10,20 @@ import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 
 export const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, isAuthRequired, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
+
+  // Redirect if already authenticated or auth not required
+  useEffect(() => {
+    if (!isAuthRequired || isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthRequired, isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +88,14 @@ export const LoginPage = () => {
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full" 
+              onClick={() => navigate('/')}
+            >
+              Back to app
             </Button>
           </form>
         </CardContent>
