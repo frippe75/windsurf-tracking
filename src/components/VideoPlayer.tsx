@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import type { ToolMode } from "./Toolbox";
@@ -36,8 +35,6 @@ interface VideoPlayerProps {
   selectedAnnotationId?: string;
   onContextMenu: (x: number, y: number, context: any) => void;
   showLabels?: boolean;
-  isUploading?: boolean;
-  uploadProgress?: number;
 }
 
 export function VideoPlayer({
@@ -51,8 +48,6 @@ export function VideoPlayer({
   classes,
   instances,
   annotations,
-  isUploading = false,
-  uploadProgress = 0,
   onAnnotationUpdate,
   onAnnotationSelect,
   overlays,
@@ -89,60 +84,8 @@ export function VideoPlayer({
   } | null>(null);
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [uploadPreviewFrames, setUploadPreviewFrames] = useState<string[]>([]);
   const [showResetButton, setShowResetButton] = useState(false);
   const resetButtonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Extract preview frames during upload
-  useEffect(() => {
-    if (!isUploading || !videoRef.current) {
-      setUploadPreviewFrames([]);
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const captureFrame = () => {
-      if (!video.duration || !video.videoWidth) return null;
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      return canvas.toDataURL('image/jpeg', 0.6);
-    };
-
-    const frames: string[] = [];
-    let frameIndex = 0;
-
-    const interval = setInterval(() => {
-      if (video.duration) {
-        // Capture frames at different timestamps
-        const timestamps = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
-        const time = video.duration * timestamps[frameIndex % timestamps.length];
-        video.currentTime = time;
-        
-        const onSeeked = () => {
-          const frame = captureFrame();
-          if (frame) {
-            frames.push(frame);
-            setUploadPreviewFrames([...frames]);
-          }
-          video.removeEventListener('seeked', onSeeked);
-        };
-        
-        video.addEventListener('seeked', onSeeked);
-        frameIndex++;
-      }
-    }, 800);
-
-    return () => {
-      clearInterval(interval);
-      setUploadPreviewFrames([]);
-    };
-  }, [isUploading]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -846,7 +789,7 @@ export function VideoPlayer({
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'top left',
             cursor: isPanning ? "grabbing" : cursorStyle,
-            pointerEvents: isUploading ? "none" : "auto",
+            pointerEvents: "auto",
           }}
           onClick={handleCanvasClick}
           onMouseDown={handleCanvasMouseDown}
@@ -887,42 +830,6 @@ export function VideoPlayer({
           <Maximize2 className="h-4 w-4 text-white" />
         </Button>
         
-        {/* Loading overlay during upload */}
-        {isUploading && (
-          <div className="absolute inset-0 backdrop-blur-md z-50 flex flex-col">
-            {/* Dimmed video effect */}
-            <div className="absolute inset-0 bg-black/20" />
-            
-            {/* Upload live preview - single updating frame */}
-            <div className="absolute inset-0 pointer-events-none">
-              {uploadPreviewFrames.length > 0 && (
-                <img
-                  src={uploadPreviewFrames[uploadPreviewFrames.length - 1]}
-                  alt="Live upload preview frame"
-                  className="w-full h-full object-contain blur-sm"
-                />
-              )}
-            </div>
-            
-            {/* Progress info overlay */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-card/95 border border-border rounded-lg p-6 text-center space-y-4 min-w-[300px] shadow-2xl">
-                <div className="space-y-2">
-                  <p className="text-lg font-semibold">Processing Video</p>
-                  <p className="text-sm text-muted-foreground">
-                    {uploadProgress < 100 
-                      ? "Uploading video..." 
-                      : "Analyzing scenes..."}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Progress value={uploadProgress} className="w-full" />
-                  <p className="text-xs text-muted-foreground">{uploadProgress}%</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="space-y-4">
