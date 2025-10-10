@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
@@ -21,7 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download, Video, FolderOpen } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video, FolderOpen, LogIn } from "lucide-react";
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
@@ -31,6 +32,7 @@ import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTra
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 import { UserMenu } from "@/components/UserMenu";
+import { useAuth } from "@/hooks/useAuth";
 import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
 
@@ -44,6 +46,8 @@ const SAIL_COLORS = [
 
 const Index = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { isAuthRequired, isAuthenticated } = useAuth();
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
@@ -2657,6 +2661,17 @@ const Index = () => {
                 onBackendsChange={setBackends}
                 probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
               />
+              {isAuthRequired && !isAuthenticated && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={() => navigate('/login')}
+                  className="gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Login
+                </Button>
+              )}
               <UserMenu />
               <Button 
                 variant="ghost" 
