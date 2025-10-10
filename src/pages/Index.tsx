@@ -2661,17 +2661,15 @@ const Index = () => {
                 onBackendsChange={setBackends}
                 probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
               />
-              {isAuthRequired && !isAuthenticated && (
-                <Button 
-                  variant="default" 
-                  size="sm" 
-                  onClick={() => navigate('/login')}
-                  className="gap-2"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Login
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/login')}
+                className="gap-2"
+              >
+                <LogIn className="h-4 w-4" />
+                Login
+              </Button>
               <UserMenu />
               <Button 
                 variant="ghost" 
