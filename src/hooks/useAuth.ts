@@ -35,7 +35,8 @@ export const useAuth = () => {
   // Check backend auth config
   const checkAuthConfig = useCallback(async () => {
     try {
-      const response = await fetch(`${config.backendUrl}/auth/config`);
+      const backendUrl = config.backendUrl; // Get current backend URL dynamically
+      const response = await fetch(`${backendUrl}/auth/config`);
       if (!response.ok) {
         // If endpoint doesn't exist, assume no auth required
         setState(prev => ({ ...prev, isAuthRequired: false, isChecking: false }));
@@ -82,7 +83,8 @@ export const useAuth = () => {
   // Login
   const login = useCallback(async (email: string, password: string) => {
     try {
-      const response = await fetch(`${config.backendUrl}/auth/login`, {
+      const backendUrl = config.backendUrl; // Get current backend URL dynamically
+      const response = await fetch(`${backendUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
