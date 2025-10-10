@@ -10,7 +10,7 @@ import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 
 export const LoginPage = () => {
-  const { login, isAuthRequired, isAuthenticated } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,12 +18,12 @@ export const LoginPage = () => {
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
 
-  // Redirect if already authenticated or auth not required
+  // Redirect if already authenticated
   useEffect(() => {
-    if (!isAuthRequired || isAuthenticated) {
+    if (isAuthenticated) {
       navigate('/');
     }
-  }, [isAuthRequired, isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
