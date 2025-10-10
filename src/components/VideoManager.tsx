@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, X } from "lucide-react";
-import { config } from "@/lib/config";
+import { Plus, Video as VideoIcon, Play, Upload, Youtube, CheckCircle2, AlertCircle } from "lucide-react";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
+import { VideoListItem } from "@/components/VideoListItem";
 
 interface VideoManagerProps {
   open: boolean;
@@ -40,35 +40,6 @@ export function VideoManager({
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const selectedVideo = videos.find(v => v.id === selectedVideoId);
-
-  const getStatusIcon = (status: ManagedVideo['status']) => {
-    switch (status) {
-      case 'ready':
-        return <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />;
-      case 'downloading':
-      case 'syncing':
-        return <Download className="h-4 w-4 text-blue-600 dark:text-blue-500 animate-pulse" />;
-      case 'queued':
-        return <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />;
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-500" />;
-    }
-  };
-
-  const getStatusText = (video: ManagedVideo) => {
-    switch (video.status) {
-      case 'ready':
-        return 'Ready';
-      case 'downloading':
-        return 'Downloading from YouTube...';
-      case 'syncing':
-        return 'Syncing to device...';
-      case 'queued':
-        return 'Queued';
-      case 'error':
-        return 'Error';
-    }
-  };
 
   const getUnifiedProgress = (video: ManagedVideo) => {
     if (video.status === 'downloading') {
@@ -174,105 +145,19 @@ export function VideoManager({
                     <p className="text-xs text-muted-foreground">Add one to get started →</p>
                   </div>
                 ) : (
-                  videos.map((video) => {
-                    const isActive = video.id === activeVideoId;
-                    const isSelected = video.id === selectedVideoId;
-                    const progress = getUnifiedProgress(video);
-
-                    return (
-                      <div
-                        key={video.id}
-                        className={`
-                          w-full text-left rounded-lg p-3 transition-all relative
-                          ${isSelected 
-                            ? 'bg-primary/10 border-2 border-primary' 
-                            : 'bg-card border border-border hover:border-primary/50'
-                          }
-                        `}
-                      >
-                        <button
-                          onClick={() => handleVideoClick(video.id)}
-                          className="absolute inset-0"
-                        />
-                        <div className="flex items-start gap-3 relative">
-                          {/* Thumbnail */}
-                          {video.status === 'ready' && video.metadata ? (
-                            <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
-                              <img 
-                                src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
-                                alt={video.filename}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-20 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
-                              <VideoIcon className="h-6 w-6 text-muted-foreground/50" />
-                            </div>
-                          )}
-                          
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start gap-2 mb-1">
-                              <div className="mt-0.5 shrink-0">
-                                {getStatusIcon(video.status)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
-                                      {video.filename}
-                                    </p>
-                                    {video.youtubeUrl && (
-                                      <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {(video.status === 'downloading' || video.status === 'syncing' || video.status === 'error') && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 relative z-10 hover:bg-destructive/10 hover:text-destructive"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onVideoDelete(video.id);
-                                        }}
-                                        title={video.status === 'error' ? 'Remove failed video' : 'Cancel operation'}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                    {isActive && (
-                                      <Badge variant="default" className="text-xs">Active</Badge>
-                                    )}
-                                  </div>
-                                 </div>
-                                {video.metadata ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
-                                  </p>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">
-                                    {getStatusText(video)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            {progress && (
-                              <div className="mt-2">
-                                <Progress value={progress.value} className="h-1" />
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {progress.percentage}%
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                  videos.map((video) => (
+                    <VideoListItem
+                      key={video.id}
+                      video={video}
+                      isSelected={video.id === selectedVideoId}
+                      isActive={video.id === activeVideoId}
+                      showThumbnail
+                      showProgress
+                      showYoutubeIcon
+                      onClick={handleVideoClick}
+                      onDelete={onVideoDelete}
+                    />
+                  ))
                 )}
                 </div>
               </ScrollArea>
@@ -296,39 +181,14 @@ export function VideoManager({
               // Video selected - show details
               <>
                 <div className="p-6 border-b border-border">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <h3 className="text-lg font-semibold truncate mb-1">
-                        {selectedVideo.filename}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(selectedVideo.status)}
-                        <span className="text-sm text-muted-foreground">
-                          {getStatusText(selectedVideo)}
-                        </span>
-                      </div>
-                    </div>
-                    {selectedVideo.status === 'ready' && selectedVideo.id !== activeVideoId && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onVideoDelete(selectedVideo.id)}
-                        title="Delete video"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(selectedVideo.status === 'downloading' || selectedVideo.status === 'syncing' || selectedVideo.status === 'error') && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onVideoDelete(selectedVideo.id)}
-                        title={selectedVideo.status === 'error' ? 'Remove failed video' : 'Cancel operation'}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  <VideoListItem
+                    video={selectedVideo}
+                    isActive={selectedVideo.id === activeVideoId}
+                    showThumbnail={false}
+                    showProgress={false}
+                    onDelete={onVideoDelete}
+                    className="border-0 p-0 bg-transparent hover:border-0"
+                  />
                 </div>
 
                 <ScrollArea className="flex-1">

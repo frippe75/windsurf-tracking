@@ -4,27 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { Project } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
 import { 
   FolderOpen, 
   Plus, 
-  PlayCircle, 
-  Trash2, 
   Video,
-  CheckCircle2,
-  Clock,
-  Database,
-  AlertCircle,
-  FileVideo,
   Layers,
   Calendar
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { config } from "@/lib/config";
+import { VideoListItem } from "@/components/VideoListItem";
 
 interface ProjectManager_v2Props {
   open: boolean;
@@ -75,39 +65,6 @@ export function ProjectManager_v2({
     setEditNameValue("");
   };
 
-  const getStatusIcon = (video: ManagedVideo) => {
-    switch (video.status) {
-      case "ready": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "downloading": return <Clock className="h-4 w-4 text-blue-500" />;
-      case "syncing": return <Database className="h-4 w-4 text-yellow-500" />;
-      case "error": return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default: return <FileVideo className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getStatusText = (video: ManagedVideo) => {
-    switch (video.status) {
-      case "ready": return "Ready";
-      case "downloading": return `Downloading ${video.backendProgress || 0}%`;
-      case "syncing": return `Syncing ${video.frontendProgress || 0}%`;
-      case "error": return "Error";
-      default: return "Unknown";
-    }
-  };
-
-  const formatFileSize = (video: ManagedVideo) => {
-    const bytes = video.metadata?.fileSize;
-    if (!bytes) return "N/A";
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(1)} MB`;
-  };
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return "N/A";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const projectVideos = activeProject 
     ? videos.filter(v => activeProject.videoIds?.includes(v.id))
@@ -221,118 +178,19 @@ export function ProjectManager_v2({
 
                 <ScrollArea className="flex-1">
                   <div className="p-4 space-y-2">
-                    {projectVideos.map((video) => {
-                      const isCurrentVideo = video.id === currentVideoId;
-                      const progress = video.status === 'downloading' 
-                        ? video.backendProgress 
-                        : video.status === 'syncing' 
-                        ? video.frontendProgress 
-                        : null;
-
-                      return (
-                        <div
-                          key={video.id}
-                          className={`
-                            rounded-lg p-3 transition-all border
-                            ${isCurrentVideo 
-                              ? 'bg-primary/10 border-primary' 
-                              : 'bg-card border-border hover:border-primary/50'
-                            }
-                          `}
-                        >
-                          <div className="flex items-start gap-3">
-                            {/* Thumbnail */}
-                            {video.status === 'ready' && video.metadata ? (
-                              <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
-                                <img 
-                                  src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
-                                  alt={video.filename}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-20 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
-                                <FileVideo className="h-6 w-6 text-muted-foreground/50" />
-                              </div>
-                            )}
-                            
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-2 mb-1">
-                                <div className="mt-0.5 shrink-0">
-                                  {getStatusIcon(video)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-sm font-medium truncate">
-                                      {video.filename}
-                                    </p>
-                                    {isCurrentVideo && (
-                                      <Badge variant="default" className="text-xs">
-                                        <PlayCircle className="h-3 w-3 mr-1" />
-                                        Active
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {video.metadata ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      {video.metadata.width}×{video.metadata.height} • {formatDuration(video.metadata.duration)}
-                                    </p>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                      {getStatusText(video)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Progress bar */}
-                              {progress !== null && progress !== undefined && (
-                                <div className="mt-2">
-                                  <Progress value={progress} className="h-1" />
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {Math.round(progress)}%
-                                  </p>
-                                </div>
-                              )}
-
-                              {video.status === 'error' && (
-                                <p className="text-xs text-destructive mt-1">
-                                  {video.error || 'Failed to process'}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-1 shrink-0">
-                              {video.status === 'ready' && !isCurrentVideo && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => onLoadVideo(video.id)}
-                                  title="Load video"
-                                >
-                                  <PlayCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => onRemoveVideo(video.id)}
-                                title="Remove video"
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {projectVideos.map((video) => (
+                      <VideoListItem
+                        key={video.id}
+                        video={video}
+                        isActive={video.id === currentVideoId}
+                        showThumbnail
+                        showProgress
+                        showYoutubeIcon={false}
+                        onLoad={onLoadVideo}
+                        onDelete={onRemoveVideo}
+                        deleteButtonTitle="Remove from project"
+                      />
+                    ))}
 
                     {projectVideos.length === 0 && (
                       <div className="text-center py-12 text-muted-foreground">
