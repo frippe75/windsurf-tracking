@@ -230,7 +230,7 @@ export function VideoManager({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
-                                    {(video.status === 'downloading' || video.status === 'syncing') && (
+                                    {(video.status === 'downloading' || video.status === 'syncing' || video.status === 'error') && (
                                       <Button
                                         variant="ghost"
                                         size="icon"
@@ -239,7 +239,7 @@ export function VideoManager({
                                           e.stopPropagation();
                                           onVideoDelete(video.id);
                                         }}
-                                        title="Cancel operation"
+                                        title={video.status === 'error' ? 'Remove failed video' : 'Cancel operation'}
                                       >
                                         <Trash2 className="h-3 w-3" />
                                       </Button>
@@ -318,12 +318,12 @@ export function VideoManager({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
-                    {(selectedVideo.status === 'downloading' || selectedVideo.status === 'syncing') && (
+                    {(selectedVideo.status === 'downloading' || selectedVideo.status === 'syncing' || selectedVideo.status === 'error') && (
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => onVideoDelete(selectedVideo.id)}
-                        title="Cancel operation"
+                        title={selectedVideo.status === 'error' ? 'Remove failed video' : 'Cancel operation'}
                       >
                         <X className="h-4 w-4" />
                       </Button>
