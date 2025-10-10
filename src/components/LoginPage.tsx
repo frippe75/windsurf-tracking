@@ -43,7 +43,7 @@ export const LoginPage = () => {
             <img 
               src={logos[currentLogoIndex]} 
               alt="LabelBee Logo" 
-              className="h-[400px] w-auto cursor-pointer hover:opacity-80 transition-opacity"
+              className="h-20 w-auto cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
             />
           </div>
