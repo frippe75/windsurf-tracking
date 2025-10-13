@@ -22,7 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download, Video, FolderOpen, LogIn } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video, FolderOpen, LogIn, LogOut } from "lucide-react";
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
@@ -47,7 +47,7 @@ const SAIL_COLORS = [
 const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { isAuthRequired, isAuthenticated } = useAuth();
+  const { isAuthRequired, isAuthenticated, logout } = useAuth();
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
@@ -2661,17 +2661,27 @@ const Index = () => {
                 onBackendsChange={setBackends}
                 probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
               />
-              {isAuthRequired && !isAuthenticated && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => navigate('/login')}
-                  className="gap-2"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Login
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/login')}
+                className="gap-2"
+              >
+                <LogIn className="h-4 w-4" />
+                Login
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  logout();
+                  toast({ title: "Logged out successfully" });
+                }}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
               <UserMenu />
               <Button 
                 variant="ghost" 
