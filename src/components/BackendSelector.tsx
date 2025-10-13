@@ -37,6 +37,7 @@ interface BackendSelectorProps {
 
 const DEFAULT_BACKENDS: Backend[] = [
   { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
+  { id: "lab-k8s-dev", name: "K8s Dev", url: "https://windsurf-api-dev.tclab.org" },
   { id: "lab-k8s", name: "K8s Lab", url: "https://windsurf-api.tclab.org" },
   { id: "production", name: "Production", url: "https://lablebee.tclab.org" },
   { id: "custom", name: "Custom", url: "" },
