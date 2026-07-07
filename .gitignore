@@ -48,9 +48,8 @@ sam2/
 
 # Documentation exports and misc
 *.json
-*.md
-!README.md
-!QUICKSTART.md
+!frontend/**/*.json
+!kubernetes/*.json
 
 # IDE and system files
 .vscode/
