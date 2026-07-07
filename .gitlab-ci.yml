@@ -1,8 +1,9 @@
 # GitLab CI for windsurf-tracking
 # Builds the frontend, pushes to Harbor, bumps the kustomize tag for ArgoCD.
 #
-# The backend image (annotation-api:v2-auth) is NOT built here — it was built
-# from source newer than this repo (JWT auth). Pinned in kubernetes/ manifests.
+# Backend builds are overlays on the v2-auth base (backend/Dockerfile): the
+# base's ML-stack build context is lost, so only /app/app code is replaced.
+# backend/app/ is the recovered v2-auth source, canonical as of 2026-07-07.
 
 workflow:
   auto_cancel:
@@ -45,7 +46,30 @@ build-frontend:
   only:
     - main
 
-# Update kustomization.yaml image tag for ArgoCD GitOps
+build-backend:
+  stage: build
+  interruptible: true
+  tags:
+    - docker
+    - vm
+  image: harbor.tclab.org/dockerhub/library/docker:24-cli
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_BUILDKIT: 1
+  before_script:
+    - echo "$HARBOR_PASSWORD" | docker login $HARBOR_REGISTRY -u "$HARBOR_USERNAME" --password-stdin
+  script:
+    - IMAGE=$HARBOR_REGISTRY/$HARBOR_PROJECT/annotation-api
+    - echo "BACKEND OVERLAY BUILD - Commit:$CI_COMMIT_SHORT_SHA"
+    - docker build --progress=plain -t $IMAGE:$CI_COMMIT_SHORT_SHA backend/
+    - docker push $IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker logout $HARBOR_REGISTRY
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+
+# Update kustomization.yaml image tags for ArgoCD GitOps
 update-manifest:
   stage: deploy
   tags:
@@ -58,13 +82,24 @@ update-manifest:
     GIT_STRATEGY: clone
     GIT_DEPTH: 0
   before_script:
-    - apk add --no-cache yq
+    - apk add --no-cache yq curl
   script:
     - git config user.email "ci@gitlab.tclab.org"
     - git config user.name "GitLab CI"
     - git remote set-url origin https://oauth2:${GITLAB_PUSH_TOKEN}@gitlab.tclab.org/${CI_PROJECT_PATH}.git
     - echo "Updating frontend image tag to ${CI_COMMIT_SHORT_SHA}"
-    - 'yq -i ".images[0].newTag = strenv(CI_COMMIT_SHORT_SHA)" kubernetes/kustomization.yaml'
+    - 'yq -i "(.images[] | select(.name == \"*frontend\")).newTag = strenv(CI_COMMIT_SHORT_SHA)" kubernetes/kustomization.yaml'
+    # Bump backend tag only if build-backend produced an image for this commit
+    - |
+      if curl -sf -u "$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+           -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+           -o /dev/null \
+           "https://$HARBOR_REGISTRY/v2/$HARBOR_PROJECT/annotation-api/manifests/$CI_COMMIT_SHORT_SHA"; then
+        echo "Updating backend image tag to ${CI_COMMIT_SHORT_SHA}"
+        yq -i '(.images[] | select(.name == "*annotation-api")).newTag = strenv(CI_COMMIT_SHORT_SHA)' kubernetes/kustomization.yaml
+      else
+        echo "No backend image for this commit - leaving backend tag unchanged"
+      fi
     - cat kubernetes/kustomization.yaml
     - git add kubernetes/kustomization.yaml
     - 'git diff --staged --quiet || git commit -m "chore: deploy frontend ${CI_COMMIT_SHORT_SHA} [skip ci]"'

@@ -22,8 +22,8 @@ spec:
     spec:
       containers:
       - name: backend
-        # Pinned: v2-auth was built from source newer than this repo (has JWT auth).
-        # Do NOT rebuild from this repo until backend source is reconciled.
+        # Tag managed by the kustomize images transformer. CI overlay-builds
+        # backend/ on top of the v2-auth base (its ML-stack context is lost).
         image: harbor.tclab.org/windsurf/annotation-api:v2-auth
         command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
         ports:
