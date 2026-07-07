@@ -8,9 +8,9 @@ const getBackendUrl = () => {
   }
   
   // Fallback to env variables or defaults
-  return import.meta.env.VITE_BACKEND_URL || 
-    (import.meta.env.PROD 
-      ? 'https://lablebee.tclab.org'  // Production
+  return import.meta.env.VITE_BACKEND_URL ||
+    (import.meta.env.PROD
+      ? ''                             // Production: same-origin (ingress routes /api + /auth to backend)
       : 'http://localhost:8000'        // Local development
     );
 };

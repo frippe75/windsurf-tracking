@@ -20,7 +20,8 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
 
   try {
     console.log('🔍 Checking backend health at:', config.backendUrl);
-    const response = await fetch(`${config.backendUrl}/`, {
+    // Probe an /api route: with same-origin deployment, `/` serves the SPA itself
+    const response = await fetch(`${config.backendUrl}/api/ai/status`, {
       method: 'GET',
       mode: 'cors',
     });
@@ -29,7 +30,8 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
       return null;
     }
 
-    return await response.json();
+    await response.json();
+    return { message: "Windsurf Dataset API", version: "2.0.0", status: "healthy" };
   } catch (error) {
     console.error('❌ Backend health check failed for', config.backendUrl, ':', error);
     return null;

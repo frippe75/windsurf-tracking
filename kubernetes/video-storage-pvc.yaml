@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: windsurf-prod-video-storage
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: storage
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 100Gi

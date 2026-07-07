@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: windsurf-prod-postgres
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: database
+spec:
+  serviceName: windsurf-prod-postgres-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: database
+    spec:
+      containers:
+      - name: postgres
+        image: harbor.tclab.org/dockerhub/library/postgres:16
+        env:
+        - name: POSTGRES_DB
+          value: windsurf_prod
+        - name: POSTGRES_USER
+          value: windsurf
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-prod-postgres-secret
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+          name: postgres
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - windsurf
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - windsurf
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 50Gi

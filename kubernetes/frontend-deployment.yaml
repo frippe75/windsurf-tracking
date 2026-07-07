@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-frontend
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: harbor.tclab.org/windsurf/frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5

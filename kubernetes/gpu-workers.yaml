@@ -1,0 +1,109 @@
+# GPU workers: scaled to 0 — heavy processing offloaded to ClearML cluster.
+# Scale up via replicas when local GPU processing is needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-gpu-worker-0
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: gpu-worker
+    gpu-id: "0"
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: gpu-worker
+      gpu-id: "0"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: gpu-worker
+        gpu-id: "0"
+    spec:
+      containers:
+      - name: gpu-worker
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.1-prod
+        command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_0_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: WORKER_ID
+          value: "0"
+        - name: REDIS_URL
+          value: "redis://windsurf-prod-redis:6379"
+        - name: CELERY_BROKER
+          value: "redis://windsurf-prod-redis:6379/1"
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: 1
+            nvidia.com/gpu: 1
+          limits:
+            memory: 16Gi
+            cpu: 4
+            nvidia.com/gpu: 1
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-gpu-worker-1
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: gpu-worker
+    gpu-id: "1"
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: gpu-worker
+      gpu-id: "1"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: gpu-worker
+        gpu-id: "1"
+    spec:
+      containers:
+      - name: gpu-worker
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.1-prod
+        command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_1_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "1"
+        - name: WORKER_ID
+          value: "1"
+        - name: REDIS_URL
+          value: "redis://windsurf-prod-redis:6379"
+        - name: CELERY_BROKER
+          value: "redis://windsurf-prod-redis:6379/1"
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: 1
+            nvidia.com/gpu: 1
+          limits:
+            memory: 16Gi
+            cpu: 4
+            nvidia.com/gpu: 1
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists

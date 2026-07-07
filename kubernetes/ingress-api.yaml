@@ -1,0 +1,33 @@
+# API host — existing contract for external consumers (ClearML, scripts).
+# DNS for windsurf-api.tclab.org pre-exists (manually created), so no
+# external-dns annotation here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: windsurf-prod-ingress
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-tclab"
+    nginx.org/client-max-body-size: "500m"  # Large video uploads
+    nginx.org/proxy-connect-timeout: "600s"
+    nginx.org/proxy-read-timeout: "600s"
+    nginx.org/upstream-keepalive-timeout: "600s"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - windsurf-api.tclab.org
+    secretName: windsurf-prod-tls
+  rules:
+  - host: windsurf-api.tclab.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: windsurf-prod-backend
+            port:
+              number: 8000

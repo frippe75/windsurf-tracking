@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-backend
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: backend
+    spec:
+      containers:
+      - name: backend
+        # Pinned: v2-auth was built from source newer than this repo (has JWT auth).
+        # Do NOT rebuild from this repo until backend source is reconciled.
+        image: harbor.tclab.org/windsurf/annotation-api:v2-auth
+        command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-backend-secret
+              key: database-url
+        - name: REDIS_URL
+          value: "redis://windsurf-prod-redis:6379"
+        - name: ENV
+          value: "production"
+        - name: AUTH_ENABLED
+          value: "true"
+        - name: REGISTRATION_ENABLED
+          value: "false"
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-backend-secret
+              key: jwt-secret-key
+        - name: JWT_ALGORITHM
+          value: "HS256"
+        - name: TOKEN_EXPIRE_HOURS
+          value: "24"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 500m
+          limits:
+            memory: 4Gi
+            cpu: 2

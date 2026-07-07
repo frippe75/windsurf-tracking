@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: windsurf-prod
+resources:
+  - video-storage-pvc.yaml
+  - network-policies.yaml
+  - postgres-statefulset.yaml
+  - postgres-services.yaml
+  - redis-deployment.yaml
+  - redis-service.yaml
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - gpu-workers.yaml
+  - ingress-api.yaml
+  - ingress-labelbee.yaml
+images:
+  - name: harbor.tclab.org/windsurf/frontend
+    newTag: "latest"

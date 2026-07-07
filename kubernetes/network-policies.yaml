@@ -1,0 +1,120 @@
+# Carried over from the windsurf-ai-2.0.0 Helm chart unchanged.
+# Note: the frontend pod (component: frontend) is intentionally not selected by
+# any policy — no NetworkPolicy selects it, so all its traffic is allowed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: windsurf-prod-backend-netpol
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress controller traffic
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow inter-service communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: windsurf-ai
+          app.kubernetes.io/instance: windsurf-prod
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow postgres communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: windsurf-ai
+          app.kubernetes.io/instance: windsurf-prod
+          component: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow redis communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: windsurf-ai
+          app.kubernetes.io/instance: windsurf-prod
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow HTTPS for external services (Harbor, OIDC)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: windsurf-prod-postgres-netpol
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  # Only allow backend and workers to connect
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: windsurf-ai
+          app.kubernetes.io/instance: windsurf-prod
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: windsurf-prod-redis-netpol
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  # Only allow backend and workers to connect
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: windsurf-ai
+          app.kubernetes.io/instance: windsurf-prod
+    ports:
+    - protocol: TCP
+      port: 6379
