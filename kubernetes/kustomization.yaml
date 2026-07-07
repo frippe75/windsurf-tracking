@@ -16,4 +16,4 @@ resources:
   - ingress-labelbee.yaml
 images:
   - name: harbor.tclab.org/windsurf/frontend
-    newTag: "641d276b"
+    newTag: "8ebdb5de"
