@@ -1,5 +1,20 @@
 import { config } from './config';
 
+const AUTH_TOKEN_KEY = 'auth_token';
+
+// Get auth header if token exists
+const getAuthHeaders = (): HeadersInit => {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Handle 401 responses
+const handleUnauthorized = () => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem('auth_user');
+  window.location.href = '/login';
+};
+
 // Backend Health Check Types
 export interface HealthCheckResponse {
   message: string;
@@ -8,7 +23,7 @@ export interface HealthCheckResponse {
 }
 
 // Health check endpoint
-export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> => {
+export const checkBackendHealth = async (customUrl?: string): Promise<HealthCheckResponse | null> => {
   if (config.useMockApi) {
     // Mock mode - always healthy
     return {
@@ -18,12 +33,18 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
     };
   }
 
+  const url = customUrl || config.backendUrl;
+
   try {
-    console.log('🔍 Checking backend health at:', config.backendUrl);
+    console.log('🔍 Checking backend health at:', url);
     // Probe an /api route: with same-origin deployment, `/` serves the SPA itself
-    const response = await fetch(`${config.backendUrl}/api/ai/status`, {
+    const response = await fetch(`${url}/api/ai/status`, {
       method: 'GET',
       mode: 'cors',
+      headers: {
+        'Accept': 'application/json',
+        ...getAuthHeaders(),
+      },
     });
 
     if (!response.ok) {
@@ -33,7 +54,7 @@ export const checkBackendHealth = async (): Promise<HealthCheckResponse | null> 
     await response.json();
     return { message: "Windsurf Dataset API", version: "2.0.0", status: "healthy" };
   } catch (error) {
-    console.error('❌ Backend health check failed for', config.backendUrl, ':', error);
+    console.error('❌ Backend health check failed for', url, ':', error);
     return null;
   }
 };
@@ -179,10 +200,12 @@ export const detectScenes = async (videoId: string): Promise<SceneDetectionRespo
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Scene detection failed: ${response.statusText}`);
   }
 
@@ -231,9 +254,11 @@ export const getVideos = async (): Promise<VideoListResponse> => {
 
   const response = await fetch(`${config.backendUrl}/api/videos`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get videos list: ${response.statusText}`);
   }
 
@@ -255,9 +280,11 @@ export const checkVideoExists = async (filename: string): Promise<VideoExistsRes
 
   const response = await fetch(`${config.backendUrl}/api/videos/exists?filename=${encodeURIComponent(filename)}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to check video existence: ${response.statusText}`);
   }
 
@@ -283,9 +310,11 @@ export const getVideoInfo = async (videoId: string): Promise<VideoInfoResponse> 
 
   const response = await fetch(`${config.backendUrl}/api/videos/${videoId}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get video info: ${response.statusText}`);
   }
 
@@ -344,6 +373,7 @@ export const uploadVideo = async (
           reject(new Error('Failed to parse upload response'));
         }
       } else {
+        if (xhr.status === 401) handleUnauthorized();
         reject(new Error(`Video upload failed: ${xhr.statusText}`));
       }
     });
@@ -359,8 +389,67 @@ export const uploadVideo = async (
 
     // Send request
     xhr.open('POST', `${config.backendUrl}/api/videos/upload`);
+    
+    // Add auth headers
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    
     xhr.send(formData);
   });
+};
+
+// Video download endpoint with progress tracking (for caching)
+export const downloadVideoFile = async (
+  videoId: string, 
+  onProgress?: (percent: number) => void
+): Promise<Blob> => {
+  if (config.useMockApi) {
+    // Mock mode - simulate download
+    if (onProgress) {
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        onProgress(i);
+      }
+    }
+    // Return mock blob
+    return new Blob(['mock video data'], { type: 'video/mp4' });
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/download`, {
+    headers: getAuthHeaders(),
+  });
+  
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to download video: ${response.statusText}`);
+  }
+  
+  const contentLength = response.headers.get('content-length');
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+  
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+  
+  const chunks: Uint8Array[] = [];
+  let receivedLength = 0;
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    chunks.push(value);
+    receivedLength += value.length;
+    
+    if (onProgress && total > 0) {
+      onProgress(Math.round((receivedLength / total) * 100));
+    }
+  }
+  
+  const blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' });
+  console.log('💾 Video blob downloaded:', `${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+  return blob;
 };
 
 // ============= AI Endpoints =============
@@ -415,11 +504,13 @@ export const detectWithDINO = async (request: DINODetectionRequest): Promise<DIN
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`DINO detection failed: ${response.statusText}`);
   }
 
@@ -449,6 +540,182 @@ export interface SAM2SegmentationResponse {
   success?: boolean;  // Backend may return success flag
   error?: string;     // Backend may return error message
 }
+
+// ============= Project Management Endpoints =============
+
+export interface ProjectCreateRequest {
+  name: string;
+  description?: string;
+  video_id: string;
+}
+
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  video_id: string;
+  video_filename?: string;
+  created_at: string;
+  last_modified: string;
+  description?: string;
+  settings?: Record<string, any>;
+  annotation_count?: number;
+  annotated_frames?: number;
+  video_metadata?: {
+    duration: number;
+    fps: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface ProjectListResponse {
+  projects: ProjectResponse[];
+  total: number;
+}
+
+export interface ProjectUpdateRequest {
+  name?: string;
+  description?: string;
+  settings?: Record<string, any>;
+}
+
+// Create new project
+export const createProject = async (request: ProjectCreateRequest): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: `mock-project-${Date.now()}`,
+      name: request.name,
+      video_id: request.video_id,
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      description: request.description,
+      settings: {},
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to create project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Get all projects
+export const getProjects = async (): Promise<ProjectListResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      projects: [],
+      total: 0,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to get projects: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Get single project details
+export const getProject = async (projectId: string): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: projectId,
+      name: "Mock Project",
+      video_id: "mock-video-id",
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      annotation_count: 0,
+      annotated_frames: 0,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to get project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Update project
+export const updateProject = async (
+  projectId: string,
+  updates: ProjectUpdateRequest
+): Promise<ProjectResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: projectId,
+      name: updates.name || "Mock Project",
+      video_id: "mock-video-id",
+      created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
+      description: updates.description,
+      settings: updates.settings,
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to update project: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Delete project
+export const deleteProject = async (projectId: string): Promise<void> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return;
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to delete project: ${response.statusText}`);
+  }
+};
+
+// ============= End Project Management =============
 
 // SAM2 segmentation endpoint
 export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise<SAM2SegmentationResponse> => {
@@ -491,11 +758,13 @@ export const segmentWithSAM2 = async (request: SAM2SegmentationRequest): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     });
 
     if (!response.ok) {
+      if (response.status === 401) handleUnauthorized();
       const errorText = await response.text();
       console.error('❌ SAM2 API error:', response.status, errorText);
       throw new Error(`SAM2 segmentation failed: ${response.statusText}`);
@@ -556,9 +825,11 @@ export const getAIStatus = async (): Promise<AIStatusResponse> => {
 
   const response = await fetch(`${config.backendUrl}/api/ai/status`, {
     method: 'GET',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`AI status check failed: ${response.statusText}`);
   }
 
@@ -653,11 +924,13 @@ export const createTrackingJob = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({ segments }),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to create tracking job: ${response.statusText}`);
   }
 
@@ -673,13 +946,145 @@ export const executeTrackingJob = async (jobId: string): Promise<{ job_id: strin
 
   const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/execute`, {
     method: 'POST',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to execute tracking job: ${response.statusText}`);
   }
 
   return await response.json();
+};
+
+// ============= YouTube Download Endpoints =============
+
+export interface YouTubeDownloadRequest {
+  url: string;
+  format?: string;
+  quality?: string;
+}
+
+export interface YouTubeDownloadJobResponse {
+  job_id: string;
+  status: 'queued' | 'downloading' | 'processing' | 'completed' | 'failed';
+  message: string;
+}
+
+export interface YouTubeDownloadStatusResponse {
+  job_id: string;
+  status: 'queued' | 'downloading' | 'processing' | 'completed' | 'failed';
+  progress?: number;
+  stage?: string;
+  current_step?: string;
+  eta_seconds?: number;
+  video_id?: string;
+  filename?: string;
+  duration?: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+  total_frames?: number;
+  error?: string;
+}
+
+// Initiate YouTube video download
+export const downloadFromYouTube = async (request: YouTubeDownloadRequest): Promise<YouTubeDownloadJobResponse> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return {
+      job_id: `yt-mock-${Date.now()}`,
+      status: 'queued',
+      message: 'Mock download started'
+    };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    const errorData = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(errorData.error || `YouTube download failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Check YouTube download job status
+export const getYouTubeDownloadStatus = async (jobId: string): Promise<YouTubeDownloadStatusResponse> => {
+  if (config.useMockApi) {
+    // Mock progressive download states
+    const elapsed = Date.now() - parseInt(jobId.split('-').pop() || '0');
+    
+    if (elapsed < 2000) {
+      return {
+        job_id: jobId,
+        status: 'downloading',
+        progress: Math.min(40, (elapsed / 2000) * 40),
+        stage: 'downloading',
+        current_step: 'Downloading video from YouTube',
+        eta_seconds: 8
+      };
+    } else if (elapsed < 4000) {
+      return {
+        job_id: jobId,
+        status: 'processing',
+        progress: 40 + Math.min(60, ((elapsed - 2000) / 2000) * 60),
+        stage: 'processing',
+        current_step: 'Converting and analyzing video',
+        eta_seconds: 4
+      };
+    } else {
+      return {
+        job_id: jobId,
+        status: 'completed',
+        video_id: `video-${jobId}`,
+        filename: 'Mock YouTube Video.mp4',
+        duration: 180.5,
+        fps: 30,
+        width: 1920,
+        height: 1080,
+        total_frames: 5415
+      };
+    }
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}/status`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to get download status: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+// Cancel YouTube download job
+export const cancelYouTubeDownload = async (jobId: string): Promise<void> => {
+  if (config.useMockApi) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return;
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/download-youtube/${jobId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to cancel download: ${response.statusText}`);
+  }
 };
 
 // Get tracking job status
@@ -706,11 +1111,13 @@ export const getTrackingJobStatus = async (jobId: string): Promise<TrackingJobSt
     headers: {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
+      ...getAuthHeaders(),
     }
   });
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
     throw new Error(`Failed to get tracking job status: ${response.statusText}`);
   }
 
@@ -772,10 +1179,16 @@ export const getTrackingJobResults = async (jobId: string): Promise<TrackingJobR
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const response = await fetch(`${config.backendUrl}/api/tracking/jobs/${jobId}/results`, {
       method: 'GET',
+      headers: getAuthHeaders(),
     });
 
     if (response.ok) {
       return await response.json();
+    }
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Unauthorized');
     }
 
     // Results can briefly 404 while the backend finalizes artifacts after completion

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
@@ -7,19 +8,33 @@ import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
-import { VideoCacheManager } from "@/components/VideoCacheManager";
+
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
+import { DownloadQueue, type DownloadJob } from "@/components/DownloadQueue";
+import { ProjectManager } from "@/components/ProjectManager";
+import { ProjectManager_v2 } from "@/components/ProjectManager_v2";
+import { AddResourcesDialog } from "@/components/AddResourcesDialog";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video, FolderOpen, LogIn, LogOut } from "lucide-react";
+import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
+import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, type SubJob } from "@/lib/api";
+import { ManagedVideo } from "@/types/video";
+import { Project, createEmptyProject } from "@/types/project";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
-import { BackendSelector } from "@/components/BackendSelector";
+import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
+import { UserMenu } from "@/components/UserMenu";
+import { useAuth } from "@/hooks/useAuth";
+import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
+import { config } from "@/lib/config";
 
 const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
@@ -31,13 +46,19 @@ const SAIL_COLORS = [
 
 const Index = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { isAuthRequired, isAuthenticated, logout } = useAuth();
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
   const [videoNativeHeight, setVideoNativeHeight] = useState<number>(720);
+  const [blobUrlsRef] = useState<{ current: Set<string> }>({ current: new Set() });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"checking" | "healthy" | "offline">("checking");
+  const [backends, setBackends] = useState<Backend[]>([]);
+  const backendsRef = useRef<Backend[]>([]);
+  const isCheckingRef = useRef(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -47,17 +68,16 @@ const Index = () => {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>();
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
-  const [overlays, setOverlays] = useState({
-    segments: true,
-    bboxes: true,
-    points: true,
-  });
+  
+  // Load tool preferences from settings
+  const toolPrefs = getToolPreferences();
+  const [overlays, setOverlays] = useState(toolPrefs.overlays);
   const [colorIndex, setColorIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
-  const [autoTrack, setAutoTrack] = useState(true);
-  const [autoDetect, setAutoDetect] = useState(true);
-  const [useSAM2, setUseSAM2] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
+  const [autoTrack, setAutoTrack] = useState(toolPrefs.autoTrack);
+  const [autoDetect, setAutoDetect] = useState(toolPrefs.autoDetect);
+  const [useSAM2, setUseSAM2] = useState(toolPrefs.useSAM2);
+  const [showLabels, setShowLabels] = useState(toolPrefs.showLabels);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -66,7 +86,7 @@ const Index = () => {
   const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
-  const [maximizeVideo, setMaximizeVideo] = useState(false);
+  const [maximizeVideo, setMaximizeVideo] = useState(toolPrefs.maximizeVideo);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [metadataModal, setMetadataModal] = useState<{
@@ -74,6 +94,267 @@ const Index = () => {
     frame?: number;
     initialText?: string;
   }>({ isOpen: false });
+  const [downloadQueue, setDownloadQueue] = useState<DownloadJob[]>([]);
+  const [videoManagerOpen, setVideoManagerOpen] = useState(false);
+  const [showProjectManager_v2, setShowProjectManager_v2] = useState(false);
+  const [showAddResources, setShowAddResources] = useState(false);
+  const [showProjectSwitcher, setShowProjectSwitcher] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
+  const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
+  
+  // Projects state with localStorage fallback
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const saved = localStorage.getItem('projects');
+      if (!saved) return [];
+      
+      const parsed = JSON.parse(saved);
+      
+      // Migrate old project format (videoId) to new format (videoIds array)
+      return parsed.map((project: any) => {
+        // If project has old videoId property, convert to videoIds array
+        if (project.videoId && !project.videoIds) {
+          return {
+            ...project,
+            videoIds: [project.videoId],
+            videoId: undefined, // Remove old property
+          };
+        }
+        // If project has no videoIds, initialize to empty array
+        if (!project.videoIds) {
+          return {
+            ...project,
+            videoIds: [],
+          };
+        }
+        return project;
+      });
+    } catch {
+      return [];
+    }
+  });
+  
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('activeProjectId');
+    } catch {
+      return null;
+    }
+  });
+  
+  // Track which video in the project is currently being viewed
+  const [currentVideoIdInProject, setCurrentVideoIdInProject] = useState<string | null>(null);
+  
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  
+  // Load persisted video library from localStorage
+  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
+    try {
+      const saved = localStorage.getItem('managedVideos');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync projects with backend (when online)
+  useEffect(() => {
+    const syncWithBackend = async () => {
+      if (backendStatus !== 'healthy') return;
+      
+      try {
+        setIsLoadingProjects(true);
+        const response = await getProjects();
+        
+        // Convert backend projects to frontend format
+        const backendProjects: Project[] = response.projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          videoIds: p.video_id ? [p.video_id] : [], // Backend stores single video, convert to array
+          createdAt: new Date(p.created_at).getTime(),
+          lastModified: new Date(p.last_modified).getTime(),
+          classes: [],
+          instances: [],
+          annotations: [],
+          keyframes: [],
+          scenes: [],
+          videoMetadata: {},
+        }));
+        
+        // Merge with localStorage projects (keep newer ones)
+        const mergedProjects = [...projects];
+        backendProjects.forEach(bp => {
+          const existingIdx = mergedProjects.findIndex(p => p.id === bp.id);
+          if (existingIdx >= 0) {
+            // Keep the one with latest modification
+            if (bp.lastModified > mergedProjects[existingIdx].lastModified) {
+              mergedProjects[existingIdx] = bp;
+            }
+          } else {
+            mergedProjects.push(bp);
+          }
+        });
+        
+        setProjects(mergedProjects);
+      } catch (error) {
+        console.error('Failed to sync with backend:', error);
+        // Continue with localStorage projects
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    
+    syncWithBackend();
+  }, [backendStatus]);
+  
+  // Persist projects to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save projects:', error);
+    }
+  }, [projects]);
+  
+  // Persist active project ID to localStorage
+  useEffect(() => {
+    try {
+      if (activeProjectId) {
+        localStorage.setItem('activeProjectId', activeProjectId);
+      } else {
+        localStorage.removeItem('activeProjectId');
+      }
+    } catch (error) {
+      console.error('Failed to save active project ID:', error);
+    }
+  }, [activeProjectId]);
+  
+  // Persist managed videos to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('managedVideos', JSON.stringify(managedVideos));
+    } catch (error) {
+      console.error('Failed to save managed videos:', error);
+    }
+  }, [managedVideos]);
+  
+  // Auto-save current project annotations
+  useEffect(() => {
+    if (!activeProjectId) return;
+    
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) return;
+    
+    // Update local state
+    const updatedProject: Project = {
+      ...project,
+      classes,
+      instances,
+      annotations,
+      keyframes,
+      scenes,
+      videoMetadata,
+      lastModified: Date.now(),
+    };
+    
+    setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
+    
+    // Try to save to backend if online (debounced)
+    if (backendStatus === 'healthy') {
+      const timeoutId = setTimeout(async () => {
+        try {
+          await updateProject(activeProjectId, {
+            name: project.name,
+            settings: {
+              classes,
+              instances,
+              annotations,
+              keyframes,
+              scenes,
+              videoMetadata,
+            },
+          });
+          console.log('💾 Auto-saved project to backend');
+        } catch (error) {
+          console.error('Failed to auto-save to backend (offline mode active):', error);
+        }
+      }, 2000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
+
+  // Auto-persist tool preferences to settings
+  useEffect(() => {
+    saveToolPreferences({
+      autoTrack,
+      autoDetect,
+      useSAM2,
+      showLabels,
+      overlays,
+      maximizeVideo,
+    });
+  }, [autoTrack, autoDetect, useSAM2, showLabels, overlays, maximizeVideo]);
+
+  // Restore active project on mount
+  useEffect(() => {
+    const restoreActiveProject = async () => {
+      if (activeProjectId && projects.length > 0 && managedVideos.length > 0) {
+        const activeProject = projects.find(p => p.id === activeProjectId);
+        if (!activeProject || activeProject.videoIds.length === 0) return;
+        
+        // Use first video in project or stored current video
+        const targetVideoId = currentVideoIdInProject || activeProject.videoIds[0];
+        const activeVideo = managedVideos.find(v => v.id === targetVideoId);
+        if (activeVideo && activeVideo.status === 'ready' && activeVideo.metadata) {
+          console.log('🔄 Restoring active project:', activeProject.name);
+          setVideoId(targetVideoId);
+          setCurrentVideoIdInProject(targetVideoId);
+          
+          // Restore annotation state from project
+          setClasses(activeProject.classes);
+          setInstances(activeProject.instances);
+          setAnnotations(activeProject.annotations);
+          setKeyframes(activeProject.keyframes);
+          setScenes(activeProject.scenes);
+          setVideoMetadata(activeProject.videoMetadata);
+          
+          // Resolve video source (cache-first, then streaming)
+          try {
+            await videoCache.init();
+            const cached = await videoCache.get(activeVideo.filename);
+            
+            if (cached) {
+              console.log("💾 Restored from IndexedDB cache");
+              const blobUrl = URL.createObjectURL(cached.blob);
+              blobUrlsRef.current.add(blobUrl);
+              setVideoUrl(blobUrl);
+            } else {
+              console.log("🌐 Restored from backend stream");
+              setVideoUrl(`${config.backendUrl}/api/videos/${targetVideoId}/download`);
+            }
+          } catch (error) {
+            console.error("Failed to restore video:", error);
+            setVideoUrl(`${config.backendUrl}/api/videos/${targetVideoId}/download`);
+          }
+          
+          setVideoNativeWidth(activeVideo.metadata.width);
+          setVideoNativeHeight(activeVideo.metadata.height);
+          setTotalFrames(activeVideo.metadata.totalFrames);
+        }
+      }
+    };
+    
+    restoreActiveProject();
+  }, []); // Only run on mount
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // Frame range for timeline (defaults to full video, or zooms to selected scene)
   const frameRange: [number, number] = selectedScene 
@@ -107,44 +388,79 @@ const Index = () => {
     }
   });
 
-  // Check backend health periodically
+  // Keep a ref in sync with latest backends to avoid re-creating intervals
+  useEffect(() => {
+    backendsRef.current = backends;
+  }, [backends]);
+
+  // Check backend health periodically for all backends that need probing (single global interval)
   useEffect(() => {
     const checkHealth = async () => {
-      const health = await checkBackendHealth();
-      const newStatus = health && health.status === "healthy" ? "healthy" : "offline";
-      
-      // Only show toast if status changed
-      setBackendStatus((prevStatus) => {
-        if (prevStatus !== "checking" && prevStatus !== newStatus) {
-          toast({
-            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-            description: newStatus === "healthy" 
-              ? `${health!.message} v${health!.version}`
-              : "Upload and scene detection unavailable.",
-            variant: newStatus === "healthy" ? "default" : "destructive",
-          });
-        } else if (prevStatus === "checking") {
-          // First check - always show status
-          toast({
-            title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
-            description: newStatus === "healthy" 
-              ? `${health!.message} v${health!.version}`
-              : "Running in offline mode.",
-            variant: newStatus === "healthy" ? "default" : "destructive",
-          });
+      if (isCheckingRef.current) return; // prevent overlapping probes
+      isCheckingRef.current = true;
+      try {
+        const { selectedBackendId, selectedBackendSnapshot } = getBackendSettings();
+        const currentBackendId = selectedBackendId || selectedBackendSnapshot?.id || 'local';
+        const backendsToProbe = getProbeBackends(backendsRef.current, currentBackendId);
+        
+        for (const backend of backendsToProbe) {
+          const isActiveBackend = backend.id === currentBackendId;
+          try {
+            const health = await checkBackendHealth(backend.url);
+            const newStatus: "healthy" | "offline" = health && health.status === "healthy" ? "healthy" : "offline";
+
+            if (isActiveBackend) {
+              setBackendStatus((prevStatus) => {
+                if (prevStatus !== "checking" && prevStatus !== newStatus) {
+                  toast({
+                    title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                    description: newStatus === "healthy"
+                      ? `${health!.message} v${health!.version}`
+                      : "Upload and scene detection unavailable.",
+                    variant: newStatus === "healthy" ? "default" : "destructive",
+                  });
+                } else if (prevStatus === "checking") {
+                  toast({
+                    title: newStatus === "healthy" ? "Backend connected" : "Backend offline",
+                    description: newStatus === "healthy"
+                      ? `${health!.message} v${health!.version}`
+                      : "Running in offline mode.",
+                    variant: newStatus === "healthy" ? "default" : "destructive",
+                  });
+                }
+                return newStatus;
+              });
+            }
+
+            setBackends(prev => updateBackendProbeStatus(prev, backend.id, newStatus));
+          } catch (error) {
+            if (isActiveBackend) {
+              setBackendStatus("offline");
+            }
+            setBackends(prev => updateBackendProbeStatus(prev, backend.id, "offline"));
+          }
         }
-        return newStatus;
-      });
+      } finally {
+        isCheckingRef.current = false;
+      }
     };
-    
-    // Initial check
-    checkHealth();
-    
-    // Check every 5 seconds
-    const interval = setInterval(checkHealth, 5000);
-    
-    return () => clearInterval(interval);
+
+    // Initial check (slightly delayed to allow BackendSelector to push backends)
+    const initialKick = setTimeout(() => {
+      checkHealth();
+    }, 250);
+
+    // Use a single interval to probe all marked backends
+    const interval = setInterval(() => {
+      checkHealth();
+    }, 30000);
+
+    return () => {
+      clearTimeout(initialKick);
+      clearInterval(interval);
+    };
   }, [toast]);
+
 
   // Auto-create tracking jobs from START->STOP keyframe pairs
   useEffect(() => {
@@ -360,15 +676,334 @@ const Index = () => {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await processVideoFile(file);
+  };
 
-    console.log("📤 handleVideoUpload: Starting upload for file:", file.name, "size:", file.size);
+  const handleYoutubeUrl = async (url: string) => {
+    try {
+      console.log("📺 Initiating YouTube download:", url);
+      
+      // Extract YouTube video ID and thumbnail immediately
+      const getYouTubeVideoId = (url: string): string | null => {
+        const patterns = [
+          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+          /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+        ];
+        
+        for (const pattern of patterns) {
+          const match = url.match(pattern);
+          if (match && match[1]) {
+            return match[1];
+          }
+        }
+        return null;
+      };
+      
+      const videoId = getYouTubeVideoId(url);
+      const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined;
+      
+      // Initiate download
+      const downloadJob = await downloadFromYouTube({ url });
+      const jobId = downloadJob.job_id;
+      
+      // Create managed video entry (downloading state)
+      const tempVideo: ManagedVideo = {
+        id: jobId,
+        filename: "Loading...",
+        status: 'downloading',
+        backendProgress: 0,
+        youtubeUrl: url,
+        youtubeThumbnail: thumbnailUrl,
+        isActive: false,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      setManagedVideos(prev => [...prev, tempVideo]);
+      
+      // Add to queue
+      const newDownload: DownloadJob = {
+        id: jobId,
+        url,
+        status: downloadJob.status,
+        progress: 0,
+      };
+      setDownloadQueue(prev => [...prev, newDownload]);
 
-    // Clear all states for fresh start
-    console.log("📤 handleVideoUpload: Clearing all states");
-    setAnnotations([]);
-    setInstances([]);
-    setKeyframes([]);
-    setScenes([]);
+      toast({
+        title: "Download started",
+        description: "Video will appear in your library when ready",
+      });
+
+      // Poll for status in background
+      pollDownloadStatus(jobId, url);
+
+    } catch (error: any) {
+      console.error("📺 YouTube download error:", error);
+      toast({
+        title: "Download failed",
+        description: error?.message || "Could not start download",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const pollDownloadStatus = async (jobId: string, url: string) => {
+    let pollCount = 0;
+    const maxPolls = 180; // 6 minutes max
+
+    while (pollCount < maxPolls) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      pollCount++;
+
+      try {
+        const statusResponse = await getYouTubeDownloadStatus(jobId);
+        
+        // Update queue
+        setDownloadQueue(prev => prev.map(d => 
+          d.id === jobId 
+            ? {
+                ...d,
+                status: statusResponse.status,
+                progress: statusResponse.progress || 0,
+                current_step: statusResponse.current_step,
+                video_id: statusResponse.video_id,
+              }
+            : d
+        ));
+
+        // Update managed video progress
+        setManagedVideos(prev => prev.map(v => 
+          v.id === jobId
+            ? {
+                ...v,
+                status: statusResponse.status === 'completed' ? 'ready' : 
+                        statusResponse.current_step === 'syncing' ? 'syncing' : 'downloading',
+                backendProgress: statusResponse.current_step === 'downloading' ? statusResponse.progress : 100,
+                frontendProgress: statusResponse.current_step === 'syncing' ? statusResponse.progress : undefined,
+                filename: statusResponse.filename || v.filename,
+              }
+            : v
+        ));
+
+        // Handle completion
+        if (statusResponse.status === 'completed' && statusResponse.video_id) {
+          console.log("📺 Download completed! video_id:", statusResponse.video_id);
+          
+          // Get full video info
+          const videoInfo = await getVideoInfo(statusResponse.video_id);
+          
+          // === Sync video to IndexedDB ===
+          try {
+            // Update to 'syncing' status
+            setManagedVideos(prev => prev.map(v =>
+              v.id === jobId ? {
+                ...v,
+                status: 'syncing' as const,
+                frontendProgress: 0,
+              } : v
+            ));
+            
+            console.log("💾 Syncing video to local cache...");
+            
+            // Download video blob from backend
+            const videoBlob = await downloadVideoFile(statusResponse.video_id, (percent) => {
+              setManagedVideos(prev => prev.map(v =>
+                v.id === jobId ? { ...v, frontendProgress: percent } : v
+              ));
+            });
+            
+            console.log("💾 Video downloaded, storing in IndexedDB...");
+            
+            // Store in IndexedDB
+            await videoCache.init();
+            await videoCache.set(videoInfo.filename, {
+              videoId: statusResponse.video_id,
+              filename: videoInfo.filename,
+              blob: videoBlob,
+              metadata: {
+                duration: videoInfo.duration,
+                fps: videoInfo.fps,
+                width: videoInfo.width,
+                height: videoInfo.height,
+                totalFrames: videoInfo.total_frames,
+                cachedAt: Date.now(),
+              }
+            });
+            
+            console.log("💾 Video cached successfully!");
+            
+          } catch (cacheError) {
+            console.error("💾 Failed to cache video:", cacheError);
+            // Don't block - video is still on backend
+          }
+          
+          // Update managed video with final video_id and metadata
+          setManagedVideos(prev => prev.map(v =>
+            v.id === jobId ? {
+              id: statusResponse.video_id!,
+              filename: videoInfo.filename,
+              status: 'ready' as const,
+              youtubeUrl: v.youtubeUrl,
+              metadata: {
+                duration: videoInfo.duration,
+                fps: videoInfo.fps,
+                width: videoInfo.width,
+                height: videoInfo.height,
+                totalFrames: videoInfo.total_frames,
+                fileSize: videoInfo.file_size,
+              },
+              isActive: false,
+              createdAt: v.createdAt,
+              lastAccessedAt: Date.now(),
+            } : v
+          ));
+          
+          toast({
+            title: "Video ready",
+            description: `${videoInfo.filename} is now available in your library`,
+          });
+          
+          // Remove from queue after successful load
+          setTimeout(() => {
+            setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
+          }, 2000);
+          
+          break;
+        }
+
+        // Handle failure
+        if (statusResponse.status === 'failed') {
+          setDownloadQueue(prev => prev.map(d => 
+            d.id === jobId ? { ...d, error: 'Download failed' } : d
+          ));
+          toast({
+            title: "Download failed",
+            description: "The video could not be downloaded",
+            variant: "destructive",
+          });
+          break;
+        }
+
+      } catch (error) {
+        console.error("📺 Polling error:", error);
+        break;
+      }
+    }
+
+    // Handle timeout
+    if (pollCount >= maxPolls) {
+      setDownloadQueue(prev => prev.map(d => 
+        d.id === jobId ? { ...d, status: 'failed' as const, error: 'Download timed out' } : d
+      ));
+    }
+  };
+
+  const handleCancelDownload = async (jobId: string) => {
+    // TODO: Call backend cancel endpoint when available
+    setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
+    toast({
+      title: "Download cancelled",
+    });
+  };
+
+  const handleRemoveDownload = (jobId: string) => {
+    setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
+  };
+
+  // Helper function to load video into player
+  const loadVideoIntoPlayer = async (videoId: string) => {
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video || !video.metadata) return;
+    
+    // Resolve video source (cache-first, then streaming)
+    try {
+      await videoCache.init();
+      const cached = await videoCache.get(video.filename);
+      
+      if (cached) {
+        console.log("💾 Loading video from IndexedDB cache");
+        const blobUrl = URL.createObjectURL(cached.blob);
+        blobUrlsRef.current.add(blobUrl);
+        setVideoUrl(blobUrl);
+      } else {
+        console.log("🌐 Loading video from backend stream");
+        setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
+      }
+    } catch (error) {
+      console.error("Failed to load video:", error);
+      setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
+    }
+    
+    setVideoNativeWidth(video.metadata.width);
+    setVideoNativeHeight(video.metadata.height);
+    setTotalFrames(video.metadata.totalFrames);
+    
+    // Update last accessed time
+    setManagedVideos(prev => prev.map(v =>
+      v.id === videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
+    ));
+  };
+
+  const handleVideoSelect = async (videoId: string) => {
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video || video.status !== 'ready' || !video.metadata) return;
+
+    // Check if video is already in active project
+    const activeProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
+    if (activeProject && activeProject.videoIds.includes(videoId)) {
+      // Switch to this video within the project
+      setVideoId(videoId);
+      setCurrentVideoIdInProject(videoId);
+      await loadVideoIntoPlayer(videoId);
+      toast({
+        title: "Switched video",
+        description: `Now viewing ${video.filename} in ${activeProject.name}`,
+      });
+      return;
+    }
+
+    // Check if video belongs to a different project
+    let project = projects.find(p => p.videoIds.includes(videoId));
+    
+    if (!project) {
+      // Create new project with this video
+      project = createEmptyProject(video.filename.replace(/\.[^/.]+$/, ""), [videoId]);
+      
+      if (backendStatus === 'healthy') {
+        try {
+          const response = await createProject({
+            name: project.name,
+            video_id: videoId, // Backend still expects single video
+            description: `Annotation project for ${video.filename}`,
+          });
+          
+          project.id = response.id;
+          project.createdAt = new Date(response.created_at).getTime();
+          project.lastModified = new Date(response.last_modified).getTime();
+        } catch (error) {
+          console.error('Failed to create project on backend, using local storage:', error);
+        }
+      }
+      
+      setProjects(prev => [...prev, project!]);
+      
+      toast({
+        title: "Project created",
+        description: `New project "${project.name}" created`,
+      });
+    }
+    
+    // Switch to this project
+    setActiveProjectId(project.id);
+    setCurrentVideoIdInProject(videoId);
+    
+    // Load project state
+    setClasses(project.classes);
+    setInstances(project.instances);
+    setAnnotations(project.annotations);
+    setKeyframes(project.keyframes);
+    setScenes(project.scenes);
+    setVideoMetadata(project.videoMetadata);
     setSelectedClassId(undefined);
     setSelectedAnnotationId(undefined);
     setSelectedScene(null);
@@ -376,18 +1011,197 @@ const Index = () => {
     setCurrentFrame(0);
     setVideoMetadata({});
 
-    // Create local URL for immediate playback
-    const url = URL.createObjectURL(file);
-    console.log("📤 handleVideoUpload: Created blob URL:", url);
-    setVideoUrl(url);
-    console.log("📤 handleVideoUpload: Called setVideoUrl with blob URL");
+    // Set video
+    setVideoId(videoId);
+    await loadVideoIntoPlayer(videoId);
+    
+    toast({
+      title: "Video loaded",
+      description: `${video.filename}`,
+    });
+  };
+  
+  const handleProjectSelect = async (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project || project.videoIds.length === 0) return;
+    
+    // Use first video in project
+    const firstVideoId = project.videoIds[0];
+    const video = managedVideos.find(v => v.id === firstVideoId);
+    if (!video || video.status !== 'ready' || !video.metadata) return;
+    
+    console.log('🔄 Switching to project:', project.name);
+    setActiveProjectId(projectId);
+    setVideoId(firstVideoId);
+    setCurrentVideoIdInProject(firstVideoId);
+    
+    // Load project state
+    setClasses(project.classes);
+    setInstances(project.instances);
+    setAnnotations(project.annotations);
+    setKeyframes(project.keyframes);
+    setScenes(project.scenes);
+    setVideoMetadata(project.videoMetadata);
+    
+    await loadVideoIntoPlayer(firstVideoId);
+    
+    toast({
+      title: "Project loaded",
+      description: `Switched to "${project.name}"`,
+    });
+  };
+  
+  const handleProjectDelete = (projectId: string) => {
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+    
+    // If deleting active project, clear it
+    if (projectId === activeProjectId) {
+      setActiveProjectId(null);
+      setVideoId("");
+      setVideoUrl("");
+      setAnnotations([]);
+      setInstances([]);
+      setKeyframes([]);
+      setScenes([]);
+      setClasses([]);
+      setVideoMetadata({});
+      
+      toast({
+        title: "Project deleted",
+        description: "Project has been removed",
+      });
+    } else {
+      toast({
+        title: "Project deleted",
+      });
+    }
+  };
+  
+  const handleProjectRename = (projectId: string, newName: string) => {
+    setProjects(prev => prev.map(p => 
+      p.id === projectId ? { ...p, name: newName, lastModified: Date.now() } : p
+    ));
+    
+    toast({
+      title: "Project renamed",
+      description: `Project renamed to "${newName}"`,
+    });
+  };
+
+  const handleVideoDelete = (videoId: string) => {
+    // Check if video is used by any project
+    const projectsUsingVideo = projects.filter(p => p.videoIds.includes(videoId));
+    if (projectsUsingVideo.length > 0) {
+      toast({
+        title: "Cannot delete video",
+        description: `This video is used by ${projectsUsingVideo.length} project(s). Delete the project(s) first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Remove from managed videos
+    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
+    
+    toast({
+      title: "Video deleted",
+      description: "Video has been removed",
+    });
+  };
+
+  const handleVideoAddToProject = (videoId: string) => {
+    if (!activeProjectId) {
+      toast({
+        title: "No active project",
+        description: "Please select a project first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video) return;
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId && !p.videoIds.includes(videoId)) {
+        return {
+          ...p,
+          videoIds: [...p.videoIds, videoId],
+          lastModified: Date.now(),
+        };
+      }
+      return p;
+    }));
+
+    toast({
+      title: "Video added",
+      description: `${video.filename} added to project`,
+    });
+  };
+
+  const handleVideoRemoveFromProject = (videoId: string) => {
+    if (!activeProjectId) return;
+
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) return;
+
+    if (project.videoIds.length <= 1) {
+      toast({
+        title: "Cannot remove video",
+        description: "Project must contain at least one video",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const video = managedVideos.find(v => v.id === videoId);
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        return {
+          ...p,
+          videoIds: p.videoIds.filter(id => id !== videoId),
+          lastModified: Date.now(),
+        };
+      }
+      return p;
+    }));
+
+    // If removing active video, switch to first remaining video
+    if (videoId === videoId) {
+      const remainingVideoIds = project.videoIds.filter(id => id !== videoId);
+      if (remainingVideoIds.length > 0) {
+        handleVideoSelect(remainingVideoIds[0]);
+      }
+    }
+
+    toast({
+      title: "Video removed",
+      description: video ? `${video.filename} removed from project` : "Video removed from project",
+    });
+  };
+
+  const processVideoFile = async (file: File) => {
+    console.log("📤 processVideoFile: Starting upload for file:", file.name, "size:", file.size);
+
+    // Create temporary managed video entry
+    const tempId = `temp-${Date.now()}`;
+    const tempVideo: ManagedVideo = {
+      id: tempId,
+      filename: file.name,
+      status: 'syncing',
+      frontendProgress: 0,
+      isActive: false,
+      createdAt: Date.now(),
+      lastAccessedAt: Date.now(),
+    };
+    setManagedVideos(prev => [...prev, tempVideo]);
     
     // Start upload to backend
     setIsUploading(true);
-    setUploadProgress(0);
     toast({
-      title: "Checking for existing video",
-      description: "Looking for cached version...",
+      title: "Processing video",
+      description: "Video will appear in your library when ready",
     });
 
     try {
@@ -399,34 +1213,53 @@ const Index = () => {
         const cached = await videoCache.get(file.name);
         
         if (cached) {
-          console.log("💾 Cache HIT - using IndexedDB, skipping backend entirely");
+          console.log("💾 Cache HIT for:", file.name);
+          console.log("💾 Verifying video still exists on backend with videoId:", cached.videoId);
           
-          toast({
-            title: "Using local cache",
-            description: "Video loaded instantly from browser storage ⚡",
-          });
-          
-          // Simulate progress for UX
-          for (let i = 0; i <= 100; i += 25) {
-            setUploadProgress(i);
-            await new Promise(resolve => setTimeout(resolve, 30));
+          // Verify the cached video still exists on backend
+          try {
+            const videoInfo = await getVideoInfo(cached.videoId);
+            console.log("💾 Backend verification SUCCESS - video exists");
+            
+            // Add to managed videos as ready
+            const cachedManagedVideo: ManagedVideo = {
+              id: cached.videoId,
+              filename: file.name,
+              status: 'ready',
+              metadata: {
+                duration: cached.metadata.duration,
+                fps: cached.metadata.fps,
+                width: cached.metadata.width,
+                height: cached.metadata.height,
+                totalFrames: cached.metadata.totalFrames,
+              },
+              isActive: false,
+              createdAt: Date.now(),
+              lastAccessedAt: Date.now(),
+            };
+            
+            setManagedVideos(prev => prev.filter(v => v.id !== tempId).concat(cachedManagedVideo));
+            setIsUploading(false);
+            
+            toast({
+              title: "Video ready",
+              description: `${file.name} loaded from cache`,
+            });
+            
+            console.log("💾 Cache-based load complete - added to library");
+            return; // EXIT EARLY - backend verified, cache is valid
+            
+          } catch (backendError) {
+            console.warn("💾 Backend verification FAILED - video deleted from backend, invalidating cache");
+            await videoCache.delete(file.name);
+            console.log("💾 Cache entry deleted, will re-upload to backend");
+            
+            toast({
+              title: "Cache invalidated",
+              description: "Video was deleted from backend, re-uploading...",
+            });
+            // Continue to backend upload below
           }
-          
-          // Use cached data, skip backend entirely
-          setVideoId(cached.videoId);
-          setTotalFrames(cached.metadata.totalFrames);
-          setVideoNativeWidth(cached.metadata.width);
-          setVideoNativeHeight(cached.metadata.height);
-          setUploadProgress(100);
-          setIsUploading(false);
-          
-          toast({
-            title: "Video ready",
-            description: `${cached.metadata.totalFrames} frames at ${cached.metadata.fps} fps (${cached.metadata.width}×${cached.metadata.height})`,
-          });
-          
-          console.log("💾 Cache-based load complete - zero backend calls");
-          return; // EXIT EARLY - skip all backend logic
         }
         
         console.log("💾 Cache MISS - proceeding to backend check");
@@ -449,17 +1282,6 @@ const Index = () => {
           // Get video info for the existing video
           const existingVideoInfo = await getVideoInfo(existsCheck.video_id);
           
-          toast({
-            title: "Using cached video",
-            description: "Video already exists on backend",
-          });
-          
-          // Simulate progress for UX
-          for (let i = 0; i <= 100; i += 20) {
-            setUploadProgress(i);
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-          
           uploadResponse = {
             video_id: existsCheck.video_id,
             filename: existingVideoInfo.filename,
@@ -480,26 +1302,21 @@ const Index = () => {
       // Upload if not found
       if (!uploadResponse) {
         console.log("📤 handleVideoUpload: Starting backend upload");
-        toast({
-          title: "Uploading video",
-          description: "Uploading to backend...",
-        });
         
         uploadResponse = await uploadVideo(file, (percent) => {
-          setUploadProgress(percent);
+          // Update progress in managed video
+          setManagedVideos(prev => prev.map(v => 
+            v.id === tempId ? { ...v, frontendProgress: percent } : v
+          ));
         });
       }
       
       console.log("📤 handleVideoUpload: Backend upload complete, video_id:", uploadResponse.video_id);
-      setVideoId(uploadResponse.video_id);
-      console.log("📤 handleVideoUpload: Called setVideoId");
       
       // Fetch native video resolution from backend
       console.log("📤 handleVideoUpload: Fetching video info");
       const videoInfo = await getVideoInfo(uploadResponse.video_id);
       console.log("📤 handleVideoUpload: Video info received:", videoInfo.width, "x", videoInfo.height);
-      setVideoNativeWidth(videoInfo.width);
-      setVideoNativeHeight(videoInfo.height);
       
       // === STEP 3: Store in IndexedDB cache for future instant loads ===
       try {
@@ -522,64 +1339,41 @@ const Index = () => {
         // Don't block on cache failure
       }
       
+      // Update managed video with final status
+      const newManagedVideo: ManagedVideo = {
+        id: uploadResponse.video_id,
+        filename: file.name,
+        status: 'ready',
+        metadata: {
+          duration: uploadResponse.duration || videoInfo.duration || 0,
+          fps: uploadResponse.fps || videoInfo.fps || 0,
+          width: videoInfo.width,
+          height: videoInfo.height,
+          totalFrames: uploadResponse.total_frames || videoInfo.total_frames || 0,
+          fileSize: videoInfo.file_size,
+        },
+        isActive: false,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      
+      setManagedVideos(prev => prev.filter(v => v.id !== tempId).concat(newManagedVideo));
+
       toast({
-        title: "Video uploaded",
-        description: `${uploadResponse.total_frames} frames at ${uploadResponse.fps} fps (${videoInfo.width}×${videoInfo.height})`,
+        title: "Video ready",
+        description: `${file.name} is now available in your library`,
       });
-      console.log("📤 handleVideoUpload: Video upload complete, totalFrames:", uploadResponse.total_frames);
-
-      // Wait for backend to finish indexing the video (increased delay)
-      console.log("📤 handleVideoUpload: Waiting for backend indexing (2.5s)");
-      await new Promise(resolve => setTimeout(resolve, 2500));
-
-      // Auto-trigger scene detection after upload
-      try {
-        console.log("📤 handleVideoUpload: Starting auto scene detection");
-        toast({
-          title: "Detecting scenes",
-          description: "Analyzing video content...",
-        });
-        
-        const sceneResponse = await detectScenes(uploadResponse.video_id);
-        console.log("📤 handleVideoUpload: Scene detection complete, scenes:", sceneResponse.total_scenes);
-      
-        // Convert API response to app Scene format
-        const detectedScenes = sceneResponse.scenes.map(scene => ({
-          id: `scene-${scene.scene_id}`,
-          startFrame: scene.start_frame,
-          endFrame: scene.end_frame,
-          quality: scene.quality as "good" | "bad" | "unknown"
-        }));
-        
-        setScenes(detectedScenes);
-        setTotalFrames(uploadResponse.total_frames);
-        console.log("📤 handleVideoUpload: Scenes and totalFrames set");
-        
-        toast({
-          title: "Scenes detected",
-          description: `Found ${sceneResponse.total_scenes} scenes`,
-        });
-      } catch (sceneError) {
-        console.error("📤 handleVideoUpload: Scene detection failed:", sceneError);
-        toast({
-          title: "Scene detection failed",
-          description: "Video uploaded successfully, but scene detection failed. Try detecting scenes manually.",
-          variant: "destructive",
-        });
-      }
-      
-      // Ensure frame 0 is displayed after upload completes
-      // Force frame refresh by setting to -1 first, then to 0
-      console.log("📤 handleVideoUpload: Forcing frame 0 display");
-      setCurrentFrame(-1);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setCurrentFrame(0);
-      console.log("📤 handleVideoUpload: Frame 0 set");
+      console.log("📤 handleVideoUpload: Video added to library");
     } catch (error) {
       console.error("📤 handleVideoUpload: Upload failed:", error);
-      console.log("⚠️ handleVideoUpload: Clearing videoUrl due to error");
+      
+      // Update temp video to error state
+      setManagedVideos(prev => prev.map(v => 
+        v.id === tempId ? { ...v, status: 'error' as const, error: error instanceof Error ? error.message : "Upload failed" } : v
+      ));
+      
       toast({
-        title: "Error",
+        title: "Upload failed",
         description: error instanceof Error ? error.message : "Failed to process video",
         variant: "destructive",
       });
@@ -1440,13 +2234,14 @@ const Index = () => {
           }
 
           // Convert bbox from [x1, y1, x2, y2] to percentage-based format
+          // ⚠️ CRITICAL: Backend bbox is ALWAYS in native video coordinates, NOT mask coordinates
           const [x1, y1, x2, y2] = result.bbox;
           const bboxWidth = x2 - x1;
           const bboxHeight = y2 - y1;
           
-          // Use mask dimensions for bbox coordinate conversion when available
-          const baseW = maskWidth || videoNativeWidth || 1280;
-          const baseH = maskHeight || videoNativeHeight || 720;
+          // Always use video native dimensions for bbox conversion (backend returns video coords)
+          const baseW = videoNativeWidth || 1280;
+          const baseH = videoNativeHeight || 720;
           
           const bbox = {
             x: (x1 / baseW) * 100,
@@ -1762,52 +2557,156 @@ const Index = () => {
     });
   };
 
+  const handleProjectCreate = (name: string) => {
+    const newProject = createEmptyProject(name);
+    setProjects(prev => [...prev, newProject]);
+    setActiveProjectId(newProject.id);
+    toast({
+      title: "Project created",
+      description: name,
+    });
+  };
+
+  // === Additional Project Management Handlers (v2) ===
+  const handleAddVideosToProject = (videoIds: string[]) => {
+    if (!activeProjectId) {
+      toast({
+        title: "No active project",
+        description: "Please select a project first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const newVideoIds = [...(p.videoIds || [])];
+        videoIds.forEach(id => {
+          if (!newVideoIds.includes(id)) {
+            newVideoIds.push(id);
+          }
+        });
+        return { ...p, videoIds: newVideoIds, lastModified: Date.now() };
+      }
+      return p;
+    }));
+
+    toast({
+      title: "Videos added to project",
+      description: `${videoIds.length} video${videoIds.length > 1 ? 's' : ''} added`,
+    });
+
+    setShowAddResources(false);
+  };
+
+  const handleRemoveVideoFromProject = (videoId: string) => {
+    if (!activeProjectId) return;
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        return {
+          ...p,
+          videoIds: (p.videoIds || []).filter(id => id !== videoId),
+          lastModified: Date.now(),
+        };
+      }
+      return p;
+    }));
+
+    toast({
+      title: "Video removed from project",
+    });
+  };
+
+  const handleLoadVideoInProject = async (videoId: string) => {
+    const video = managedVideos.find(v => v.id === videoId);
+    if (!video || video.status !== 'ready' || !video.metadata) {
+      toast({
+        title: "Video not ready",
+        description: "Please wait for the video to finish processing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use the existing handleVideoSelect
+    await handleVideoSelect(videoId);
+    setCurrentVideoIdInProject(videoId);
+    setShowProjectManager_v2(false);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4">
+        <div className="px-4 py-2">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--sail-blue))] to-[hsl(var(--sail-purple))] bg-clip-text text-transparent">
-                Video Annotation Tool
-              </h1>
-              <p className="text-sm text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+            <div className="flex items-center gap-2">
+              <img 
+                src={logos[currentLogoIndex]} 
+                alt="LabelBee Logo" 
+                className="h-16 w-auto ml-2 mr-4 my-1 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
+              />
+              <div>
+                <h1 className="text-xl font-bold">
+                  AI Annotation
+                </h1>
+                <p className="text-xs text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <BackendSelector backendStatus={backendStatus} />
-              <Button variant="outline" size="sm" onClick={handleSaveProject}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Project
+              <BackendSelector 
+                backendStatus={backendStatus} 
+                onBackendsChange={setBackends}
+                probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
+              />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/login')}
+                className="gap-2"
+              >
+                <LogIn className="h-4 w-4" />
+                Login
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportData}>
-                <Download className="h-4 w-4 mr-2" />
-                Export...
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  logout();
+                  toast({ title: "Logged out successfully" });
+                }}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
               </Button>
-              {videoUrl && (
-                <Button variant="outline" size="sm" onClick={() => setMaximizeVideo((v) => !v)}>
-                  {maximizeVideo ? "Exit Full Width" : "Full Width Video"}
-                </Button>
-              )}
-              <Button variant="outline" size="sm">
+              <UserMenu />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowShortcuts(true)}
+              >
                 <Keyboard className="h-4 w-4 mr-2" />
                 Shortcuts
               </Button>
-              <label>
-                <Button variant="default" size="sm" asChild disabled={isUploading}>
-                  <span>
-                    <Upload className="h-4 w-4 mr-2" />
-                    {isUploading ? "Uploading..." : videoUrl ? "Change Video" : "Load Video"}
-                  </span>
-                </Button>
-                <Input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoUpload}
-                  disabled={isUploading}
-                />
-              </label>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setVideoManagerOpen(true)}
+              >
+                <Video className="h-4 w-4 mr-2" />
+                My Projects (Old)
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => setShowProjectManager_v2(true)}
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Projects
+              </Button>
             </div>
           </div>
         </div>
@@ -1823,22 +2722,15 @@ const Index = () => {
               </div>
               <h2 className="text-2xl font-semibold">Load a video to begin</h2>
               <p className="text-muted-foreground max-w-md">
-                Upload a video file to start annotating sails with multi-AI analysis support
+                Upload a video file or provide a YouTube link to start annotating with multi-AI analysis support
               </p>
-              <label>
-                <Button variant="default" asChild>
-                  <span>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose Video File
-                  </span>
-                </Button>
-                <Input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoUpload}
-                />
-              </label>
+              <Button 
+                variant="default" 
+                onClick={() => setVideoManagerOpen(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Add Video
+              </Button>
             </div>
           </div>
         ) : (
@@ -1904,8 +2796,6 @@ const Index = () => {
                 selectedAnnotationId={selectedAnnotationId}
                 onContextMenu={handleContextMenu}
                 showLabels={showLabels}
-                isUploading={isUploading}
-                uploadProgress={uploadProgress}
               />
               <HierarchicalTimeline
                 classes={classes}
@@ -1934,11 +2824,10 @@ const Index = () => {
 
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
-              <Tabs defaultValue="scenes" className="h-full">
-                <TabsList className="grid w-full grid-cols-3">
+              <Tabs defaultValue="scenes" className="h-full w-[110%]">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
-                  <TabsTrigger value="cache">Cache</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -1952,6 +2841,17 @@ const Index = () => {
                     onGenerateMetadata={handleGenerateMetadata}
                     isDetecting={isDetectingScenes}
                     isGenerating={isGeneratingMetadata}
+                    videoId={videoId}
+                    videoFilename={
+                      videoId
+                        ? managedVideos.find(v => v.id === videoId)?.filename
+                        : undefined
+                    }
+                    videoFps={
+                      videoId
+                        ? managedVideos.find(v => v.id === videoId)?.metadata?.fps
+                        : undefined
+                    }
                   />
                 </TabsContent>
                 <TabsContent value="tracking" className="mt-4 space-y-4">
@@ -1965,16 +2865,26 @@ const Index = () => {
                     jobs={trackingJobs}
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
+                    onFrameChange={setCurrentFrame}
                   />
-                </TabsContent>
-                <TabsContent value="cache" className="mt-4">
-                  <VideoCacheManager />
                 </TabsContent>
               </Tabs>
             </div>
           </div>
         )}
       </main>
+
+      {/* Download Queue - Fixed position */}
+      {downloadQueue.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 w-96">
+          <DownloadQueue 
+            downloads={downloadQueue}
+            onCancel={handleCancelDownload}
+            onRemove={handleRemoveDownload}
+          />
+        </div>
+      )}
+
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -1998,6 +2908,165 @@ const Index = () => {
         initialText={metadataModal.initialText || ""}
         frame={metadataModal.frame}
       />
+      <ProjectManager
+        open={videoManagerOpen}
+        onOpenChange={setVideoManagerOpen}
+        videos={managedVideos}
+        activeProject={activeProjectId ? projects.find(p => p.id === activeProjectId) || null : null}
+        activeVideoId={videoId}
+        onVideoSelect={handleVideoSelect}
+        onVideoDelete={handleVideoDelete}
+        onVideoAddToProject={handleVideoAddToProject}
+        onVideoRemoveFromProject={handleVideoRemoveFromProject}
+        onFileSelect={processVideoFile}
+        onYoutubeUrl={handleYoutubeUrl}
+        isUploading={isUploading}
+        hasUnsavedChanges={
+          classes.length > 0 || 
+          instances.length > 0 || 
+          annotations.length > 0 || 
+          keyframes.length > 0 || 
+          scenes.length > 0
+        }
+      />
+
+      {/* New Project Management System */}
+      <ProjectManager_v2
+        open={showProjectManager_v2}
+        onOpenChange={setShowProjectManager_v2}
+        activeProject={activeProjectId ? projects.find(p => p.id === activeProjectId) || null : null}
+        videos={managedVideos}
+        currentVideoId={videoId}
+        onOpenAddResources={() => setShowAddResources(true)}
+        onOpenProjectSwitcher={() => setShowProjectSwitcher(true)}
+        onLoadVideo={handleLoadVideoInProject}
+        onRemoveVideo={handleRemoveVideoFromProject}
+        onRenameProject={handleProjectRename}
+      />
+
+      <AddResourcesDialog
+        open={showAddResources}
+        onOpenChange={setShowAddResources}
+        projectVideoIds={activeProjectId ? (projects.find(p => p.id === activeProjectId)?.videoIds || []) : []}
+        availableVideos={managedVideos}
+        onAddToProject={handleAddVideosToProject}
+        onFileSelect={processVideoFile}
+        onYoutubeUrl={handleYoutubeUrl}
+        isUploading={isUploading}
+      />
+
+      <ProjectSwitcher
+        open={showProjectSwitcher}
+        onOpenChange={setShowProjectSwitcher}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onProjectSelect={handleProjectSelect}
+        onProjectCreate={handleProjectCreate}
+        onProjectDelete={handleProjectDelete}
+        onProjectRename={handleProjectRename}
+      />
+      
+      {/* Keyboard Shortcuts Dialog */}
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Keyboard Shortcuts</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <h3 className="font-semibold mb-2">Video Navigation</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Play/Pause</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Space</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Previous Frame</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">←</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Next Frame</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">→</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Skip Back 30 Frames</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Shift + ←</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Skip Forward 30 Frames</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Shift + →</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Keyframes</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Add START Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">S</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add STOP Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">E</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add SKIP Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">X</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add META Keyframe</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">T</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Tools</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Annotate Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">A</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Select Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">V</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Edit Tool</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">P</kbd>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Annotation</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Add Positive Prompt</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Ctrl + Click</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Add Negative Prompt</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Alt + Click</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cycle Annotations (Edit Mode)</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Tab</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Delete Annotation</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Delete / Backspace</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cancel / Deselect</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">Esc</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

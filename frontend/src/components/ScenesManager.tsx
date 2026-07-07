@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Scan, CheckCircle, XCircle, Circle, Film, Sparkles, Tags, Filter, Flag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SceneThumbnail } from "./SceneThumbnail";
 
 interface Scene {
   id: string;
@@ -26,6 +27,9 @@ interface ScenesManagerProps {
   onGenerateMetadata: () => void;
   isDetecting?: boolean;
   isGenerating?: boolean;
+  videoId?: string;
+  videoFilename?: string;
+  videoFps?: number;
 }
 
 export function ScenesManager({
@@ -39,6 +43,9 @@ export function ScenesManager({
   onGenerateMetadata,
   isDetecting = false,
   isGenerating = false,
+  videoId,
+  videoFilename,
+  videoFps = 30,
 }: ScenesManagerProps) {
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("all");
@@ -74,24 +81,44 @@ export function ScenesManager({
     return currentFrame >= scene.startFrame && currentFrame <= scene.endFrame;
   };
 
+  // Calculate counts for each filter
+  const filterCounts = {
+    all: scenes.length,
+    approved: scenes.filter(s => s.quality === "good").length,
+    active: scenes.filter(s => s.quality !== "bad").length,
+    pending: scenes.filter(s => s.quality === "unknown").length,
+    rejected: scenes.filter(s => s.quality === "bad").length,
+    withMetadata: scenes.filter(s => s.quality !== "bad" && s.metadata && Object.keys(s.metadata).length > 0).length,
+    withoutMetadata: scenes.filter(s => s.quality !== "bad" && (!s.metadata || Object.keys(s.metadata).length === 0)).length,
+  };
+
   const filteredScenes = scenes.filter((scene) => {
+    let result = false;
     switch (filter) {
       case "approved":
-        return scene.quality === "good";
+        result = scene.quality === "good";
+        break;
       case "active":
-        return scene.quality !== "bad"; // good or unknown
+        result = scene.quality !== "bad"; // good or unknown
+        break;
       case "rejected":
-        return scene.quality === "bad";
+        result = scene.quality === "bad";
+        break;
       case "pending":
-        return scene.quality === "unknown";
+        result = scene.quality === "unknown";
+        break;
       case "with-metadata":
-        return scene.quality !== "bad" && scene.metadata && Object.keys(scene.metadata).length > 0;
+        result = scene.quality !== "bad" && scene.metadata && Object.keys(scene.metadata).length > 0;
+        break;
       case "without-metadata":
-        return scene.quality !== "bad" && (!scene.metadata || Object.keys(scene.metadata).length === 0);
+        result = scene.quality !== "bad" && (!scene.metadata || Object.keys(scene.metadata).length === 0);
+        break;
       case "all":
       default:
-        return true;
+        result = true;
     }
+    console.log(`🔍 Filter="${filter}" Scene ${scene.id} quality="${scene.quality}" → ${result ? "SHOW" : "HIDE"}`);
+    return result;
   });
 
   return (
@@ -128,13 +155,48 @@ export function ScenesManager({
               <SelectValue placeholder="Filter scenes" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Scenes</SelectItem>
-              <SelectItem value="approved">Approved Only</SelectItem>
-              <SelectItem value="active">Active Scenes</SelectItem>
-              <SelectItem value="pending">Pending Review</SelectItem>
-              <SelectItem value="rejected">Rejected Only</SelectItem>
-              <SelectItem value="with-metadata">With Metadata</SelectItem>
-              <SelectItem value="without-metadata">Without Metadata</SelectItem>
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <span>All Scenes</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.all}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="approved">
+                <div className="flex items-center gap-2">
+                  <span>Approved Only</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.approved}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="active">
+                <div className="flex items-center gap-2">
+                  <span>Active Scenes</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.active}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="pending">
+                <div className="flex items-center gap-2">
+                  <span>Pending Review</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.pending}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="rejected">
+                <div className="flex items-center gap-2">
+                  <span>Rejected Only</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.rejected}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="with-metadata">
+                <div className="flex items-center gap-2">
+                  <span>With Metadata</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.withMetadata}</Badge>
+                </div>
+              </SelectItem>
+              <SelectItem value="without-metadata">
+                <div className="flex items-center gap-2">
+                  <span>Without Metadata</span>
+                  <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">{filterCounts.withoutMetadata}</Badge>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -176,10 +238,13 @@ export function ScenesManager({
             filteredScenes.map((scene, index) => {
               const isBad = scene.quality === "bad";
               const isActive = isSceneActive(scene);
+              const showThumbnail = videoId && videoFilename;
+              const eagerLoad = index < 10; // Preload first 10
+              
               return (
                 <div
                   key={scene.id}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-all ml-4 relative ${
+                  className={`flex gap-2 py-1.5 px-2 rounded-lg border cursor-pointer transition-all ml-4 relative ${
                     isBad 
                       ? "opacity-50 bg-muted/20 border-destructive/20 hover:opacity-60" 
                       : selectedScene?.id === scene.id
@@ -188,53 +253,77 @@ export function ScenesManager({
                       ? "bg-primary/5 border-l-4 border-l-primary border-r border-t border-b border-border"
                       : "bg-muted/30 border-border hover:bg-muted/50"
                   }`}
-                  onClick={() => !isBad && handleSceneClick(scene)}
+                  onClick={() => {
+                    if (isBad) {
+                      toast({
+                        title: "Scene rejected",
+                        description: "This scene is marked as bad and cannot be selected",
+                        variant: "destructive",
+                      });
+                    } else {
+                      handleSceneClick(scene);
+                    }
+                  }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {isActive && !selectedScene && (
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      )}
-                      <Badge variant="secondary" className="text-xs">
-                        Scene {index + 1}
-                      </Badge>
-                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))]" />
-                      )}
-                    </div>
-                    <div className="flex gap-1 items-center">
-                      {scene.metadata && Object.keys(scene.metadata).length > 0 && (
-                        <Flag className="h-4 w-4 mr-1" fill="hsl(var(--muted-foreground))" color="hsl(var(--muted-foreground))" />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSceneQualityChange(scene.id, "good");
-                        }}
-                      >
-                        {getQualityIcon(scene.quality === "good" ? "good" : "unknown")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSceneQualityChange(scene.id, "bad");
-                        }}
-                      >
-                        {getQualityIcon(scene.quality === "bad" ? "bad" : "unknown")}
-                      </Button>
-                    </div>
-                  </div>
-                  {!isBad && (
-                    <div className="text-xs text-muted-foreground">
-                      {scene.endFrame - scene.startFrame + 1} frames
-                    </div>
+                  {/* Thumbnail */}
+                  {showThumbnail && (
+                    <SceneThumbnail
+                      videoId={videoId}
+                      filename={videoFilename}
+                      startFrame={scene.startFrame}
+                      fps={videoFps}
+                      eager={eagerLoad}
+                    />
                   )}
+                  
+                  {/* Rest of content */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {isActive && !selectedScene && (
+                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse flex-shrink-0" />
+                        )}
+                        <Badge variant="secondary" className="text-xs flex-shrink-0">
+                          #{index + 1}
+                        </Badge>
+                        {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                          <Tags className="h-3 w-3 text-[hsl(var(--sail-purple))] flex-shrink-0" />
+                        )}
+                        {scene.metadata && Object.keys(scene.metadata).length > 0 && (
+                          <Flag className="h-3.5 w-3.5 flex-shrink-0" fill="hsl(var(--muted-foreground))" color="hsl(var(--muted-foreground))" />
+                        )}
+                      </div>
+                      <div className="flex gap-1 items-center flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSceneQualityChange(scene.id, "good");
+                          }}
+                        >
+                          <CheckCircle className={`h-4 w-4 ${scene.quality === "good" ? "text-[hsl(var(--sail-green))]" : "text-muted-foreground/40"}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSceneQualityChange(scene.id, "bad");
+                          }}
+                        >
+                          <XCircle className={`h-4 w-4 ${scene.quality === "bad" ? "text-destructive" : "text-muted-foreground/40"}`} />
+                        </Button>
+                      </div>
+                    </div>
+                    {!isBad && (
+                      <div className="text-xs text-muted-foreground">
+                        {scene.endFrame - scene.startFrame + 1} frames
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })

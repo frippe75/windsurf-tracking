@@ -31,9 +31,10 @@ interface TrackingJobsProps {
   jobs: TrackingJob[];
   onProcessJob: (jobId: string) => void;
   onDeleteJob: (jobId: string) => void;
+  onFrameChange?: (frame: number) => void;
 }
 
-export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsProps) {
+export function TrackingJobs({ jobs, onProcessJob, onDeleteJob, onFrameChange }: TrackingJobsProps) {
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
 
   const toggleJobExpansion = (jobId: string) => {
@@ -112,7 +113,20 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
                           </button>
                         )}
                         <div className="text-sm font-medium">
-                          Frames {job.startFrame} → {job.stopFrame}
+                          Frames{" "}
+                          <button
+                            onClick={() => onFrameChange?.(job.startFrame)}
+                            className="hover:text-primary hover:underline cursor-pointer"
+                          >
+                            {job.startFrame}
+                          </button>
+                          {" → "}
+                          <button
+                            onClick={() => onFrameChange?.(job.stopFrame)}
+                            className="hover:text-primary hover:underline cursor-pointer"
+                          >
+                            {job.stopFrame}
+                          </button>
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -195,7 +209,19 @@ export function TrackingJobs({ jobs, onProcessJob, onDeleteJob }: TrackingJobsPr
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {subJob.start_frame} → {subJob.end_frame}
+                            <button
+                              onClick={() => onFrameChange?.(subJob.start_frame)}
+                              className="hover:text-primary hover:underline cursor-pointer"
+                            >
+                              {subJob.start_frame}
+                            </button>
+                            {" → "}
+                            <button
+                              onClick={() => onFrameChange?.(subJob.end_frame)}
+                              className="hover:text-primary hover:underline cursor-pointer"
+                            >
+                              {subJob.end_frame}
+                            </button>
                           </div>
                           {subJob.status === "processing" && subJob.progress !== undefined && (
                             <div className="w-full bg-muted/50 h-[2px] mt-1">

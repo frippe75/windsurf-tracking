@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { Settings2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -18,69 +19,143 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getBackendSettings, saveBackendSettings } from "@/lib/settings";
 
 export interface Backend {
   id: string;
   name: string;
   url: string;
+  enableProbe?: boolean;
+  probeStatus?: "checking" | "healthy" | "offline";
 }
 
 interface BackendSelectorProps {
   backendStatus?: "checking" | "healthy" | "offline";
+  onBackendsChange?: (backends: Backend[]) => void;
+  probeStatuses?: Record<string, "checking" | "healthy" | "offline">;
 }
 
 const DEFAULT_BACKENDS: Backend[] = [
+  // Same-origin: labelbee.tclab.org ingress routes /api + /auth to the backend.
+  // Direct API hosts below are CORS-blocked from the labelbee origin — dev use only.
+  { id: "production", name: "Labelbee (same-origin)", url: "" },
   { id: "local", name: "Local (8000)", url: "http://localhost:8000" },
+  { id: "lab-k8s-dev", name: "K8s Dev", url: "https://windsurf-api-dev.tclab.org" },
   { id: "lab-k8s", name: "K8s Lab", url: "https://windsurf-api.tclab.org" },
-  { id: "production", name: "Production", url: "https://lablebee.tclab.org" },
   { id: "custom", name: "Custom", url: "" },
 ];
 
-const STORAGE_KEY = "selected-backend";
-const CUSTOM_BACKENDS_KEY = "custom-backends";
+// Legacy keys for migration
+const LEGACY_STORAGE_KEY = "selected-backend";
+const LEGACY_CUSTOM_BACKENDS_KEY = "custom-backends";
+const LEGACY_SELECTED_BACKEND_JSON_KEY = "selected-backend-json";
 
-export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) => {
+export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses }: BackendSelectorProps = {}) => {
   const [backends, setBackends] = useState<Backend[]>(DEFAULT_BACKENDS);
   const [selectedBackend, setSelectedBackend] = useState<Backend | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingBackend, setEditingBackend] = useState<Backend | null>(null);
 
-  // Load from localStorage on mount
+  // Load from settings on mount (with legacy migration)
   useEffect(() => {
-    const storedBackendId = localStorage.getItem(STORAGE_KEY);
-    const storedCustomBackends = localStorage.getItem(CUSTOM_BACKENDS_KEY);
+    const backendSettings = getBackendSettings();
     
-    let allBackends = [...DEFAULT_BACKENDS];
-    if (storedCustomBackends) {
-      try {
-        const customBackends = JSON.parse(storedCustomBackends);
-        allBackends = [...DEFAULT_BACKENDS, ...customBackends];
-      } catch (e) {
-        console.error("Failed to parse custom backends", e);
+    console.log('🔄 Loading backend settings:', {
+      selectedId: backendSettings.selectedBackendId,
+      snapshot: backendSettings.selectedBackendSnapshot,
+      customCount: backendSettings.customBackends.length,
+      customs: backendSettings.customBackends
+    });
+    
+    // Migrate legacy localStorage if exists
+    const legacyId = localStorage.getItem(LEGACY_STORAGE_KEY);
+    const legacyCustom = localStorage.getItem(LEGACY_CUSTOM_BACKENDS_KEY);
+    const legacySnapshot = localStorage.getItem(LEGACY_SELECTED_BACKEND_JSON_KEY);
+    
+    if (legacyId || legacyCustom || legacySnapshot) {
+      // Migrate to new settings system
+      if (legacyCustom) {
+        try {
+          backendSettings.customBackends = JSON.parse(legacyCustom);
+        } catch (e) {
+          console.error("Failed to migrate custom backends", e);
+        }
       }
+      if (legacySnapshot) {
+        try {
+          backendSettings.selectedBackendSnapshot = JSON.parse(legacySnapshot);
+        } catch (e) {
+          console.error("Failed to migrate backend snapshot", e);
+        }
+      }
+      if (legacyId) {
+        backendSettings.selectedBackendId = legacyId;
+      }
+      saveBackendSettings(backendSettings);
+      
+      // Clean up legacy keys
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_CUSTOM_BACKENDS_KEY);
+      localStorage.removeItem(LEGACY_SELECTED_BACKEND_JSON_KEY);
     }
     
-    setBackends(allBackends);
+    // Merge custom backends with defaults, allowing customs to override defaults by ID
+    const customMap = new Map(backendSettings.customBackends.map(b => [b.id, b]));
+    let allBackends = DEFAULT_BACKENDS.map(defBackend => 
+      customMap.has(defBackend.id) ? customMap.get(defBackend.id)! : defBackend
+    ).concat(
+      backendSettings.customBackends.filter(b => !DEFAULT_BACKENDS.find(db => db.id === b.id))
+    );
     
-    if (storedBackendId) {
-      const backend = allBackends.find(b => b.id === storedBackendId);
-      if (backend) {
-        setSelectedBackend(backend);
-      }
-    } else {
-      // Default to local
-      setSelectedBackend(DEFAULT_BACKENDS[0]);
+    console.log('✅ Merged backends:', allBackends.map(b => ({ id: b.id, name: b.name, url: b.url })));
+    
+    // Try to resolve selection from ID first
+    let resolved: Backend | null = null;
+    if (backendSettings.selectedBackendId) {
+      resolved = allBackends.find(b => b.id === backendSettings.selectedBackendId) || null;
     }
-  }, []);
 
-  // Update config when backend changes
+    // If not found, try to restore from snapshot
+    if (!resolved && backendSettings.selectedBackendSnapshot) {
+      const restored = backendSettings.selectedBackendSnapshot;
+      // If missing in list, add it to backends so it persists
+      if (!allBackends.find(b => b.id === restored.id)) {
+        allBackends = [...allBackends, restored];
+      }
+      resolved = restored;
+    }
+
+    console.log('🎯 Selected backend:', resolved);
+
+    // Commit backends to state and parent
+    setBackends(allBackends);
+    onBackendsChange?.(allBackends);
+
+    if (resolved) {
+      setSelectedBackend(resolved);
+    } else {
+      // Prod builds default to same-origin; dev builds to localhost
+      const fallback = import.meta.env.PROD
+        ? DEFAULT_BACKENDS.find(b => b.id === 'production')
+        : DEFAULT_BACKENDS.find(b => b.id === 'local');
+      setSelectedBackend(fallback || DEFAULT_BACKENDS[0]);
+    }
+  }, [onBackendsChange]);
+
+  // Update settings when backend changes
   useEffect(() => {
     if (selectedBackend) {
-      // Store in localStorage
-      localStorage.setItem(STORAGE_KEY, selectedBackend.id);
+      // Save to settings system
+      saveBackendSettings({
+        selectedBackendId: selectedBackend.id,
+        selectedBackendSnapshot: {
+          id: selectedBackend.id,
+          name: selectedBackend.name,
+          url: selectedBackend.url,
+        },
+      });
       
-      // Update the global config by reloading
-      // This is a simple approach - in production you might use a state manager
+      // Update the global config
       if (typeof window !== 'undefined') {
         (window as any).__LOVABLE_BACKEND_URL__ = selectedBackend.url;
       }
@@ -105,13 +180,26 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
       b.id === editingBackend.id ? editingBackend : b
     );
 
-    // If it's a custom backend (not in defaults), save to localStorage
-    const customBackends = updatedBackends.filter(
-      b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
-    );
-    localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+    // Save custom backends to settings (include edited defaults as overrides)
+    const customBackends = updatedBackends.filter(b => {
+      const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+      // Save if: not a default, OR is a default but was modified
+      return !defaultBackend || 
+             defaultBackend.name !== b.name || 
+             defaultBackend.url !== b.url ||
+             defaultBackend.enableProbe !== b.enableProbe;
+    });
+    
+    console.log('💾 Saving backend changes:', {
+      edited: editingBackend,
+      allCustomBackends: customBackends,
+      isEditingDefault: !!DEFAULT_BACKENDS.find(db => db.id === editingBackend.id)
+    });
+    
+    saveBackendSettings({ customBackends });
 
     setBackends(updatedBackends);
+    onBackendsChange?.(updatedBackends);
     
     if (selectedBackend?.id === editingBackend.id) {
       setSelectedBackend(editingBackend);
@@ -125,6 +213,7 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
       id: `custom-${Date.now()}`,
       name: "New Backend",
       url: "http://localhost:8000",
+      enableProbe: false,
     };
     setEditingBackend(newBackend);
     setIsEditDialogOpen(true);
@@ -140,11 +229,16 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
     if (isNewBackend) {
       const updatedBackends = [...backends, editingBackend];
       setBackends(updatedBackends);
+      onBackendsChange?.(updatedBackends);
       
-      const customBackends = updatedBackends.filter(
-        b => !DEFAULT_BACKENDS.find(db => db.id === b.id)
-      );
-      localStorage.setItem(CUSTOM_BACKENDS_KEY, JSON.stringify(customBackends));
+      const customBackends = updatedBackends.filter(b => {
+        const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+        return !defaultBackend || 
+               defaultBackend.name !== b.name || 
+               defaultBackend.url !== b.url ||
+               defaultBackend.enableProbe !== b.enableProbe;
+      });
+      saveBackendSettings({ customBackends });
       
       setSelectedBackend(editingBackend);
     } else {
@@ -155,88 +249,137 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
     setIsEditDialogOpen(false);
   };
 
+  const handleDeleteBackend = (backend: Backend) => {
+    // Remove from backends list
+    const updatedBackends = backends.filter(b => b.id !== backend.id);
+    setBackends(updatedBackends);
+    onBackendsChange?.(updatedBackends);
+
+    // Update custom backends in settings
+    const customBackends = updatedBackends.filter(b => {
+      const defaultBackend = DEFAULT_BACKENDS.find(db => db.id === b.id);
+      return !defaultBackend || 
+             defaultBackend.name !== b.name || 
+             defaultBackend.url !== b.url ||
+             defaultBackend.enableProbe !== b.enableProbe;
+    });
+    saveBackendSettings({ customBackends });
+
+    // If deleted backend was selected, switch to first non-local or first available
+    if (selectedBackend?.id === backend.id) {
+      const nonLocalDefault = updatedBackends.find(b => b.id !== 'local' && b.url);
+      setSelectedBackend(nonLocalDefault || updatedBackends[0] || null);
+    }
+  };
+
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Select
-          value={selectedBackend?.id || ""}
-          onValueChange={(value) => {
-            const backend = backends.find(b => b.id === value);
-            if (backend) handleSelectBackend(backend);
-          }}
-        >
-          <SelectTrigger className="w-[280px] h-auto min-h-[40px] py-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="w-[252px] h-auto min-h-[40px] py-2 justify-between">
             {selectedBackend ? (
               <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
                 <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
-                {backendStatus === "offline" ? (
-                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                    <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
-                  </span>
-                ) : (
-                  <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                    <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                    <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
-                  </span>
-                )}
+                  {backendStatus === "offline" ? (
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                      <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
+                      <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                    </span>
+                  ) : (
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                      <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                      <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                    </span>
+                  )}
                 </div>
                 <span className="col-start-2 row-start-1 font-bold leading-tight">{selectedBackend.name}</span>
                 <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{selectedBackend.url}</span>
               </div>
             ) : (
-              <SelectValue placeholder="Select backend" />
+              <span>Select backend</span>
             )}
-          </SelectTrigger>
-          <SelectContent>
-            {backends.map((backend) => (
-              <SelectItem key={backend.id} value={backend.id} className="[&>span:first-child]:hidden !pl-2">
-                <span className="inline-grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 items-start w-full">
-                  <span className="col-start-1 row-start-1 row-span-2 flex items-start justify-center">
-                    {selectedBackend?.id === backend.id ? (
-                      backendStatus === "offline" ? (
-                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                          <span className="absolute inset-0 animate-ping rounded-full bg-red-200 opacity-90" />
-                          <span className="relative block h-1.5 w-1.5 rounded-full bg-red-400 ring-2 ring-red-500/50" />
-                        </span>
-                      ) : (
-                        <span className="relative flex items-center justify-center h-[9px] w-[9px]">
-                          <span className="absolute inset-0 animate-ping rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                          <span className="relative block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
-                        </span>
-                      )
-                    ) : (
-                      <span className="block h-[9px] w-[9px]" />
-                    )}
-                  </span>
-                  <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
-                  <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleAddBackend}
-          title="Add custom backend"
-        >
-          <Settings2 className="h-4 w-4" />
-        </Button>
-        
-        {selectedBackend && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => handleEditBackend(selectedBackend)}
-            title="Edit current backend"
-          >
-            Edit
+            <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
           </Button>
-        )}
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[280px]">
+          {backends.map((backend) => (
+            <DropdownMenuItem
+              key={backend.id}
+              className="grid grid-cols-[16px,1fr,auto,auto] grid-rows-2 gap-x-2 items-center p-2 cursor-pointer group"
+              onClick={() => handleSelectBackend(backend)}
+            >
+              <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-1">
+                {(() => {
+                  const isSelected = selectedBackend?.id === backend.id;
+                  const externalStatus = probeStatuses?.[backend.id];
+                  const status = isSelected ? backendStatus : (externalStatus ?? backend.probeStatus);
+                  
+                  // Only show indicator if this is the active backend OR it has enableProbe AND has a status
+                  if (!isSelected && !backend.enableProbe) {
+                    return <span className="block h-[8px] w-[8px]" />;
+                  }
+                  
+                  // Show checking state for undefined status when probe is enabled
+                  if (!isSelected && backend.enableProbe && !status) {
+                    return <span className="block h-[5px] w-[5px] rounded-full bg-muted-foreground/30" />;
+                  }
+                  
+                  // Show red for offline
+                  if (status === "offline") {
+                    return (
+                      <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                        <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
+                        <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
+                      </span>
+                    );
+                  }
+                  
+                  // Show green for healthy
+                  return (
+                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                      <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                      <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+                    </span>
+                  );
+                })()}
+              </div>
+              <span className="col-start-2 row-start-1 font-bold leading-tight">{backend.name}</span>
+              <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{backend.url}</span>
+              <div className="col-start-3 row-start-1 row-span-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  className="p-1 hover:bg-accent rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditBackend(backend);
+                  }}
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  className="p-1 hover:bg-destructive/10 rounded text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteBackend(backend);
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+              {selectedBackend?.id === backend.id && (
+                <Check className="col-start-4 row-start-1 row-span-2 h-4 w-4" />
+              )}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="gap-2 cursor-pointer"
+            onClick={handleAddBackend}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add New Backend</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -270,6 +413,23 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
                 placeholder="http://localhost:8000"
               />
             </div>
+            <div className="flex items-start space-x-2 pt-2">
+              <Checkbox 
+                id="enableProbe"
+                checked={editingBackend?.enableProbe ?? false}
+                onCheckedChange={(checked) => 
+                  setEditingBackend(prev => 
+                    prev ? { ...prev, enableProbe: checked as boolean } : null
+                  )
+                }
+              />
+              <div className="grid gap-2 flex-1">
+                <Label htmlFor="enableProbe" className="text-sm font-normal cursor-pointer leading-tight">
+                  Monitor health status (even when inactive)
+                </Label>
+                {/* Probing uses a global interval now; no per-backend interval */}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
@@ -283,4 +443,27 @@ export const BackendSelector = ({ backendStatus }: BackendSelectorProps = {}) =>
       </Dialog>
     </>
   );
+};
+
+// Helper to get all backends that should be probed
+export const getProbeBackends = (backends: Backend[], activeBackendId: string) => {
+  return backends.filter(b => 
+    b.id === activeBackendId || b.enableProbe === true
+  );
+};
+
+// Helper to update probe status for a specific backend
+export const updateBackendProbeStatus = (
+  backends: Backend[], 
+  backendId: string, 
+  status: "checking" | "healthy" | "offline"
+): Backend[] => {
+  let didChange = false;
+  const updated = backends.map(b => {
+    if (b.id !== backendId) return b;
+    if (b.probeStatus === status) return b;
+    didChange = true;
+    return { ...b, probeStatus: status };
+  });
+  return didChange ? updated : backends;
 };
