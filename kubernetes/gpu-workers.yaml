@@ -48,8 +48,20 @@ spec:
             memory: 16Gi
             cpu: 4
             nvidia.com/gpu: 1
-      nodeSelector:
-        nvidia.com/gpu.present: "true"
+      # k8s-w07 has an NVIDIA driver/library version mismatch (new GPU
+      # containers fail the prestart hook; existing ones keep running).
+      # Avoid it until the node gets a driver reload/reboot.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: In
+                values: ["true"]
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: ["k8s-w07"]
       tolerations:
       - effect: NoSchedule
         key: nvidia.com/gpu
@@ -102,8 +114,20 @@ spec:
             memory: 16Gi
             cpu: 4
             nvidia.com/gpu: 1
-      nodeSelector:
-        nvidia.com/gpu.present: "true"
+      # k8s-w07 has an NVIDIA driver/library version mismatch (new GPU
+      # containers fail the prestart hook; existing ones keep running).
+      # Avoid it until the node gets a driver reload/reboot.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: In
+                values: ["true"]
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: ["k8s-w07"]
       tolerations:
       - effect: NoSchedule
         key: nvidia.com/gpu
