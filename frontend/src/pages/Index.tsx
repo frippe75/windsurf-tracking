@@ -31,6 +31,7 @@ import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject } from "@/lib/api";
 import { pctToNative, nativeBBoxToPct, bboxToPolygon, isMaskCropped } from "@/lib/coordinates";
 import { useProjects } from "@/hooks/useProjects";
+import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
@@ -106,14 +107,16 @@ const Index = () => {
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
   
-  // Load persisted video library from localStorage
-  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
-    try {
-      const saved = localStorage.getItem('managedVideos');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+  // Video library domain: localStorage persistence, backend merge on mount,
+  // delete handler (guarded by project usage).
+  const {
+    managedVideos,
+    setManagedVideos,
+    addVideo,
+    handleVideoDelete,
+  } = useVideoLibrary({
+    toast,
+    countProjectsUsingVideo: (id) => projects.filter(p => p.videoIds.includes(id)).length,
   });
 
   // Project domain: localStorage persistence, backend sync/hydration,
@@ -156,15 +159,6 @@ const Index = () => {
       setVideoMetadata({});
     },
   });
-
-  // Persist managed videos to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('managedVideos', JSON.stringify(managedVideos));
-    } catch (error) {
-      console.error('Failed to save managed videos:', error);
-    }
-  }, [managedVideos]);
 
   // Auto-persist tool preferences to settings
   useEffect(() => {
@@ -583,8 +577,8 @@ const Index = () => {
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),
       };
-      setManagedVideos(prev => [...prev, tempVideo]);
-      
+      addVideo(tempVideo);
+
       // Add to queue
       const newDownload: DownloadJob = {
         id: jobId,
@@ -889,27 +883,6 @@ const Index = () => {
     });
   };
   
-  const handleVideoDelete = (videoId: string) => {
-    // Check if video is used by any project
-    const projectsUsingVideo = projects.filter(p => p.videoIds.includes(videoId));
-    if (projectsUsingVideo.length > 0) {
-      toast({
-        title: "Cannot delete video",
-        description: `This video is used by ${projectsUsingVideo.length} project(s). Delete the project(s) first.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Remove from managed videos
-    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
-    
-    toast({
-      title: "Video deleted",
-      description: "Video has been removed",
-    });
-  };
-
   const handleVideoAddToProject = (videoId: string) => {
     if (!activeProjectId) {
       toast({
@@ -996,8 +969,8 @@ const Index = () => {
       createdAt: Date.now(),
       lastAccessedAt: Date.now(),
     };
-    setManagedVideos(prev => [...prev, tempVideo]);
-    
+    addVideo(tempVideo);
+
     // Start upload to backend
     setIsUploading(true);
     toast({
