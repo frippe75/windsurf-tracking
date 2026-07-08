@@ -28,9 +28,9 @@ import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject } from "@/lib/api";
 import { pctToNative, nativeBBoxToPct, bboxToPolygon, isMaskCropped } from "@/lib/coordinates";
-import { migrateStoredProjects } from "@/lib/projectMigration";
+import { useProjects } from "@/hooks/useProjects";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
@@ -106,28 +106,6 @@ const Index = () => {
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
   
-  // Projects state with localStorage fallback (format migration in lib/projectMigration)
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      return migrateStoredProjects(localStorage.getItem('projects'));
-    } catch {
-      return [];
-    }
-  });
-  
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('activeProjectId');
-    } catch {
-      return null;
-    }
-  });
-  
-  // Track which video in the project is currently being viewed
-  const [currentVideoIdInProject, setCurrentVideoIdInProject] = useState<string | null>(null);
-  
-  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
-  
   // Load persisted video library from localStorage
   const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
     try {
@@ -138,78 +116,47 @@ const Index = () => {
     }
   });
 
-  // Sync projects with backend (when online)
-  useEffect(() => {
-    const syncWithBackend = async () => {
-      if (backendStatus !== 'healthy') return;
-      
-      try {
-        setIsLoadingProjects(true);
-        const response = await getProjects();
-        
-        // Convert backend projects to frontend format
-        const backendProjects: Project[] = response.projects.map(p => ({
-          id: p.id,
-          name: p.name,
-          videoIds: p.video_id ? [p.video_id] : [], // Backend stores single video, convert to array
-          createdAt: new Date(p.created_at).getTime(),
-          lastModified: new Date(p.last_modified).getTime(),
-          classes: [],
-          instances: [],
-          annotations: [],
-          keyframes: [],
-          scenes: [],
-          videoMetadata: {},
-        }));
-        
-        // Merge with localStorage projects (keep newer ones)
-        const mergedProjects = [...projects];
-        backendProjects.forEach(bp => {
-          const existingIdx = mergedProjects.findIndex(p => p.id === bp.id);
-          if (existingIdx >= 0) {
-            // Keep the one with latest modification
-            if (bp.lastModified > mergedProjects[existingIdx].lastModified) {
-              mergedProjects[existingIdx] = bp;
-            }
-          } else {
-            mergedProjects.push(bp);
-          }
-        });
-        
-        setProjects(mergedProjects);
-      } catch (error) {
-        console.error('Failed to sync with backend:', error);
-        // Continue with localStorage projects
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
-    
-    syncWithBackend();
-  }, [backendStatus]);
-  
-  // Persist projects to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('projects', JSON.stringify(projects));
-    } catch (error) {
-      console.error('Failed to save projects:', error);
-    }
-  }, [projects]);
-  
-  // Persist active project ID to localStorage
-  useEffect(() => {
-    try {
-      if (activeProjectId) {
-        localStorage.setItem('activeProjectId', activeProjectId);
-      } else {
-        localStorage.removeItem('activeProjectId');
-      }
-    } catch (error) {
-      console.error('Failed to save active project ID:', error);
-    }
-  }, [activeProjectId]);
-  
+  // Project domain: localStorage persistence, backend sync/hydration,
+  // debounced auto-save, create/select/delete/rename handlers.
+  const {
+    projects,
+    setProjects,
+    activeProjectId,
+    setActiveProjectId,
+    currentVideoIdInProject,
+    setCurrentVideoIdInProject,
+    handleProjectCreate,
+    handleProjectSelect,
+    handleProjectDelete,
+    handleProjectRename,
+  } = useProjects({
+    backendStatus,
+    annotationState: { classes, instances, annotations, keyframes, scenes, videoMetadata },
+    toast,
+    findVideo: (id) => managedVideos.find(v => v.id === id),
+    openProjectWorkspace: async (project, targetVideoId) => {
+      setVideoId(targetVideoId);
+      // Load project state
+      setClasses(project.classes);
+      setInstances(project.instances);
+      setAnnotations(project.annotations);
+      setKeyframes(project.keyframes);
+      setScenes(project.scenes);
+      setVideoMetadata(project.videoMetadata);
+      await loadVideoIntoPlayer(targetVideoId);
+    },
+    clearWorkspace: () => {
+      setVideoId("");
+      setVideoUrl("");
+      setAnnotations([]);
+      setInstances([]);
+      setKeyframes([]);
+      setScenes([]);
+      setClasses([]);
+      setVideoMetadata({});
+    },
+  });
+
   // Persist managed videos to localStorage
   useEffect(() => {
     try {
@@ -218,52 +165,6 @@ const Index = () => {
       console.error('Failed to save managed videos:', error);
     }
   }, [managedVideos]);
-  
-  // Auto-save current project annotations
-  useEffect(() => {
-    if (!activeProjectId) return;
-    
-    const project = projects.find(p => p.id === activeProjectId);
-    if (!project) return;
-    
-    // Update local state
-    const updatedProject: Project = {
-      ...project,
-      classes,
-      instances,
-      annotations,
-      keyframes,
-      scenes,
-      videoMetadata,
-      lastModified: Date.now(),
-    };
-    
-    setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
-    
-    // Try to save to backend if online (debounced)
-    if (backendStatus === 'healthy') {
-      const timeoutId = setTimeout(async () => {
-        try {
-          await updateProject(activeProjectId, {
-            name: project.name,
-            settings: {
-              classes,
-              instances,
-              annotations,
-              keyframes,
-              scenes,
-              videoMetadata,
-            },
-          });
-          console.log('💾 Auto-saved project to backend');
-        } catch (error) {
-          console.error('Failed to auto-save to backend (offline mode active):', error);
-        }
-      }, 2000);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
 
   // Auto-persist tool preferences to settings
   useEffect(() => {
@@ -988,73 +889,6 @@ const Index = () => {
     });
   };
   
-  const handleProjectSelect = async (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (!project || project.videoIds.length === 0) return;
-    
-    // Use first video in project
-    const firstVideoId = project.videoIds[0];
-    const video = managedVideos.find(v => v.id === firstVideoId);
-    if (!video || video.status !== 'ready' || !video.metadata) return;
-    
-    console.log('🔄 Switching to project:', project.name);
-    setActiveProjectId(projectId);
-    setVideoId(firstVideoId);
-    setCurrentVideoIdInProject(firstVideoId);
-    
-    // Load project state
-    setClasses(project.classes);
-    setInstances(project.instances);
-    setAnnotations(project.annotations);
-    setKeyframes(project.keyframes);
-    setScenes(project.scenes);
-    setVideoMetadata(project.videoMetadata);
-    
-    await loadVideoIntoPlayer(firstVideoId);
-    
-    toast({
-      title: "Project loaded",
-      description: `Switched to "${project.name}"`,
-    });
-  };
-  
-  const handleProjectDelete = (projectId: string) => {
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-    
-    // If deleting active project, clear it
-    if (projectId === activeProjectId) {
-      setActiveProjectId(null);
-      setVideoId("");
-      setVideoUrl("");
-      setAnnotations([]);
-      setInstances([]);
-      setKeyframes([]);
-      setScenes([]);
-      setClasses([]);
-      setVideoMetadata({});
-      
-      toast({
-        title: "Project deleted",
-        description: "Project has been removed",
-      });
-    } else {
-      toast({
-        title: "Project deleted",
-      });
-    }
-  };
-  
-  const handleProjectRename = (projectId: string, newName: string) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, name: newName, lastModified: Date.now() } : p
-    ));
-    
-    toast({
-      title: "Project renamed",
-      description: `Project renamed to "${newName}"`,
-    });
-  };
-
   const handleVideoDelete = (videoId: string) => {
     // Check if video is used by any project
     const projectsUsingVideo = projects.filter(p => p.videoIds.includes(videoId));
@@ -2473,16 +2307,6 @@ const Index = () => {
     toast({
       title: "Data exported",
       description: "Hierarchical annotations exported to JSON",
-    });
-  };
-
-  const handleProjectCreate = (name: string) => {
-    const newProject = createEmptyProject(name);
-    setProjects(prev => [...prev, newProject]);
-    setActiveProjectId(newProject.id);
-    toast({
-      title: "Project created",
-      description: name,
     });
   };
 
