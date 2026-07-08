@@ -1,5 +1,6 @@
-# GPU workers: scaled to 0 — heavy processing offloaded to ClearML cluster.
-# Scale up via replicas when local GPU processing is needed.
+# gpu-worker-0 serves the live AI routes (SAM2 segment dispatches to celery
+# queue gpu_0_worker with a 30s wait) — keep at 1. gpu-worker-1 stays at 0;
+# batch processing offloads to ClearML.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,7 +11,7 @@ metadata:
     component: gpu-worker
     gpu-id: "0"
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: windsurf-ai
