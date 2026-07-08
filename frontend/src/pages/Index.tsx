@@ -7,7 +7,7 @@ import { HierarchicalTimeline } from "@/components/HierarchicalTimeline";
 import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
-import { TrackingJobs, type TrackingJob } from "@/components/TrackingJobs";
+import { TrackingJobs } from "@/components/TrackingJobs";
 
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
@@ -28,9 +28,13 @@ import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
-import { pctToNative, nativeBBoxToPct, bboxToPolygon, isMaskCropped } from "@/lib/coordinates";
-import { migrateStoredProjects } from "@/lib/projectMigration";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, createProject } from "@/lib/api";
+import { pctToNative, nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
+import { useProjects } from "@/hooks/useProjects";
+import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useAnnotations } from "@/hooks/useAnnotations";
+import { useTrackingJobs } from "@/hooks/useTrackingJobs";
+import { SAIL_COLORS, annotationsAtFrame } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
@@ -38,14 +42,6 @@ import { UserMenu } from "@/components/UserMenu";
 import { useAuth } from "@/hooks/useAuth";
 import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
-
-const SAIL_COLORS = [
-  { hex: "hsl(142, 71%, 45%)", name: "Green" },
-  { hex: "hsl(217, 91%, 60%)", name: "Blue" },
-  { hex: "hsl(25, 95%, 53%)", name: "Orange" },
-  { hex: "hsl(271, 81%, 56%)", name: "Purple" },
-  { hex: "hsl(48, 96%, 53%)", name: "Yellow" },
-];
 
 const Index = () => {
   const { toast } = useToast();
@@ -64,18 +60,62 @@ const Index = () => {
   const isCheckingRef = useRef(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<string>();
+
+  // Annotation workspace domain: classes/instances/annotations/keyframes/
+  // scenes/videoMetadata + their handlers (pure ops in lib/annotationOps).
+  const {
+    classes,
+    setClasses,
+    instances,
+    setInstances,
+    annotations,
+    setAnnotations,
+    keyframes,
+    setKeyframes,
+    scenes,
+    setScenes,
+    videoMetadata,
+    setVideoMetadata,
+    selectedClassId,
+    setSelectedClassId,
+    colorIndex,
+    setColorIndex,
+    handleCreateClass,
+    handleRenameClass,
+    handleDeleteClass,
+    handleRenameInstance,
+    handleDeleteInstance,
+    handleUpdateMetadata,
+    handleAnnotationUpdate,
+    handleAddKeyframe,
+    handleDeleteKeyframe,
+    handleDeletePrompt,
+    handleSceneQualityChange,
+  } = useAnnotations({ currentFrame, toast });
+
+  // Tracking-jobs domain: auto-created segment jobs, execution/polling,
+  // result ingestion into tracked annotations.
+  const {
+    trackingJobs,
+    setTrackingJobs,
+    handleStartTracking,
+    handleProcessJob,
+    handleDeleteJob,
+  } = useTrackingJobs({
+    videoId,
+    videoNativeWidth,
+    videoNativeHeight,
+    annotations,
+    keyframes,
+    setAnnotations,
+    toast,
+  });
+
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
-  
+
   // Load tool preferences from settings
   const toolPrefs = getToolPreferences();
   const [overlays, setOverlays] = useState(toolPrefs.overlays);
-  const [colorIndex, setColorIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
   const [autoTrack, setAutoTrack] = useState(toolPrefs.autoTrack);
   const [autoDetect, setAutoDetect] = useState(toolPrefs.autoDetect);
@@ -86,11 +126,9 @@ const Index = () => {
     y: number;
     context: any;
   } | null>(null);
-  const [trackingJobs, setTrackingJobs] = useState<TrackingJob[]>([]);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(toolPrefs.maximizeVideo);
-  const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [metadataModal, setMetadataModal] = useState<{
     isOpen: boolean;
@@ -106,164 +144,58 @@ const Index = () => {
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
   
-  // Projects state with localStorage fallback (format migration in lib/projectMigration)
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      return migrateStoredProjects(localStorage.getItem('projects'));
-    } catch {
-      return [];
-    }
-  });
-  
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('activeProjectId');
-    } catch {
-      return null;
-    }
-  });
-  
-  // Track which video in the project is currently being viewed
-  const [currentVideoIdInProject, setCurrentVideoIdInProject] = useState<string | null>(null);
-  
-  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
-  
-  // Load persisted video library from localStorage
-  const [managedVideos, setManagedVideos] = useState<ManagedVideo[]>(() => {
-    try {
-      const saved = localStorage.getItem('managedVideos');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+  // Video library domain: localStorage persistence, backend merge on mount,
+  // delete handler (guarded by project usage).
+  const {
+    managedVideos,
+    setManagedVideos,
+    addVideo,
+    handleVideoDelete,
+  } = useVideoLibrary({
+    toast,
+    countProjectsUsingVideo: (id) => projects.filter(p => p.videoIds.includes(id)).length,
   });
 
-  // Sync projects with backend (when online)
-  useEffect(() => {
-    const syncWithBackend = async () => {
-      if (backendStatus !== 'healthy') return;
-      
-      try {
-        setIsLoadingProjects(true);
-        const response = await getProjects();
-        
-        // Convert backend projects to frontend format
-        const backendProjects: Project[] = response.projects.map(p => ({
-          id: p.id,
-          name: p.name,
-          videoIds: p.video_id ? [p.video_id] : [], // Backend stores single video, convert to array
-          createdAt: new Date(p.created_at).getTime(),
-          lastModified: new Date(p.last_modified).getTime(),
-          classes: [],
-          instances: [],
-          annotations: [],
-          keyframes: [],
-          scenes: [],
-          videoMetadata: {},
-        }));
-        
-        // Merge with localStorage projects (keep newer ones)
-        const mergedProjects = [...projects];
-        backendProjects.forEach(bp => {
-          const existingIdx = mergedProjects.findIndex(p => p.id === bp.id);
-          if (existingIdx >= 0) {
-            // Keep the one with latest modification
-            if (bp.lastModified > mergedProjects[existingIdx].lastModified) {
-              mergedProjects[existingIdx] = bp;
-            }
-          } else {
-            mergedProjects.push(bp);
-          }
-        });
-        
-        setProjects(mergedProjects);
-      } catch (error) {
-        console.error('Failed to sync with backend:', error);
-        // Continue with localStorage projects
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
-    
-    syncWithBackend();
-  }, [backendStatus]);
-  
-  // Persist projects to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('projects', JSON.stringify(projects));
-    } catch (error) {
-      console.error('Failed to save projects:', error);
-    }
-  }, [projects]);
-  
-  // Persist active project ID to localStorage
-  useEffect(() => {
-    try {
-      if (activeProjectId) {
-        localStorage.setItem('activeProjectId', activeProjectId);
-      } else {
-        localStorage.removeItem('activeProjectId');
-      }
-    } catch (error) {
-      console.error('Failed to save active project ID:', error);
-    }
-  }, [activeProjectId]);
-  
-  // Persist managed videos to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('managedVideos', JSON.stringify(managedVideos));
-    } catch (error) {
-      console.error('Failed to save managed videos:', error);
-    }
-  }, [managedVideos]);
-  
-  // Auto-save current project annotations
-  useEffect(() => {
-    if (!activeProjectId) return;
-    
-    const project = projects.find(p => p.id === activeProjectId);
-    if (!project) return;
-    
-    // Update local state
-    const updatedProject: Project = {
-      ...project,
-      classes,
-      instances,
-      annotations,
-      keyframes,
-      scenes,
-      videoMetadata,
-      lastModified: Date.now(),
-    };
-    
-    setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
-    
-    // Try to save to backend if online (debounced)
-    if (backendStatus === 'healthy') {
-      const timeoutId = setTimeout(async () => {
-        try {
-          await updateProject(activeProjectId, {
-            name: project.name,
-            settings: {
-              classes,
-              instances,
-              annotations,
-              keyframes,
-              scenes,
-              videoMetadata,
-            },
-          });
-          console.log('💾 Auto-saved project to backend');
-        } catch (error) {
-          console.error('Failed to auto-save to backend (offline mode active):', error);
-        }
-      }, 2000);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
+  // Project domain: localStorage persistence, backend sync/hydration,
+  // debounced auto-save, create/select/delete/rename handlers.
+  const {
+    projects,
+    setProjects,
+    activeProjectId,
+    setActiveProjectId,
+    currentVideoIdInProject,
+    setCurrentVideoIdInProject,
+    handleProjectCreate,
+    handleProjectSelect,
+    handleProjectDelete,
+    handleProjectRename,
+  } = useProjects({
+    backendStatus,
+    annotationState: { classes, instances, annotations, keyframes, scenes, videoMetadata },
+    toast,
+    findVideo: (id) => managedVideos.find(v => v.id === id),
+    openProjectWorkspace: async (project, targetVideoId) => {
+      setVideoId(targetVideoId);
+      // Load project state
+      setClasses(project.classes);
+      setInstances(project.instances);
+      setAnnotations(project.annotations);
+      setKeyframes(project.keyframes);
+      setScenes(project.scenes);
+      setVideoMetadata(project.videoMetadata);
+      await loadVideoIntoPlayer(targetVideoId);
+    },
+    clearWorkspace: () => {
+      setVideoId("");
+      setVideoUrl("");
+      setAnnotations([]);
+      setInstances([]);
+      setKeyframes([]);
+      setScenes([]);
+      setClasses([]);
+      setVideoMetadata({});
+    },
+  });
 
   // Auto-persist tool preferences to settings
   useEffect(() => {
@@ -426,69 +358,6 @@ const Index = () => {
   }, [toast]);
 
 
-  // Auto-create tracking jobs from START->STOP keyframe pairs
-  useEffect(() => {
-    const sortedKeyframes = [...keyframes].sort((a, b) => a.frame - b.frame);
-    const updatedJobs = new Map(trackingJobs.map(job => [job.id, job]));
-    
-    for (let i = 0; i < sortedKeyframes.length; i++) {
-      if (sortedKeyframes[i].type === "START") {
-        const startFrame = sortedKeyframes[i].frame;
-        const stopKeyframe = sortedKeyframes.slice(i + 1).find(kf => kf.type === "STOP");
-        
-        if (stopKeyframe) {
-          const jobId = `segment-${startFrame}-${stopKeyframe.frame}`;
-          
-          // Find all annotations that exist in this segment
-          const segmentAnnotations = annotations
-            .filter(ann => ann.frameCreated >= startFrame && ann.frameCreated <= stopKeyframe.frame)
-            .map(ann => ann.id);
-          
-          // Update existing job or create new one
-          const existingJob = updatedJobs.get(jobId);
-          if (existingJob) {
-            // Update objectIds if new annotations were added
-            updatedJobs.set(jobId, {
-              ...existingJob,
-              objectIds: segmentAnnotations,
-            });
-          } else {
-            // Create new job
-            updatedJobs.set(jobId, {
-              id: jobId,
-              startFrame,
-              stopFrame: stopKeyframe.frame,
-              objectIds: segmentAnnotations,
-              status: "pending",
-            });
-          }
-        }
-      }
-    }
-    
-    // Remove jobs for segments that no longer have START->STOP pairs
-    const validJobIds = new Set<string>();
-    for (let i = 0; i < sortedKeyframes.length; i++) {
-      if (sortedKeyframes[i].type === "START") {
-        const startFrame = sortedKeyframes[i].frame;
-        const stopKeyframe = sortedKeyframes.slice(i + 1).find(kf => kf.type === "STOP");
-        if (stopKeyframe) {
-          validJobIds.add(`segment-${startFrame}-${stopKeyframe.frame}`);
-        }
-      }
-    }
-    
-    // Filter out invalid jobs (keep only valid ones and those that are processing/completed)
-    const finalJobs = Array.from(updatedJobs.values()).filter(
-      job => validJobIds.has(job.id) || job.status !== "pending"
-    );
-    
-    // Only update state if jobs actually changed
-    if (JSON.stringify(finalJobs) !== JSON.stringify(trackingJobs)) {
-      setTrackingJobs(finalJobs);
-    }
-  }, [keyframes, annotations, trackingJobs]);
-
   // Auto-detect DINO on frame change
   useEffect(() => {
     if (autoDetect && videoUrl) {
@@ -531,10 +400,8 @@ const Index = () => {
       // Tab cycling through annotations (only in edit mode)
       if (e.key === "Tab" && selectedTool === "edit") {
         e.preventDefault();
-        const currentFrameAnnotations = annotations.filter(ann => 
-          ann.frameCreated === currentFrame
-        );
-        
+        const currentFrameAnnotations = annotationsAtFrame(annotations, currentFrame);
+
         if (currentFrameAnnotations.length === 0) return;
         
         const currentIndex = selectedAnnotationId 
@@ -682,8 +549,8 @@ const Index = () => {
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),
       };
-      setManagedVideos(prev => [...prev, tempVideo]);
-      
+      addVideo(tempVideo);
+
       // Add to queue
       const newDownload: DownloadJob = {
         id: jobId,
@@ -988,94 +855,6 @@ const Index = () => {
     });
   };
   
-  const handleProjectSelect = async (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (!project || project.videoIds.length === 0) return;
-    
-    // Use first video in project
-    const firstVideoId = project.videoIds[0];
-    const video = managedVideos.find(v => v.id === firstVideoId);
-    if (!video || video.status !== 'ready' || !video.metadata) return;
-    
-    console.log('🔄 Switching to project:', project.name);
-    setActiveProjectId(projectId);
-    setVideoId(firstVideoId);
-    setCurrentVideoIdInProject(firstVideoId);
-    
-    // Load project state
-    setClasses(project.classes);
-    setInstances(project.instances);
-    setAnnotations(project.annotations);
-    setKeyframes(project.keyframes);
-    setScenes(project.scenes);
-    setVideoMetadata(project.videoMetadata);
-    
-    await loadVideoIntoPlayer(firstVideoId);
-    
-    toast({
-      title: "Project loaded",
-      description: `Switched to "${project.name}"`,
-    });
-  };
-  
-  const handleProjectDelete = (projectId: string) => {
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-    
-    // If deleting active project, clear it
-    if (projectId === activeProjectId) {
-      setActiveProjectId(null);
-      setVideoId("");
-      setVideoUrl("");
-      setAnnotations([]);
-      setInstances([]);
-      setKeyframes([]);
-      setScenes([]);
-      setClasses([]);
-      setVideoMetadata({});
-      
-      toast({
-        title: "Project deleted",
-        description: "Project has been removed",
-      });
-    } else {
-      toast({
-        title: "Project deleted",
-      });
-    }
-  };
-  
-  const handleProjectRename = (projectId: string, newName: string) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, name: newName, lastModified: Date.now() } : p
-    ));
-    
-    toast({
-      title: "Project renamed",
-      description: `Project renamed to "${newName}"`,
-    });
-  };
-
-  const handleVideoDelete = (videoId: string) => {
-    // Check if video is used by any project
-    const projectsUsingVideo = projects.filter(p => p.videoIds.includes(videoId));
-    if (projectsUsingVideo.length > 0) {
-      toast({
-        title: "Cannot delete video",
-        description: `This video is used by ${projectsUsingVideo.length} project(s). Delete the project(s) first.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Remove from managed videos
-    setManagedVideos(prev => prev.filter(v => v.id !== videoId));
-    
-    toast({
-      title: "Video deleted",
-      description: "Video has been removed",
-    });
-  };
-
   const handleVideoAddToProject = (videoId: string) => {
     if (!activeProjectId) {
       toast({
@@ -1162,8 +941,8 @@ const Index = () => {
       createdAt: Date.now(),
       lastAccessedAt: Date.now(),
     };
-    setManagedVideos(prev => [...prev, tempVideo]);
-    
+    addVideo(tempVideo);
+
     // Start upload to backend
     setIsUploading(true);
     toast({
@@ -1410,12 +1189,6 @@ const Index = () => {
         description: `Showing all frames`,
       });
     }
-  };
-
-  const handleSceneQualityChange = (sceneId: string, quality: "good" | "bad" | "unknown") => {
-    setScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, quality } : s))
-    );
   };
 
   const handleGenerateMetadata = async () => {
@@ -1847,407 +1620,6 @@ const Index = () => {
     setContextMenu({ x, y, context });
   };
 
-  const handleStartTracking = (annotationId: string) => {
-    const annotation = annotations.find(a => a.id === annotationId);
-    if (!annotation) return;
-
-    const startFrame = annotation.frameCreated;
-    const stopKeyframe = keyframes.find(
-      k => k.type === "STOP" && k.frame > startFrame
-    );
-
-    if (!stopKeyframe) {
-      toast({
-        title: "No STOP keyframe found",
-        description: "Add a STOP keyframe after this annotation",
-      });
-      return;
-    }
-
-    const newJob: TrackingJob = {
-      id: `job-${Date.now()}`,
-      startFrame,
-      stopFrame: stopKeyframe.frame,
-      objectIds: [annotationId],
-      status: "pending",
-    };
-
-    setTrackingJobs([...trackingJobs, newJob]);
-    toast({
-      title: "Tracking job created",
-      description: `Frames ${startFrame} → ${stopKeyframe.frame}`,
-    });
-  };
-
-  const handleProcessJob = async (jobId: string) => {
-    const job = trackingJobs.find(j => j.id === jobId);
-    if (!job || !videoId) return;
-
-    // Extract click_prompts from annotations in this segment
-    const segmentAnnotations = annotations.filter(ann => 
-      job.objectIds.includes(ann.id) && ann.sam2Prompts && ann.sam2Prompts.length > 0
-    );
-
-    if (segmentAnnotations.length === 0) {
-      toast({
-        title: "No prompts found",
-        description: "Annotations in this segment need SAM2 click prompts",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Collect ALL click prompts from all annotations
-    const allClickPrompts = segmentAnnotations.flatMap(ann =>
-      ann.sam2Prompts!.map(p => ({
-        ...pctToNative(p.x, p.y, videoNativeWidth, videoNativeHeight),
-        type: p.type
-      }))
-    );
-
-    console.log('🎯 Tracking job click prompts:', {
-      promptCount: allClickPrompts.length,
-      prompts: allClickPrompts,
-      nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
-    });
-
-    try {
-      // Create tracking job with backend (auto-splits if needed)
-      toast({
-        title: "Creating tracking job",
-        description: "Analyzing segment size and memory requirements...",
-      });
-
-      const createResponse = await createTrackingJob(videoId, [{
-        start_frame: job.startFrame,
-        end_frame: job.stopFrame,
-        click_prompts: allClickPrompts
-      }]);
-
-      console.log('📦 Tracking job creation response:', createResponse);
-
-      // Handle both response formats: single_job or auto_split_result
-      let subJobs: SubJob[];
-      let isSplit = false;
-      let estimatedMemory = '';
-
-      if (createResponse.auto_split_result) {
-        // Multi-part job (split required)
-        const { auto_split_result } = createResponse;
-        isSplit = auto_split_result.split_required;
-        estimatedMemory = auto_split_result.estimated_memory || '';
-        subJobs = auto_split_result.created_jobs;
-        
-        toast({
-          title: "Job auto-split",
-          description: `Split into ${subJobs.length} parts (~${estimatedMemory})`,
-        });
-      } else if (createResponse.single_job) {
-        // Single job (no split needed)
-        const { single_job } = createResponse;
-        isSplit = false;
-        estimatedMemory = single_job.estimated_memory || '';
-        subJobs = [{
-          job_id: single_job.job_id,
-          name: single_job.name || 'Tracking Job',
-          start_frame: single_job.start_frame,
-          end_frame: single_job.end_frame,
-          frames: single_job.frames,
-          prompt_source: 'manual'
-        }];
-      } else {
-        console.error('❌ Invalid tracking response structure:', createResponse);
-        throw new Error(`Invalid response format. Expected 'auto_split_result' or 'single_job'`);
-      }
-      
-      console.log(`✅ Job created with ${subJobs.length} sub-job(s)`);
-      
-      // Update job with auto-split info
-      setTrackingJobs(jobs =>
-        jobs.map(j =>
-          j.id === jobId ? {
-            ...j,
-            status: "processing" as const,
-            progress: 0,
-            isSplit,
-            estimatedMemory,
-            subJobs: subJobs.map(subJob => ({
-              ...subJob,
-              status: "pending" as const
-            }))
-          } : j
-        )
-      );
-
-      // Execute each sub-job sequentially
-      for (let i = 0; i < subJobs.length; i++) {
-        const subJob = subJobs[i];
-        
-        // Mark sub-job as processing
-        setTrackingJobs(jobs =>
-          jobs.map(j =>
-            j.id === jobId && j.subJobs ? {
-              ...j,
-              subJobs: j.subJobs.map((sj, idx) =>
-                idx === i ? { ...sj, status: "processing" as const, progress: 0 } : sj
-              )
-            } : j
-          )
-        );
-
-        // Execute tracking
-        console.log(`🚀 Starting tracking job: ${subJob.job_id}`);
-        await executeTrackingJob(subJob.job_id);
-
-        // Poll for completion with timeout
-        let completed = false;
-        let pollCount = 0;
-        const maxPolls = 300; // 5 minutes max (300 seconds)
-        
-        while (!completed && pollCount < maxPolls) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every second
-          pollCount++;
-          
-          const status = await getTrackingJobStatus(subJob.job_id);
-          
-          console.log(`📊 Poll #${pollCount} for job ${subJob.name}:`, status.status, `${status.percentage}%`);
-          
-          // Update progress
-          setTrackingJobs(jobs =>
-            jobs.map(j =>
-              j.id === jobId && j.subJobs ? {
-                ...j,
-                progress: Math.round(((i + (status.percentage || 0) / 100) / subJobs.length) * 100),
-                subJobs: j.subJobs.map((sj, idx) =>
-                  idx === i ? { ...sj, progress: status.percentage } : sj
-                )
-              } : j
-            )
-          );
-
-          if (status.status === "completed") {
-            console.log(`✅ Job ${subJob.name} completed!`);
-            completed = true;
-            
-            // Mark sub-job as completed
-            setTrackingJobs(jobs =>
-              jobs.map(j =>
-                j.id === jobId && j.subJobs ? {
-                  ...j,
-                  subJobs: j.subJobs.map((sj, idx) =>
-                    idx === i ? { ...sj, status: "completed" as const, progress: 100 } : sj
-                  )
-                } : j
-              )
-            );
-          } else if (status.status === "failed") {
-            console.error(`❌ Job ${subJob.name} failed`);
-            throw new Error(`Sub-job ${subJob.name} failed: ${status.error}`);
-          }
-        }
-        
-        if (!completed) {
-          console.error(`⏱️ Polling timeout after ${pollCount} attempts for job ${subJob.name}`);
-          throw new Error(`Tracking job timed out after ${pollCount} seconds. Backend may still be processing.`);
-        }
-      }
-
-      // All sub-jobs completed - fetch and create annotations from tracking results
-      const allResults: any[] = [];
-      
-      console.log(`📦 Fetching results from ${subJobs.length} sub-job(s)...`);
-      
-      for (let subJobIndex = 0; subJobIndex < subJobs.length; subJobIndex++) {
-        const subJob = subJobs[subJobIndex];
-        try {
-          const results = await getTrackingJobResults(subJob.job_id);
-
-          // Normalize backend results to a consistent per-frame array
-          const frames = Array.isArray(results.results)
-            ? results.results
-            : Array.isArray((results as any).results?.frames)
-              ? (results as any).results.frames
-              : [];
-
-          // Map multi-object backend results to flat array of per-object-per-frame results
-          const normalized: Array<{ 
-            frame_number: number; 
-            object_id: number;
-            bbox: [number, number, number, number]; 
-            mask_base64?: string; 
-            score?: number 
-          }> = [];
-
-          for (const r of frames) {
-            const frame_number = r.frame_number ?? r.frame;
-            if (typeof frame_number !== 'number') continue;
-
-            // Handle multi-object format: object_ids, bboxes, masks_base64 arrays
-            if (Array.isArray(r.object_ids) && Array.isArray(r.bboxes)) {
-              for (let i = 0; i < r.object_ids.length; i++) {
-                const bbox = r.bboxes[i];
-                if (!bbox) continue;
-                
-                normalized.push({
-                  frame_number,
-                  object_id: r.object_ids[i],
-                  bbox,
-                  mask_base64: r.masks_base64?.[i],
-                  score: r.scores?.[i]
-                });
-              }
-            } 
-            // Fallback: single-object format
-            else {
-              const bbox = r.bbox ?? (Array.isArray(r.bboxes) ? r.bboxes[0] : undefined);
-              const mask_base64 = r.mask_base64 ?? r.maskBase64 ?? r.mask?.base64;
-              const score = r.score ?? r.confidence;
-              
-              if (bbox) {
-                normalized.push({
-                  frame_number,
-                  object_id: 1, // Default to object_id 1 for backward compatibility
-                  bbox,
-                  mask_base64,
-                  score
-                });
-              }
-            }
-          }
-
-          if (normalized.length > 0) {
-            console.log(`✅ Fetched ${normalized.length} results from ${subJob.name}:`, {
-              firstFrame: normalized[0]?.frame_number,
-              lastFrame: normalized[normalized.length - 1]?.frame_number,
-              sampleBbox: normalized[0]?.bbox,
-              hasMasks: normalized.some(r => !!r.mask_base64)
-            });
-            allResults.push(...normalized);
-          } else {
-            console.warn(`⚠️ ${subJob.name} returned no usable per-frame tracking data:`, results);
-            toast({
-              title: "No Tracking Frames Parsed",
-              description: `Received results but could not parse frames. Check backend result schema (expect frames[].bbox or bboxes[0]).`,
-              variant: "destructive",
-            });
-          }
-        } catch (error) {
-          console.error(`Failed to fetch results for ${subJob.name}:`, error);
-        }
-      }
-
-      console.log(`📊 Total tracking results retrieved: ${allResults.length}`);
-      console.log('Sample of first 3 results:', allResults.slice(0, 3).map(r => ({
-        frame: r.frame_number,
-        bbox: r.bbox,
-        hasMask: !!r.mask_base64
-      })));
-
-      // Create new annotations for each tracked frame and object
-      if (allResults.length > 0) {
-        const newAnnotations: Annotation[] = [];
-        
-        // Group results by object_id to map back to original annotations
-        console.log(`🎨 Creating annotations for ${segmentAnnotations.length} objects...`);
-        
-        // Always skip the starting frame result to avoid duplicating the manual keyframe
-        const filteredResults = allResults.filter(r => r.frame_number !== job.startFrame);
-        
-        for (const result of filteredResults) {
-          
-          // Map object_id back to original annotation (object_id is 1-based)
-          const originalAnnotation = segmentAnnotations[result.object_id - 1];
-          if (!originalAnnotation) {
-            console.warn(`⚠️ No annotation found for object_id ${result.object_id}`);
-            continue;
-          }
-          // Decode mask to get dimensions
-          let maskWidth: number | undefined;
-          let maskHeight: number | undefined;
-          if (result.mask_base64) {
-            try {
-              const img = new Image();
-              img.src = `data:image/png;base64,${result.mask_base64}`;
-              await img.decode();
-              maskWidth = img.width;
-              maskHeight = img.height;
-            } catch (e) {
-              console.warn('Failed to decode mask for frame', result.frame_number);
-            }
-          }
-
-          // ⚠️ CRITICAL: Backend bbox is ALWAYS in native video coordinates, NOT mask coordinates
-          const [x1, y1, x2, y2] = result.bbox;
-          const bbox = nativeBBoxToPct([x1, y1, x2, y2], videoNativeWidth || 1280, videoNativeHeight || 720);
-          const points = bboxToPolygon(bbox);
-          const isCropped = isMaskCropped(maskWidth, maskHeight, videoNativeWidth, videoNativeHeight);
-
-          newAnnotations.push({
-            id: `ann-tracked-${result.object_id}-${result.frame_number}-${Date.now()}-${Math.random()}`,
-            instanceId: originalAnnotation.instanceId,
-            points,
-            bbox,
-            maskBase64: result.mask_base64,
-            maskBBox: bbox,
-            maskWidth,
-            maskHeight,
-            maskIsCropped: isCropped,
-            frameCreated: result.frame_number,
-            isKeyframe: false // Tracked, not manual
-          });
-        }
-        
-        console.log(`✅ Created ${newAnnotations.length} annotations across ${segmentAnnotations.length} objects. Sample:`, 
-          newAnnotations.slice(0, 3).map(a => ({ frame: a.frameCreated, bbox: a.bbox, instanceId: a.instanceId }))
-        );
-
-        // Add all new tracked annotations
-        setAnnotations(prevAnnotations => [...prevAnnotations, ...newAnnotations]);
-        console.log(`✅ Added ${newAnnotations.length} tracked annotations to state`);
-      }
-
-      const fakeTrackedRanges: [number, number][] = [
-        [job.startFrame, job.stopFrame]
-      ];
-
-      setTrackingJobs(jobs =>
-        jobs.map(j =>
-          j.id === jobId ? { ...j, status: "completed" as const, progress: 100 } : j
-        )
-      );
-
-      // (Removed) Avoid marking original keyframe as tracked across range to prevent duplicate overlays
-      // We rely on per-frame tracked annotations created above.
-
-      toast({
-        title: "Tracking completed",
-        description: `Created ${allResults.length} annotations across ${subJobs.length} segment(s)`,
-      });
-
-    } catch (error) {
-      console.error("Tracking failed:", error);
-      
-      setTrackingJobs(jobs =>
-        jobs.map(j =>
-          j.id === jobId ? { ...j, status: "failed" as const } : j
-        )
-      );
-
-      toast({
-        title: "Tracking failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteJob = (jobId: string) => {
-    setTrackingJobs(jobs => jobs.filter(job => job.id !== jobId));
-    toast({
-      title: "Job deleted",
-    });
-  };
-
   const handleToggleOverlay = (key: "segments" | "bboxes" | "points") => {
     setOverlays((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -2319,111 +1691,6 @@ const Index = () => {
     }
   };
 
-  const handleCreateClass = (name: string) => {
-    const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
-    const newClass: Class = {
-      id: `class-${Date.now()}`,
-      name,
-      color: color.hex,
-      colorName: color.name,
-    };
-    setClasses((prev) => [...prev, newClass]);
-    setColorIndex((prev) => prev + 1);
-    setSelectedClassId(newClass.id);
-    toast({
-      title: "Class created",
-      description: name,
-    });
-  };
-
-  const handleRenameClass = (classId: string, newName: string) => {
-    setClasses((prev) =>
-      prev.map((c) => (c.id === classId ? { ...c, name: newName } : c))
-    );
-  };
-
-  const handleDeleteClass = (classId: string) => {
-    const classInstances = instances.filter(inst => inst.classId === classId);
-    const instanceIds = classInstances.map(inst => inst.id);
-    
-    setClasses((prev) => prev.filter((c) => c.id !== classId));
-    setInstances((prev) => prev.filter((inst) => inst.classId !== classId));
-    setAnnotations((prev) => prev.filter((ann) => !instanceIds.includes(ann.instanceId)));
-    
-    if (selectedClassId === classId) {
-      setSelectedClassId(undefined);
-    }
-    
-    toast({
-      title: "Class deleted",
-      description: "All instances and annotations removed",
-    });
-  };
-
-  const handleRenameInstance = (instanceId: string, newName: string) => {
-    setInstances((prev) =>
-      prev.map((inst) => (inst.id === instanceId ? { ...inst, name: newName } : inst))
-    );
-  };
-
-  const handleDeleteInstance = (instanceId: string) => {
-    setInstances((prev) => prev.filter((inst) => inst.id !== instanceId));
-    setAnnotations((prev) => prev.filter((ann) => ann.instanceId !== instanceId));
-    toast({
-      title: "Instance deleted",
-    });
-  };
-
-  const handleUpdateMetadata = (instanceId: string, metadata: Record<string, string>) => {
-    setInstances((prev) =>
-      prev.map((inst) => (inst.id === instanceId ? { ...inst, metadata } : inst))
-    );
-  };
-
-  const handleAddKeyframe = (type: "START" | "STOP" | "SKIP" | "META") => {
-    // Check if keyframe of this type already exists at current frame
-    const existingKeyframe = keyframes.find(k => k.frame === currentFrame && k.type === type);
-    
-    if (existingKeyframe) {
-      // Toggle off: remove the keyframe
-      setKeyframes((prev) => prev.filter((k) => !(k.frame === currentFrame && k.type === type)));
-      toast({
-        title: `${type} keyframe removed`,
-        description: `Frame ${currentFrame}`,
-      });
-    } else {
-      // Toggle on: add the keyframe
-      const newKeyframe: Keyframe = {
-        frame: currentFrame,
-        type,
-        timestamp: new Date().toISOString(),
-      };
-      setKeyframes((prev) => [...prev, newKeyframe]);
-      toast({
-        title: `${type} keyframe added`,
-        description: `Frame ${currentFrame}`,
-      });
-    }
-  };
-
-  const handleDeleteKeyframe = (frame: number) => {
-    setKeyframes((prev) => prev.filter((k) => k.frame !== frame));
-  };
-
-  const handleDeletePrompt = (annotationId: string, promptIndex: number) => {
-    setAnnotations(prev => prev.map(ann => {
-      if (ann.id === annotationId && ann.sam2Prompts) {
-        const updatedPrompts = ann.sam2Prompts.filter((_, i) => i !== promptIndex);
-        return { ...ann, sam2Prompts: updatedPrompts.length > 0 ? updatedPrompts : undefined };
-      }
-      return ann;
-    }));
-    toast({
-      title: "Prompt deleted",
-      description: "SAM2 point removed from annotation",
-    });
-  };
-
   const handleSaveProject = () => {
     const project = {
       version: "0.3.0-hierarchical",
@@ -2473,16 +1740,6 @@ const Index = () => {
     toast({
       title: "Data exported",
       description: "Hierarchical annotations exported to JSON",
-    });
-  };
-
-  const handleProjectCreate = (name: string) => {
-    const newProject = createEmptyProject(name);
-    setProjects(prev => [...prev, newProject]);
-    setActiveProjectId(newProject.id);
-    toast({
-      title: "Project created",
-      description: name,
     });
   };
 
@@ -2704,11 +1961,7 @@ const Index = () => {
                 classes={classes}
                 instances={instances}
                 annotations={annotations}
-                onAnnotationUpdate={(id, updates) => {
-                  setAnnotations(prev => 
-                    prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
-                  );
-                }}
+                onAnnotationUpdate={handleAnnotationUpdate}
                 onAnnotationSelect={setSelectedAnnotationId}
                 overlays={overlays}
                 selectedTool={selectedTool}
