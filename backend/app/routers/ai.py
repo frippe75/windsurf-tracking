@@ -114,14 +114,18 @@ async def sam2_segment(
             raise HTTPException(status_code=404, detail="Video not found")
         
         video_info = videos_db[video_id]
-        
+
+        from .. import storage
+        local_path = storage.ensure_local(video_id)
+        video_path = str(local_path) if local_path else video_info.file_path
+
         # Extract frame using OpenCV and convert to base64
         import cv2
         import base64
         from PIL import Image
         from io import BytesIO
-        
-        cap = cv2.VideoCapture(video_info.file_path)
+
+        cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise HTTPException(status_code=500, detail="Could not open video file")
         

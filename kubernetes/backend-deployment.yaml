@@ -52,6 +52,27 @@ spec:
           value: "HS256"
         - name: TOKEN_EXPIRE_HOURS
           value: "24"
+        - name: S3_ENDPOINT
+          value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+        - name: S3_PUBLIC_ENDPOINT
+          value: "https://s3.tclab.org"
+        - name: S3_BUCKET
+          value: "windsurf-videos"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: secret-key
+        volumeMounts:
+        # emptyDir over the image's baked-in uploads: S3 is canonical now;
+        # this is a pod-lifetime cache filled on demand by storage.ensure_local()
+        - name: video-cache
+          mountPath: /app/uploads
         livenessProbe:
           httpGet:
             path: /
@@ -71,3 +92,7 @@ spec:
           limits:
             memory: 4Gi
             cpu: 2
+      volumes:
+      - name: video-cache
+        emptyDir:
+          sizeLimit: 30Gi

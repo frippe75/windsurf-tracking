@@ -400,6 +400,24 @@ export const uploadVideo = async (
   });
 };
 
+// Presigned S3 stream URL — seekable playback directly from object storage
+export const getVideoStreamUrl = async (videoId: string): Promise<{ url: string; presigned: boolean }> => {
+  if (config.useMockApi) {
+    return { url: `${config.backendUrl}/api/videos/${videoId}/download`, presigned: false };
+  }
+
+  const response = await fetch(`${config.backendUrl}/api/videos/${videoId}/stream-url`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) handleUnauthorized();
+    throw new Error(`Failed to get stream URL: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
 // Video download endpoint with progress tracking (for caching)
 export const downloadVideoFile = async (
   videoId: string, 

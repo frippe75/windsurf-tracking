@@ -28,7 +28,7 @@ import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 import { UserMenu } from "@/components/UserMenu";
@@ -320,24 +320,8 @@ const Index = () => {
           setScenes(activeProject.scenes);
           setVideoMetadata(activeProject.videoMetadata);
           
-          // Resolve video source (cache-first, then streaming)
-          try {
-            await videoCache.init();
-            const cached = await videoCache.get(activeVideo.filename);
-            
-            if (cached) {
-              console.log("💾 Restored from IndexedDB cache");
-              const blobUrl = URL.createObjectURL(cached.blob);
-              blobUrlsRef.current.add(blobUrl);
-              setVideoUrl(blobUrl);
-            } else {
-              console.log("🌐 Restored from backend stream");
-              setVideoUrl(`${config.backendUrl}/api/videos/${targetVideoId}/download`);
-            }
-          } catch (error) {
-            console.error("Failed to restore video:", error);
-            setVideoUrl(`${config.backendUrl}/api/videos/${targetVideoId}/download`);
-          }
+          // Resolve video source (cache-first, presigned S3 + background cache on miss)
+          setVideoUrl(await resolveVideoSource(targetVideoId, activeVideo.filename, activeVideo.metadata));
           
           setVideoNativeWidth(activeVideo.metadata.width);
           setVideoNativeHeight(activeVideo.metadata.height);
@@ -910,29 +894,62 @@ const Index = () => {
     setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
   };
 
+  // Resolve a playable URL: IndexedDB blob if cached; otherwise a presigned S3
+  // URL (seekable) while a background download fills the cache for next time.
+  const resolveVideoSource = async (
+    videoId: string,
+    filename: string,
+    metadata?: { duration: number; fps: number; width: number; height: number; totalFrames: number }
+  ): Promise<string> => {
+    try {
+      await videoCache.init();
+      const cached = await videoCache.get(filename);
+      if (cached) {
+        console.log("💾 Video source: IndexedDB cache");
+        const blobUrl = URL.createObjectURL(cached.blob);
+        blobUrlsRef.current.add(blobUrl);
+        return blobUrl;
+      }
+    } catch (e) {
+      console.warn("💾 Cache lookup failed:", e);
+    }
+
+    // Cache miss: fill the cache in the background (via backend, same-origin)
+    if (metadata) {
+      (async () => {
+        try {
+          console.log("💾 Background-caching video:", filename);
+          const blob = await downloadVideoFile(videoId);
+          await videoCache.set(filename, {
+            videoId,
+            filename,
+            blob,
+            metadata: { ...metadata, cachedAt: Date.now() },
+          });
+          console.log("💾 Background cache complete:", filename);
+        } catch (e) {
+          console.warn("💾 Background cache failed:", e);
+        }
+      })();
+    }
+
+    // Play immediately from presigned S3 URL (RGW supports Range → seekable)
+    try {
+      const stream = await getVideoStreamUrl(videoId);
+      console.log(stream.presigned ? "🌐 Video source: presigned S3 URL" : "🌐 Video source: backend stream");
+      return stream.url;
+    } catch (e) {
+      console.warn("🌐 stream-url failed, falling back to /download:", e);
+      return `${config.backendUrl}/api/videos/${videoId}/download`;
+    }
+  };
+
   // Helper function to load video into player
   const loadVideoIntoPlayer = async (videoId: string) => {
     const video = managedVideos.find(v => v.id === videoId);
     if (!video || !video.metadata) return;
-    
-    // Resolve video source (cache-first, then streaming)
-    try {
-      await videoCache.init();
-      const cached = await videoCache.get(video.filename);
-      
-      if (cached) {
-        console.log("💾 Loading video from IndexedDB cache");
-        const blobUrl = URL.createObjectURL(cached.blob);
-        blobUrlsRef.current.add(blobUrl);
-        setVideoUrl(blobUrl);
-      } else {
-        console.log("🌐 Loading video from backend stream");
-        setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
-      }
-    } catch (error) {
-      console.error("Failed to load video:", error);
-      setVideoUrl(`${config.backendUrl}/api/videos/${videoId}/download`);
-    }
+
+    setVideoUrl(await resolveVideoSource(videoId, video.filename, video.metadata));
     
     setVideoNativeWidth(video.metadata.width);
     setVideoNativeHeight(video.metadata.height);

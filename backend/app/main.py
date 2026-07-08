@@ -152,11 +152,42 @@ async def startup_event():
     print("="*60 + "\n")
 
 async def restore_video_database():
-    """Restore video database from upload directory"""
-    
+    """Restore video database from S3 (canonical) or the local uploads dir"""
+
+    from . import storage
+
+    if storage.enabled():
+        try:
+            print("🔄 Restoring video database from S3...")
+            restored = 0
+            for item in storage.list_videos():
+                m = item["metadata"]
+                video_id = item["video_id"]
+                try:
+                    videos_db[video_id] = VideoInfo(
+                        id=video_id,
+                        filename=m.get("filename", f"{video_id}.mp4"),
+                        # Local cache path; endpoints call storage.ensure_local()
+                        file_path=str(storage.LOCAL_CACHE_DIR / f"{video_id}.mp4"),
+                        duration=float(m.get("duration", 0)),
+                        fps=float(m.get("fps", 0)),
+                        width=int(m.get("width", 0)),
+                        height=int(m.get("height", 0)),
+                        total_frames=int(m.get("total_frames", 0)),
+                        upload_date=datetime.fromisoformat(m["upload_date"]) if m.get("upload_date") else item["last_modified"].replace(tzinfo=None),
+                        status="ready",
+                    )
+                    restored += 1
+                except Exception as e:
+                    print(f"⚠️ Skipping {video_id}: {e}")
+            print(f"✅ Restored {restored} videos from S3")
+            return
+        except Exception as e:
+            print(f"⚠️ S3 restore failed ({e}); falling back to local scan")
+
     try:
         import cv2
-        
+
         print("🔄 Restoring video database from uploads...")
         
         upload_dir = Path(__file__).parent.parent / "uploads"

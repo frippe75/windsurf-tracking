@@ -11,6 +11,7 @@ import asyncio
 from ..api_models import YouTubeDownloadRequest
 from ..auth import get_current_active_user
 from ..database import DBUser
+from .. import storage
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
@@ -50,7 +51,19 @@ async def upload_video(
         )
         
         videos_db[video_data['video_id']] = video_info
-        
+
+        # Canonical copy to S3 (local file stays as processing cache)
+        if storage.enabled():
+            storage.upload_video(video_data['video_id'], video_data['file_path'], {
+                "filename": video_data['filename'],
+                "duration": video_data['duration'],
+                "fps": video_data['fps'],
+                "width": video_data['width'],
+                "height": video_data['height'],
+                "total_frames": video_data['total_frames'],
+                "upload_date": video_info.upload_date.isoformat(),
+            })
+
         return {
             "video_id": video_data['video_id'],
             "filename": video_data['filename'],
@@ -141,13 +154,15 @@ async def get_frame(video_id: str, frame_number: int, width: Optional[int] = Non
     
     video_info = videos_db[video_id]
     
+    local_path = storage.ensure_local(video_id) or Path(video_info.file_path)
+
     try:
         import cv2
         import io
         from PIL import Image
-        
+
         # Extract frame using OpenCV directly
-        cap = cv2.VideoCapture(video_info.file_path)
+        cap = cv2.VideoCapture(str(local_path))
         if not cap.isOpened():
             raise HTTPException(status_code=500, detail="Could not open video file")
         
@@ -186,16 +201,34 @@ async def get_frame(video_id: str, frame_number: int, width: Optional[int] = Non
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Frame extraction failed: {str(e)}")
 
+@router.get("/{video_id}/stream-url")
+async def get_stream_url(video_id: str):
+    """Presigned S3 URL for direct, seekable browser playback (RGW honors Range)"""
+
+    if video_id not in videos_db:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    if not storage.enabled():
+        # Legacy fallback: frontend should use /download
+        return {"url": f"/api/videos/{video_id}/download", "presigned": False}
+
+    video_info = videos_db[video_id]
+    return {
+        "url": storage.presigned_url(video_id, video_info.filename),
+        "presigned": True,
+        "expires_in": storage.PRESIGN_EXPIRY
+    }
+
 @router.get("/{video_id}/download")
 async def download_video_file(video_id: str):
     """Download complete video file for frontend caching"""
-    
+
     if video_id not in videos_db:
         raise HTTPException(status_code=404, detail="Video not found")
-    
+
     video_info = videos_db[video_id]
-    video_path = Path(video_info.file_path)
-    
+    video_path = storage.ensure_local(video_id) or Path(video_info.file_path)
+
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found on disk")
     
@@ -232,10 +265,13 @@ async def delete_video(video_id: str):
     
     try:
         from windsurf.video_manager import video_manager
-        
+
         # Use windsurf library for cleanup
         video_manager.delete_video(video_info.file_path)
-        
+
+        # Remove canonical S3 copy
+        storage.delete_video(video_id)
+
         # Remove from database
         del videos_db[video_id]
         

@@ -5,4 +5,6 @@
 # (2026-07-07) and maintained here going forward.
 FROM harbor.tclab.org/windsurf/annotation-api:v2-auth
 
+RUN pip install --no-cache-dir boto3
+
 COPY app /app/app
