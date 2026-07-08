@@ -32,6 +32,8 @@ import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTra
 import { pctToNative, nativeBBoxToPct, bboxToPolygon, isMaskCropped } from "@/lib/coordinates";
 import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
+import { useAnnotations } from "@/hooks/useAnnotations";
+import { SAIL_COLORS, annotationsAtFrame } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
@@ -39,14 +41,6 @@ import { UserMenu } from "@/components/UserMenu";
 import { useAuth } from "@/hooks/useAuth";
 import { getToolPreferences, saveToolPreferences, getBackendSettings } from "@/lib/settings";
 import { config } from "@/lib/config";
-
-const SAIL_COLORS = [
-  { hex: "hsl(142, 71%, 45%)", name: "Green" },
-  { hex: "hsl(217, 91%, 60%)", name: "Blue" },
-  { hex: "hsl(25, 95%, 53%)", name: "Orange" },
-  { hex: "hsl(271, 81%, 56%)", name: "Purple" },
-  { hex: "hsl(48, 96%, 53%)", name: "Yellow" },
-];
 
 const Index = () => {
   const { toast } = useToast();
@@ -65,18 +59,44 @@ const Index = () => {
   const isCheckingRef = useRef(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [totalFrames, setTotalFrames] = useState(3000);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<string>();
+
+  // Annotation workspace domain: classes/instances/annotations/keyframes/
+  // scenes/videoMetadata + their handlers (pure ops in lib/annotationOps).
+  const {
+    classes,
+    setClasses,
+    instances,
+    setInstances,
+    annotations,
+    setAnnotations,
+    keyframes,
+    setKeyframes,
+    scenes,
+    setScenes,
+    videoMetadata,
+    setVideoMetadata,
+    selectedClassId,
+    setSelectedClassId,
+    colorIndex,
+    setColorIndex,
+    handleCreateClass,
+    handleRenameClass,
+    handleDeleteClass,
+    handleRenameInstance,
+    handleDeleteInstance,
+    handleUpdateMetadata,
+    handleAnnotationUpdate,
+    handleAddKeyframe,
+    handleDeleteKeyframe,
+    handleDeletePrompt,
+    handleSceneQualityChange,
+  } = useAnnotations({ currentFrame, toast });
+
   const [isDetectingScenes, setIsDetectingScenes] = useState(false);
-  
+
   // Load tool preferences from settings
   const toolPrefs = getToolPreferences();
   const [overlays, setOverlays] = useState(toolPrefs.overlays);
-  const [colorIndex, setColorIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
   const [autoTrack, setAutoTrack] = useState(toolPrefs.autoTrack);
   const [autoDetect, setAutoDetect] = useState(toolPrefs.autoDetect);
@@ -91,7 +111,6 @@ const Index = () => {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string>();
   const [maximizeVideo, setMaximizeVideo] = useState(toolPrefs.maximizeVideo);
-  const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [metadataModal, setMetadataModal] = useState<{
     isOpen: boolean;
@@ -426,10 +445,8 @@ const Index = () => {
       // Tab cycling through annotations (only in edit mode)
       if (e.key === "Tab" && selectedTool === "edit") {
         e.preventDefault();
-        const currentFrameAnnotations = annotations.filter(ann => 
-          ann.frameCreated === currentFrame
-        );
-        
+        const currentFrameAnnotations = annotationsAtFrame(annotations, currentFrame);
+
         if (currentFrameAnnotations.length === 0) return;
         
         const currentIndex = selectedAnnotationId 
@@ -1217,12 +1234,6 @@ const Index = () => {
         description: `Showing all frames`,
       });
     }
-  };
-
-  const handleSceneQualityChange = (sceneId: string, quality: "good" | "bad" | "unknown") => {
-    setScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, quality } : s))
-    );
   };
 
   const handleGenerateMetadata = async () => {
@@ -2126,111 +2137,6 @@ const Index = () => {
     }
   };
 
-  const handleCreateClass = (name: string) => {
-    const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
-    const newClass: Class = {
-      id: `class-${Date.now()}`,
-      name,
-      color: color.hex,
-      colorName: color.name,
-    };
-    setClasses((prev) => [...prev, newClass]);
-    setColorIndex((prev) => prev + 1);
-    setSelectedClassId(newClass.id);
-    toast({
-      title: "Class created",
-      description: name,
-    });
-  };
-
-  const handleRenameClass = (classId: string, newName: string) => {
-    setClasses((prev) =>
-      prev.map((c) => (c.id === classId ? { ...c, name: newName } : c))
-    );
-  };
-
-  const handleDeleteClass = (classId: string) => {
-    const classInstances = instances.filter(inst => inst.classId === classId);
-    const instanceIds = classInstances.map(inst => inst.id);
-    
-    setClasses((prev) => prev.filter((c) => c.id !== classId));
-    setInstances((prev) => prev.filter((inst) => inst.classId !== classId));
-    setAnnotations((prev) => prev.filter((ann) => !instanceIds.includes(ann.instanceId)));
-    
-    if (selectedClassId === classId) {
-      setSelectedClassId(undefined);
-    }
-    
-    toast({
-      title: "Class deleted",
-      description: "All instances and annotations removed",
-    });
-  };
-
-  const handleRenameInstance = (instanceId: string, newName: string) => {
-    setInstances((prev) =>
-      prev.map((inst) => (inst.id === instanceId ? { ...inst, name: newName } : inst))
-    );
-  };
-
-  const handleDeleteInstance = (instanceId: string) => {
-    setInstances((prev) => prev.filter((inst) => inst.id !== instanceId));
-    setAnnotations((prev) => prev.filter((ann) => ann.instanceId !== instanceId));
-    toast({
-      title: "Instance deleted",
-    });
-  };
-
-  const handleUpdateMetadata = (instanceId: string, metadata: Record<string, string>) => {
-    setInstances((prev) =>
-      prev.map((inst) => (inst.id === instanceId ? { ...inst, metadata } : inst))
-    );
-  };
-
-  const handleAddKeyframe = (type: "START" | "STOP" | "SKIP" | "META") => {
-    // Check if keyframe of this type already exists at current frame
-    const existingKeyframe = keyframes.find(k => k.frame === currentFrame && k.type === type);
-    
-    if (existingKeyframe) {
-      // Toggle off: remove the keyframe
-      setKeyframes((prev) => prev.filter((k) => !(k.frame === currentFrame && k.type === type)));
-      toast({
-        title: `${type} keyframe removed`,
-        description: `Frame ${currentFrame}`,
-      });
-    } else {
-      // Toggle on: add the keyframe
-      const newKeyframe: Keyframe = {
-        frame: currentFrame,
-        type,
-        timestamp: new Date().toISOString(),
-      };
-      setKeyframes((prev) => [...prev, newKeyframe]);
-      toast({
-        title: `${type} keyframe added`,
-        description: `Frame ${currentFrame}`,
-      });
-    }
-  };
-
-  const handleDeleteKeyframe = (frame: number) => {
-    setKeyframes((prev) => prev.filter((k) => k.frame !== frame));
-  };
-
-  const handleDeletePrompt = (annotationId: string, promptIndex: number) => {
-    setAnnotations(prev => prev.map(ann => {
-      if (ann.id === annotationId && ann.sam2Prompts) {
-        const updatedPrompts = ann.sam2Prompts.filter((_, i) => i !== promptIndex);
-        return { ...ann, sam2Prompts: updatedPrompts.length > 0 ? updatedPrompts : undefined };
-      }
-      return ann;
-    }));
-    toast({
-      title: "Prompt deleted",
-      description: "SAM2 point removed from annotation",
-    });
-  };
-
   const handleSaveProject = () => {
     const project = {
       version: "0.3.0-hierarchical",
@@ -2501,11 +2407,7 @@ const Index = () => {
                 classes={classes}
                 instances={instances}
                 annotations={annotations}
-                onAnnotationUpdate={(id, updates) => {
-                  setAnnotations(prev => 
-                    prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
-                  );
-                }}
+                onAnnotationUpdate={handleAnnotationUpdate}
                 onAnnotationSelect={setSelectedAnnotationId}
                 overlays={overlays}
                 selectedTool={selectedTool}
