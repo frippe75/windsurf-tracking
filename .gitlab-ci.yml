@@ -61,13 +61,14 @@ build-backend:
   script:
     - IMAGE=$HARBOR_REGISTRY/$HARBOR_PROJECT/annotation-api
     - echo "BACKEND OVERLAY BUILD - Commit:$CI_COMMIT_SHORT_SHA"
-    - docker build --progress=plain -t $IMAGE:$CI_COMMIT_SHORT_SHA backend/
+    - docker build --progress=plain -f backend/Dockerfile -t $IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker push $IMAGE:$CI_COMMIT_SHORT_SHA
     - docker logout $HARBOR_REGISTRY
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes:
         - backend/**/*
+        - windsurf-sail-dataset/windsurf/**/*
 
 # Update kustomization.yaml image tags for ArgoCD GitOps
 update-manifest:
