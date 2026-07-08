@@ -29,6 +29,9 @@ import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, createTrackingJob, executeTrackingJob, getTrackingJobStatus, getTrackingJobResults, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, type SubJob, createProject, getProjects, updateProject, deleteProject } from "@/lib/api";
+import { pctToNative, nativeBBoxToPct, bboxToPolygon, isMaskCropped } from "@/lib/coordinates";
+import { migrateStoredProjects } from "@/lib/projectMigration";
+import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 import { UserMenu } from "@/components/UserMenu";
@@ -103,33 +106,10 @@ const Index = () => {
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
   
-  // Projects state with localStorage fallback
+  // Projects state with localStorage fallback (format migration in lib/projectMigration)
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
-      const saved = localStorage.getItem('projects');
-      if (!saved) return [];
-      
-      const parsed = JSON.parse(saved);
-      
-      // Migrate old project format (videoId) to new format (videoIds array)
-      return parsed.map((project: any) => {
-        // If project has old videoId property, convert to videoIds array
-        if (project.videoId && !project.videoIds) {
-          return {
-            ...project,
-            videoIds: [project.videoId],
-            videoId: undefined, // Remove old property
-          };
-        }
-        // If project has no videoIds, initialize to empty array
-        if (!project.videoIds) {
-          return {
-            ...project,
-            videoIds: [],
-          };
-        }
-        return project;
-      });
+      return migrateStoredProjects(localStorage.getItem('projects'));
     } catch {
       return [];
     }
@@ -894,54 +874,24 @@ const Index = () => {
     setDownloadQueue(prev => prev.filter(d => d.id !== jobId));
   };
 
-  // Resolve a playable URL: IndexedDB blob if cached; otherwise a presigned S3
-  // URL (seekable) while a background download fills the cache for next time.
+  // Resolve a playable URL — decision flow lives in lib/videoSource (tested);
+  // this wrapper just binds the real cache/API/blob-tracking dependencies.
   const resolveVideoSource = async (
     videoId: string,
     filename: string,
-    metadata?: { duration: number; fps: number; width: number; height: number; totalFrames: number }
+    metadata?: VideoSourceMetadata
   ): Promise<string> => {
-    try {
-      await videoCache.init();
-      const cached = await videoCache.get(filename);
-      if (cached) {
-        console.log("💾 Video source: IndexedDB cache");
-        const blobUrl = URL.createObjectURL(cached.blob);
-        blobUrlsRef.current.add(blobUrl);
-        return blobUrl;
-      }
-    } catch (e) {
-      console.warn("💾 Cache lookup failed:", e);
-    }
-
-    // Cache miss: fill the cache in the background (via backend, same-origin)
-    if (metadata) {
-      (async () => {
-        try {
-          console.log("💾 Background-caching video:", filename);
-          const blob = await downloadVideoFile(videoId);
-          await videoCache.set(filename, {
-            videoId,
-            filename,
-            blob,
-            metadata: { ...metadata, cachedAt: Date.now() },
-          });
-          console.log("💾 Background cache complete:", filename);
-        } catch (e) {
-          console.warn("💾 Background cache failed:", e);
-        }
-      })();
-    }
-
-    // Play immediately from presigned S3 URL (RGW supports Range → seekable)
-    try {
-      const stream = await getVideoStreamUrl(videoId);
-      console.log(stream.presigned ? "🌐 Video source: presigned S3 URL" : "🌐 Video source: backend stream");
-      return stream.url;
-    } catch (e) {
-      console.warn("🌐 stream-url failed, falling back to /download:", e);
-      return `${config.backendUrl}/api/videos/${videoId}/download`;
-    }
+    await videoCache.init().catch(() => {});
+    return resolveVideoSourceCore(videoId, filename, metadata, {
+      getCached: (f) => videoCache.get(f),
+      cacheVideo: (f, entry) => videoCache.set(f, entry),
+      downloadVideo: (id) => downloadVideoFile(id),
+      getStreamUrl: (id) => getVideoStreamUrl(id),
+      createObjectURL: (blob) => URL.createObjectURL(blob),
+      trackBlobUrl: (url) => blobUrlsRef.current.add(url),
+      fallbackUrl: (id) => `${config.backendUrl}/api/videos/${id}/download`,
+      now: () => Date.now(),
+    });
   };
 
   // Helper function to load video into player
@@ -1627,8 +1577,7 @@ const Index = () => {
       });
 
       // Convert percentage (0-100) to native video pixel coordinates
-      const videoX = Math.round((x / 100) * videoNativeWidth);
-      const videoY = Math.round((y / 100) * videoNativeHeight);
+      const { x: videoX, y: videoY } = pctToNative(x, y, videoNativeWidth, videoNativeHeight);
 
       console.log('🎯 Mapped to native coords:', { videoX, videoY, videoNativeWidth, videoNativeHeight });
 
@@ -1702,8 +1651,7 @@ const Index = () => {
         });
 
         // Convert percentage (0-100) to native video pixel coordinates for backend
-        const videoX = Math.round((x / 100) * videoNativeWidth);
-        const videoY = Math.round((y / 100) * videoNativeHeight);
+        const { x: videoX, y: videoY } = pctToNative(x, y, videoNativeWidth, videoNativeHeight);
 
         console.log('🎯 Calling SAM2 API with:', { 
           videoId, 
@@ -1734,35 +1682,14 @@ const Index = () => {
           
           const maskBase64 = results.mask_base64 as string | undefined;
           
-          // Backend returns coordinates in native video resolution
-          // We normalize these to percentages for display
-          const baseW = videoNativeWidth;
-          const baseH = videoNativeHeight;
-
-          // Calculate width and height from corner coordinates
-          const bx = x1;
-          const by = y1;
-          const bw = x2 - x1;
-          const bh = y2 - y1;
-
-          const bbox = {
-            x: (bx / baseW) * 100,
-            y: (by / baseH) * 100,
-            w: (bw / baseW) * 100,
-            h: (bh / baseH) * 100,
-          };
+          // Backend returns native-resolution corners; normalize to display %
+          const bbox = nativeBBoxToPct([x1, y1, x2, y2], videoNativeWidth, videoNativeHeight);
           
           // Keep mask for later
           const maskPixels = results.mask_pixels;
           
-          // For now, generate polygon points from bbox (could extract contours from mask in future)
           // TODO: Convert mask_base64 PNG to polygon contour points for better visualization
-          const points = [
-            { x: bbox.x, y: bbox.y },
-            { x: bbox.x + bbox.w, y: bbox.y },
-            { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
-            { x: bbox.x, y: bbox.y + bbox.h }
-          ];
+          const points = bboxToPolygon(bbox);
           
           console.log('📊 Extracted segmentation:', { 
             bbox, 
@@ -1971,10 +1898,9 @@ const Index = () => {
     }
 
     // Collect ALL click prompts from all annotations
-    const allClickPrompts = segmentAnnotations.flatMap(ann => 
+    const allClickPrompts = segmentAnnotations.flatMap(ann =>
       ann.sam2Prompts!.map(p => ({
-        x: Math.round((p.x / 100) * videoNativeWidth),
-        y: Math.round((p.y / 100) * videoNativeHeight),
+        ...pctToNative(p.x, p.y, videoNativeWidth, videoNativeHeight),
         type: p.type
       }))
     );
@@ -2250,35 +2176,11 @@ const Index = () => {
             }
           }
 
-          // Convert bbox from [x1, y1, x2, y2] to percentage-based format
           // ⚠️ CRITICAL: Backend bbox is ALWAYS in native video coordinates, NOT mask coordinates
           const [x1, y1, x2, y2] = result.bbox;
-          const bboxWidth = x2 - x1;
-          const bboxHeight = y2 - y1;
-          
-          // Always use video native dimensions for bbox conversion (backend returns video coords)
-          const baseW = videoNativeWidth || 1280;
-          const baseH = videoNativeHeight || 720;
-          
-          const bbox = {
-            x: (x1 / baseW) * 100,
-            y: (y1 / baseH) * 100,
-            w: (bboxWidth / baseW) * 100,
-            h: (bboxHeight / baseH) * 100,
-          };
-
-          // Create polygon points from bbox
-          const points = [
-            { x: bbox.x, y: bbox.y },
-            { x: bbox.x + bbox.w, y: bbox.y },
-            { x: bbox.x + bbox.w, y: bbox.y + bbox.h },
-            { x: bbox.x, y: bbox.y + bbox.h }
-          ];
-
-          // Determine if mask is a cropped tile or full-frame
-          const isCropped = maskWidth && maskHeight && videoNativeWidth && videoNativeHeight
-            ? !(maskWidth === videoNativeWidth && maskHeight === videoNativeHeight)
-            : false;
+          const bbox = nativeBBoxToPct([x1, y1, x2, y2], videoNativeWidth || 1280, videoNativeHeight || 720);
+          const points = bboxToPolygon(bbox);
+          const isCropped = isMaskCropped(maskWidth, maskHeight, videoNativeWidth, videoNativeHeight);
 
           newAnnotations.push({
             id: `ann-tracked-${result.object_id}-${result.frame_number}-${Date.now()}-${Math.random()}`,

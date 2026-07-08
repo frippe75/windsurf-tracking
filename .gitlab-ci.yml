@@ -15,8 +15,24 @@ variables:
   DOCKER_TLS_CERTDIR: ""
 
 stages:
+  - test
   - build
   - deploy
+
+test-frontend:
+  stage: test
+  interruptible: true
+  tags:
+    - docker
+    - vm
+  image: harbor.tclab.org/dockerhub/library/node:22-slim
+  script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+    - npm test
+  only:
+    - main
+    - merge_requests
 
 build-frontend:
   stage: build
