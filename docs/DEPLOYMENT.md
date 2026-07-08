@@ -60,11 +60,30 @@ GitLab CI vars: `HARBOR_USERNAME`, `HARBOR_PASSWORD`, `GITLAB_PUSH_TOKEN`.
 - `scripts/02_create-argocd-app.sh` — ArgoCD repo credential + Application (manual sync;
   auto-sync enabled post-verification)
 
+## Video storage (S3 / Ceph RGW, since 2026-07-07)
+
+Canonical video store is **s3://windsurf-videos** (Ceph RGW). Layout: `videos/<video_id>.mp4`
+with metadata (filename, fps, dimensions, frames, upload_date) as S3 object metadata.
+
+- Backend (`app/storage.py`): internal endpoint (`rook-ceph-rgw...svc`) for the data path,
+  public endpoint (`https://s3.tclab.org`) for presigning (SigV4 signature covers the host).
+- `/app/uploads` is an emptyDir **cache**, filled on demand by `storage.ensure_local()` for
+  cv2/SAM2 paths. Pod restarts are harmless — startup restores `videos_db` from a bucket scan.
+- `GET /api/videos/{id}/stream-url` → presigned URL; RGW honors Range so the browser gets
+  seekable playback. Frontend plays presigned immediately on cache miss and background-fills
+  IndexedDB via `/download` for instant subsequent loads.
+- S3 user `windsurf` (dedicated, lab pattern); creds in vault `.env` + `windsurf-s3-secret`.
+  Provisioning: `scripts/03_create-s3-storage.sh`; one-off migration of the 69 image-baked
+  videos: `scripts/04_migrate-videos-to-s3.sh`.
+- NetworkPolicy: backend egress to rook-ceph :80/:8080.
+
 ## Known issues / caveats
 
 - **`/api/*` is effectively unauthenticated** — backend has `/auth/*` JWT endpoints but
   does not enforce auth on API routes (verified 2026-07-07: `GET /api/videos` → 200 anon).
-- Backend uploads live in the pod filesystem (no PVC mounted) — videos do NOT survive a
-  pod restart; DB restore scans `uploads/` at startup which is ephemeral.
-- Backend source for `annotation-api:v2-auth` is not in this repo.
+- The v2-auth **base image ships an empty `/app/windsurf`** — uploads were broken in prod
+  from 2025-10-09 until 2026-07-07. The overlay bundles `windsurf-sail-dataset/windsurf/`
+  with a minimal `__init__` (submodule imports only). The base also still carries 3.9GB of
+  now-redundant baked-in videos — rebuild the base someday to shrink it.
+- Backend base-image source is not in this repo (only `backend/app/`, recovered 2026-07-07).
 - Two diverged `windsurf/` python packages in repo; root copy has broken imports (see CLAUDE.md).
