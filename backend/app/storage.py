@@ -70,8 +70,9 @@ def _key(video_id: str) -> str:
 
 
 def upload_video(video_id: str, local_path: str, metadata: dict) -> None:
-    """Upload a video file with its metadata (values stringified)."""
-    meta = {k: str(v) for k, v in metadata.items()}
+    """Upload a video file with its metadata (values stringified).
+    S3 metadata only accepts ASCII — sanitize defensively (non-ASCII → '?')."""
+    meta = {k: str(v).encode("ascii", "replace").decode() for k, v in metadata.items()}
     internal().upload_file(
         str(local_path), S3_BUCKET, _key(video_id),
         ExtraArgs={"Metadata": meta, "ContentType": "video/mp4"},

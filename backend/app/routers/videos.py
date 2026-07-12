@@ -309,6 +309,7 @@ def _run_youtube_download(job_id: str, url: str, quality: str):
             "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
             "merge_output_format": "mp4",
             "outtmpl": f"{tmpdir}/%(title).100B.%(ext)s",
+            "restrictfilenames": True,  # ASCII-safe: S3 metadata rejects non-ASCII
             "noplaylist": True,
             "quiet": True,
             "progress_hooks": [hook],
