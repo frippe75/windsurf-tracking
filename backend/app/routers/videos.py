@@ -2,7 +2,7 @@
 Video management endpoints
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pathlib import Path
 from typing import Optional
@@ -18,6 +18,37 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 # These will be injected from main
 videos_db = {}
 download_jobs_db = {}
+
+def _register_video(video_data: dict):
+    """Register extracted video metadata in videos_db and upload to S3.
+    Shared by the upload route and the YouTube download job."""
+    from datetime import datetime
+    from ..api_models import VideoInfo
+
+    video_info = VideoInfo(
+        id=video_data['video_id'],
+        filename=video_data['filename'],
+        file_path=video_data['file_path'],
+        duration=video_data['duration'],
+        fps=video_data['fps'],
+        width=video_data['width'],
+        height=video_data['height'],
+        total_frames=video_data['total_frames'],
+        upload_date=datetime.now()
+    )
+    videos_db[video_data['video_id']] = video_info
+
+    if storage.enabled():
+        storage.upload_video(video_data['video_id'], video_data['file_path'], {
+            "filename": video_data['filename'],
+            "duration": video_data['duration'],
+            "fps": video_data['fps'],
+            "width": video_data['width'],
+            "height": video_data['height'],
+            "total_frames": video_data['total_frames'],
+            "upload_date": video_info.upload_date.isoformat(),
+        })
+    return video_info
 
 @router.post("/upload")
 async def upload_video(
@@ -35,34 +66,8 @@ async def upload_video(
         
         # Use windsurf library for all logic
         video_data = save_uploaded_video(file.filename, content)
-        
-        # Store in database
-        from ..api_models import VideoInfo
-        video_info = VideoInfo(
-            id=video_data['video_id'],
-            filename=video_data['filename'],
-            file_path=video_data['file_path'],
-            duration=video_data['duration'],
-            fps=video_data['fps'],
-            width=video_data['width'],
-            height=video_data['height'],
-            total_frames=video_data['total_frames'],
-            upload_date=datetime.now()
-        )
-        
-        videos_db[video_data['video_id']] = video_info
 
-        # Canonical copy to S3 (local file stays as processing cache)
-        if storage.enabled():
-            storage.upload_video(video_data['video_id'], video_data['file_path'], {
-                "filename": video_data['filename'],
-                "duration": video_data['duration'],
-                "fps": video_data['fps'],
-                "width": video_data['width'],
-                "height": video_data['height'],
-                "total_frames": video_data['total_frames'],
-                "upload_date": video_info.upload_date.isoformat(),
-            })
+        _register_video(video_data)
 
         return {
             "video_id": video_data['video_id'],
@@ -280,56 +285,86 @@ async def delete_video(video_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/download-youtube")
-async def start_youtube_download(request: YouTubeDownloadRequest):
-    """Start YouTube download via Celery CPU workers"""
-    
+def _run_youtube_download(job_id: str, url: str, quality: str):
+    """In-process YouTube download (the cpu_worker Celery queue no longer exists).
+    Runs in FastAPI's threadpool via BackgroundTasks; updates download_jobs_db
+    with the status contract the frontend polls: status/progress/current_step/video_id."""
+    import tempfile
+    import shutil
+    import yt_dlp
+
+    job = download_jobs_db[job_id]
+    tmpdir = tempfile.mkdtemp(prefix="ytdl-")
+
+    def hook(d):
+        if d.get('status') == 'downloading':
+            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+            if total:
+                job['progress'] = round(d.get('downloaded_bytes', 0) / total * 100, 1)
+
     try:
-        from celery import Celery
-        import re
-        import uuid
-        from datetime import datetime
-        
-        # Validate YouTube URL
-        youtube_regex = r'(?:https?://)?(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})'
-        if not re.match(youtube_regex, request.url):
-            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
-        
-        # Connect to Celery using environment variable
-        import os
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-        
-        celery_app = Celery('windsurf_workers')
-        celery_app.conf.broker_url = f'{redis_url}/1'
-        celery_app.conf.result_backend = f'{redis_url}/2'
-        
-        # Generate download job ID
-        job_id = f"dl-{str(uuid.uuid4())}"
-        
-        # Submit to CPU worker
-        task = celery_app.send_task(
-            'workers.tasks.downloads.download_youtube_task',
-            args=[{"url": request.url, "quality": request.quality, "format": request.format}],
-            queue='cpu_worker'
+        job.update(status="downloading", current_step="downloading", progress=0)
+        height = {"480p": 480, "720p": 720, "1080p": 1080}.get(quality or "720p", 720)
+        opts = {
+            "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+            "merge_output_format": "mp4",
+            "outtmpl": f"{tmpdir}/%(title).100B.%(ext)s",
+            "noplaylist": True,
+            "quiet": True,
+            "progress_hooks": [hook],
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.extract_info(url, download=True)
+
+        files = list(Path(tmpdir).glob("*.mp4"))
+        if not files:
+            raise RuntimeError("yt-dlp produced no mp4 output")
+
+        # Register + S3 (same path as manual upload)
+        job.update(current_step="syncing", progress=100)
+        from windsurf.video_manager import save_uploaded_video
+        video_data = save_uploaded_video(files[0].name, files[0].read_bytes())
+        _register_video(video_data)
+
+        job.update(
+            status="completed",
+            video_id=video_data["video_id"],
+            filename=video_data["filename"],
+            progress=100,
         )
-        
-        # Store job info
-        download_jobs_db[job_id] = {
-            "job_id": job_id,
-            "url": request.url,
-            "status": "queued",
-            "task_id": task.id,
-            "created_at": datetime.now().isoformat()
-        }
-        
-        return {
-            "job_id": job_id,
-            "status": "queued", 
-            "message": "YouTube download queued for CPU worker"
-        }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        job.update(status="failed", error=str(e))
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+@router.post("/download-youtube")
+async def start_youtube_download(request: YouTubeDownloadRequest, background_tasks: BackgroundTasks):
+    """Start an in-process YouTube download (poll /download-youtube/{job_id}/status)"""
+
+    import re
+    import uuid
+    from datetime import datetime
+
+    youtube_regex = r'(?:https?://)?(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})'
+    if not re.match(youtube_regex, request.url):
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+
+    job_id = f"dl-{str(uuid.uuid4())}"
+    download_jobs_db[job_id] = {
+        "job_id": job_id,
+        "url": request.url,
+        "status": "queued",
+        "progress": 0,
+        "created_at": datetime.now().isoformat(),
+    }
+    background_tasks.add_task(_run_youtube_download, job_id, request.url, request.quality)
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": "YouTube download started"
+    }
 
 @router.get("/download-youtube/{job_id}/status")
 async def get_download_status(job_id: str):
@@ -349,34 +384,33 @@ async def detect_scenes_api(video_id: str):
     
     video_info = videos_db[video_id]
     
+    # In-process (ffmpeg-based, no external deps); cpu_worker queue no longer exists
+    local_path = storage.ensure_local(video_id) or Path(video_info.file_path)
+
     try:
-        from celery import Celery
-        
-        # Connect to Celery using environment variable
-        import os
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-        
-        celery_app = Celery('windsurf_workers')
-        celery_app.conf.broker_url = f'{redis_url}/1'
-        celery_app.conf.result_backend = f'{redis_url}/2'
-        
-        # Submit to CPU worker
-        task = celery_app.send_task(
-            'workers.tasks.video.detect_scenes_task',
-            args=[{"video_path": video_info.file_path}],
-            queue='cpu_worker'
-        )
-        
-        # Wait for result
-        result = task.get(timeout=120)
-        
-        if result['success']:
-            return {
-                "video_id": video_id,
-                **result['scenes_data']
+        from windsurf.scene_detection import detect_scenes
+        result = await asyncio.to_thread(detect_scenes, str(local_path))
+
+        # Map segment output to the frontend's SceneDetectionResponse shape
+        scenes = [
+            {
+                "scene_id": i + 1,
+                "start_frame": seg["start_frame"],
+                "end_frame": seg["end_frame"],
+                "start_time": seg["start_time"],
+                "end_time": seg["end_time"],
+                "duration": seg["duration"],
+                "quality": "unknown",
             }
-        else:
-            raise HTTPException(status_code=500, detail=result['error'])
-        
+            for i, seg in enumerate(result.get("segments", []))
+        ]
+        return {
+            "video_id": video_id,
+            "total_scenes": len(scenes),
+            "detection_method": "ffmpeg overlapping segments (in-process)",
+            "threshold": 0,
+            "scenes": scenes,
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

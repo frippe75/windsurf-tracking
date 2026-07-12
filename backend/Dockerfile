@@ -6,7 +6,7 @@
 # Build context is the REPO ROOT (CI: docker build -f backend/Dockerfile .)
 FROM harbor.tclab.org/windsurf/annotation-api:v2-auth
 
-RUN pip install --no-cache-dir boto3
+RUN pip install --no-cache-dir boto3 yt-dlp
 
 # The base image ships an EMPTY /app/windsurf — upload was broken since
 # v2-auth. Ship the real package; minimal __init__ avoids the heavy
