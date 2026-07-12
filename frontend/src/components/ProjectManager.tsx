@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, FileText, Filter, FolderOpen } from "lucide-react";
 import { config } from "@/lib/config";
+import { isValidYoutubeUrl, extractYoutubeId } from "@/lib/youtubeUrl";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
 
@@ -138,20 +139,7 @@ export function ProjectManager({
     return `${mb.toFixed(1)} MB`;
   };
 
-  const getYouTubeVideoId = (url: string): string | null => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-    return null;
-  };
+  const getYouTubeVideoId = extractYoutubeId;
 
   const getThumbnailUrl = (video: ManagedVideo): string => {
     // Use cached thumbnail if available
@@ -216,8 +204,7 @@ export function ProjectManager({
       return;
     }
 
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-    if (!youtubeRegex.test(youtubeUrl)) {
+    if (!isValidYoutubeUrl(youtubeUrl)) {
       toast({
         title: "Invalid URL",
         description: "Please enter a valid YouTube URL",
@@ -228,6 +215,8 @@ export function ProjectManager({
 
     onYoutubeUrl(youtubeUrl);
     setYoutubeUrl("");
+    // Close the dialog so the library (with the new downloading item) is visible
+    onOpenChange(false);
   };
 
   return (

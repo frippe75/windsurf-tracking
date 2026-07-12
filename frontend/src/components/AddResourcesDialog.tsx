@@ -64,6 +64,7 @@ export function AddResourcesDialog({
     if (youtubeUrl.trim()) {
       onYoutubeUrl(youtubeUrl.trim());
       setYoutubeUrl("");
+      onOpenChange(false);
     }
   };
 

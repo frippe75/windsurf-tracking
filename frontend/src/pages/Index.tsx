@@ -36,6 +36,7 @@ import { useAnnotations } from "@/hooks/useAnnotations";
 import { useTrackingJobs } from "@/hooks/useTrackingJobs";
 import { SAIL_COLORS, annotationsAtFrame } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
+import { extractYoutubeId, youtubeThumbnail } from "@/lib/youtubeUrl";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 import { UserMenu } from "@/components/UserMenu";
@@ -513,26 +514,22 @@ const Index = () => {
   const handleYoutubeUrl = async (url: string) => {
     try {
       console.log("📺 Initiating YouTube download:", url);
-      
-      // Extract YouTube video ID and thumbnail immediately
-      const getYouTubeVideoId = (url: string): string | null => {
-        const patterns = [
-          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-          /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-        ];
-        
-        for (const pattern of patterns) {
-          const match = url.match(pattern);
-          if (match && match[1]) {
-            return match[1];
-          }
-        }
-        return null;
-      };
-      
-      const videoId = getYouTubeVideoId(url);
-      const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined;
-      
+
+      const videoId = extractYoutubeId(url);
+      const thumbnailUrl = youtubeThumbnail(url);
+
+      // Dedup: if this YouTube video is already in the library, don't re-download
+      const existing = managedVideos.find(
+        v => v.youtubeUrl && extractYoutubeId(v.youtubeUrl) === videoId && videoId !== null
+      );
+      if (existing) {
+        toast({
+          title: "Already in library",
+          description: "This YouTube video was already added.",
+        });
+        return;
+      }
+
       // Initiate download
       const downloadJob = await downloadFromYouTube({ url });
       const jobId = downloadJob.job_id;
