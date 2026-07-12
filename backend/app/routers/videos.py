@@ -391,7 +391,7 @@ async def detect_scenes_api(video_id: str):
         return {
             "video_id": video_id,
             "total_scenes": len(scenes),
-            "detection_method": "ffmpeg overlapping segments (in-process)",
+            "detection_method": "ffmpeg overlapping segments (cpu-worker)",
             "threshold": 0,
             "scenes": scenes,
         }
