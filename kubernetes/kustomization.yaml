@@ -9,6 +9,7 @@ resources:
   - redis-service.yaml
   - backend-deployment.yaml
   - backend-service.yaml
+  - cpu-worker.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
   - gpu-workers.yaml

@@ -1,0 +1,64 @@
+# Celery worker for CPU-bound tasks (YouTube downloads, scene detection).
+# Runs the SAME annotation-api image as the backend — task code lives in
+# backend/app/worker.py, ships with every backend build (tag managed by the
+# kustomize images transformer).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-cpu-worker
+  labels:
+    app.kubernetes.io/name: windsurf-ai
+    app.kubernetes.io/instance: windsurf-prod
+    component: cpu-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windsurf-ai
+      app.kubernetes.io/instance: windsurf-prod
+      component: cpu-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windsurf-ai
+        app.kubernetes.io/instance: windsurf-prod
+        component: cpu-worker
+    spec:
+      containers:
+      - name: cpu-worker
+        image: harbor.tclab.org/windsurf/annotation-api:v2-auth
+        command: ["celery", "-A", "app.worker", "worker", "--loglevel=info", "--queues=cpu_worker", "--concurrency=2", "--without-heartbeat", "--without-gossip", "--without-mingle"]
+        workingDir: /app
+        env:
+        - name: REDIS_URL
+          value: "redis://windsurf-prod-redis:6379"
+        - name: S3_ENDPOINT
+          value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+        - name: S3_PUBLIC_ENDPOINT
+          value: "https://s3.tclab.org"
+        - name: S3_BUCKET
+          value: "windsurf-videos"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: secret-key
+        volumeMounts:
+        - name: video-cache
+          mountPath: /app/uploads
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 250m
+          limits:
+            memory: 2Gi
+            cpu: 2
+      volumes:
+      - name: video-cache
+        emptyDir:
+          sizeLimit: 20Gi
