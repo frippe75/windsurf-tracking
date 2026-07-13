@@ -99,7 +99,7 @@ build-backend:
   script:
     - IMAGE=$HARBOR_REGISTRY/$HARBOR_PROJECT/annotation-api
     - echo "BACKEND OVERLAY BUILD - Commit:$CI_COMMIT_SHORT_SHA"
-    - docker build --progress=plain -f backend/Dockerfile -t $IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker build --progress=plain --build-arg APP_VERSION=$CI_COMMIT_SHORT_SHA -f backend/Dockerfile -t $IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker push $IMAGE:$CI_COMMIT_SHORT_SHA
     - docker logout $HARBOR_REGISTRY
   rules:
