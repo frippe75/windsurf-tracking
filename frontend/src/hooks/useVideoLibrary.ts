@@ -39,11 +39,25 @@ export interface UseVideoLibraryOptions {
 const defaultApi: VideoLibraryApi = { getVideos: apiGetVideos };
 
 /**
+ * Heal the local library on page load. A download's progress poll does not
+ * survive a reload, so any entry persisted as `downloading`/`syncing` is stale
+ * and would otherwise sit frozen forever (e.g. "Syncing 41%"). On load:
+ *  - if the backend has a video with the same filename, the download finished
+ *    (backend reconciles from S3) — drop the stale entry; the backend's ready
+ *    copy represents it (added by mergeBackendVideos).
+ *  - otherwise the download never completed — drop the orphan too.
+ * Ready/error entries are untouched.
+ */
+export function reconcileStaleProgress(local: ManagedVideo[]): ManagedVideo[] {
+  return local.filter((v) => v.status !== "downloading" && v.status !== "syncing");
+}
+
+/**
  * Union the backend video list into the local library by video_id.
  * - Local entry exists → it wins (keeps youtube/progress/extra fields);
  *   only missing metadata is filled in from the backend.
  * - Backend-only video → appears as a ready library entry with API metadata.
- * - Local-only entries (in-flight uploads, temp entries) are kept as-is.
+ * - Local-only entries (in-flight uploads) are kept as-is.
  */
 export function mergeBackendVideos(
   local: ManagedVideo[],
@@ -117,10 +131,15 @@ export function useVideoLibrary(options: UseVideoLibraryOptions) {
       try {
         const response = await api.getVideos();
         if (cancelled) return;
-        setManagedVideos((prev) => mergeBackendVideos(prev, response.videos, now));
+        // Heal stale in-progress entries first (their polls died on reload),
+        // then union the backend list — completed downloads reappear as ready.
+        setManagedVideos((prev) =>
+          mergeBackendVideos(reconcileStaleProgress(prev), response.videos, now)
+        );
       } catch (error) {
-        // Offline / backend down → keep the localStorage-only library
+        // Offline / backend down → still clear stale in-progress entries
         console.warn("📚 Video library: backend list unavailable, using local library:", error);
+        if (!cancelled) setManagedVideos((prev) => reconcileStaleProgress(prev));
       }
     };
 
