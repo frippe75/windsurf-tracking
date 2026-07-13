@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import { ManagedVideo } from "@/types/video";
 import { getVideos as apiGetVideos, type VideoInfoResponse } from "@/lib/api";
+import { videoCache } from "@/lib/videoCache";
 import type { ToastOptions } from "@/hooks/useProjects";
 
 export interface VideoLibraryApi {
@@ -155,10 +156,35 @@ export function useVideoLibrary(options: UseVideoLibraryOptions) {
     });
   };
 
+  // Bulk-remove videos from the local cache + library. Used by the resources
+  // dialog's "Delete" action — also clears stuck downloading/syncing entries.
+  // Purges the IndexedDB blob too. Does not touch backend S3.
+  const deleteVideosFromCache = async (videoIds: string[]) => {
+    const ids = new Set(videoIds);
+    const targets = managedVideos.filter((v) => ids.has(v.id));
+
+    for (const v of targets) {
+      try {
+        await videoCache.init();
+        await videoCache.delete(v.filename);
+      } catch {
+        // IndexedDB purge is best-effort (entry may never have been cached)
+      }
+    }
+
+    setManagedVideos((prev) => prev.filter((v) => !ids.has(v.id)));
+
+    toast({
+      title: `Removed ${targets.length} video${targets.length !== 1 ? "s" : ""}`,
+      description: "Cleared from the local cache.",
+    });
+  };
+
   return {
     managedVideos,
     setManagedVideos,
     addVideo,
     handleVideoDelete,
+    deleteVideosFromCache,
   };
 }

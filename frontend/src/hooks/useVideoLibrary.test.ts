@@ -230,3 +230,39 @@ describe("useVideoLibrary delete", () => {
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Video deleted" }));
   });
 });
+
+describe("useVideoLibrary deleteVideosFromCache", () => {
+  it("bulk-removes selected videos including stuck downloads", async () => {
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([
+        makeLocalVideo({ id: "v1", filename: "a.mp4", status: "ready" }),
+        makeLocalVideo({ id: "v2", filename: "b.mp4", status: "downloading" }),
+        makeLocalVideo({ id: "v3", filename: "c.mp4", status: "ready" }),
+      ])
+    );
+    const toast = vi.fn();
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ toast })));
+
+    await act(async () => {
+      await result.current.deleteVideosFromCache(["v1", "v2"]);
+    });
+
+    const remaining = result.current.managedVideos.map((v) => v.id);
+    expect(remaining).toEqual(["v3"]);
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining("Removed 2 videos") })
+    );
+  });
+
+  it("is a no-op for ids not in the library", async () => {
+    localStorage.setItem("managedVideos", JSON.stringify([makeLocalVideo({ id: "v1" })]));
+    const { result } = renderHook(() => useVideoLibrary(makeOptions()));
+
+    await act(async () => {
+      await result.current.deleteVideosFromCache(["nope"]);
+    });
+
+    expect(result.current.managedVideos).toHaveLength(1);
+  });
+});
