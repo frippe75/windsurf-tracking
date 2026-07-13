@@ -15,3 +15,7 @@ COPY windsurf-sail-dataset/windsurf /app/windsurf
 RUN echo '__version__ = "1.0.0"' > /app/windsurf/__init__.py
 
 COPY backend/app /app/app
+
+# Surfaced by GET / and the OpenAPI version; CI passes the commit sha
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION

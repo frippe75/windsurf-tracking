@@ -37,11 +37,15 @@ videos_db: Dict[str, VideoInfo] = {}
 tracking_jobs_db = {}
 download_jobs_db = {}
 
+# Version reflects the deployed build: CI injects APP_VERSION=<commit sha>
+# (backend/Dockerfile ARG). Falls back to "dev" for local runs.
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+
 # Create FastAPI app
 app = FastAPI(
     title="Windsurf Dataset API",
     description="Clean, modular API for windsurf video annotation",
-    version="2.0.0"
+    version=APP_VERSION
 )
 
 # CORS configuration
@@ -78,7 +82,7 @@ async def root():
     """API health check"""
     return {
         "message": "Windsurf Dataset API",
-        "version": "2.0.0",
+        "version": APP_VERSION,
         "status": "healthy",
         "architecture": "modular"
     }
