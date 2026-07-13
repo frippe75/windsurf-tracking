@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+
 export const LoginPage = () => {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -49,12 +51,15 @@ export const LoginPage = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-8 mt-6">
-            <img 
-              src={logos[currentLogoIndex]} 
-              alt="LabelBee Logo" 
-              className="h-[120px] w-auto cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
-            />
+            <div className="flex flex-col items-center gap-1">
+              <img
+                src={logos[currentLogoIndex]}
+                alt="LabelBee Logo"
+                className="h-[120px] w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
+              />
+              <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
+            </div>
           </div>
           <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
           <CardDescription>
