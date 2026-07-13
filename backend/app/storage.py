@@ -99,6 +99,23 @@ def list_videos() -> list:
     return out
 
 
+def list_video_ids() -> list:
+    """Cheap: just the video ids present in the bucket (no per-object HEAD)."""
+    ids = []
+    paginator = internal().get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix="videos/"):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".mp4"):
+                ids.append(Path(obj["Key"]).stem)
+    return ids
+
+
+def head_metadata(video_id: str) -> dict:
+    """Object metadata for one video (filename, fps, dimensions, ...)."""
+    head = internal().head_object(Bucket=S3_BUCKET, Key=_key(video_id))
+    return head.get("Metadata", {})
+
+
 def ensure_local(video_id: str) -> Optional[Path]:
     """Return a local path for the video, downloading from S3 if needed."""
     local = LOCAL_CACHE_DIR / f"{video_id}.mp4"

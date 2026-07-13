@@ -19,6 +19,50 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 videos_db = {}
 download_jobs_db = {}
 
+def video_info_from_s3_meta(video_id: str, meta: dict, last_modified=None):
+    """Build a VideoInfo from an S3 object's metadata (shared by startup
+    restore and runtime reconcile)."""
+    from datetime import datetime
+    from ..api_models import VideoInfo
+
+    if meta.get("upload_date"):
+        upload_date = datetime.fromisoformat(meta["upload_date"])
+    elif last_modified is not None:
+        upload_date = last_modified.replace(tzinfo=None)
+    else:
+        upload_date = datetime.now()
+
+    return VideoInfo(
+        id=video_id,
+        filename=meta.get("filename", f"{video_id}.mp4"),
+        file_path=str(storage.LOCAL_CACHE_DIR / f"{video_id}.mp4"),
+        duration=float(meta.get("duration", 0)),
+        fps=float(meta.get("fps", 0)),
+        width=int(meta.get("width", 0)),
+        height=int(meta.get("height", 0)),
+        total_frames=int(meta.get("total_frames", 0)),
+        upload_date=upload_date,
+        status="ready",
+    )
+
+
+def reconcile_from_s3():
+    """Index any videos present in S3 but not yet in videos_db. The download
+    is a Celery job whose durable output is the S3 object — this makes that
+    output authoritative regardless of whether a client polled the job to
+    completion (or the backend restarted mid-job). Cheap in steady state:
+    one list call + a HEAD only for ids not already indexed."""
+    if not storage.enabled():
+        return
+    try:
+        for vid in storage.list_video_ids():
+            if vid not in videos_db:
+                videos_db[vid] = video_info_from_s3_meta(vid, storage.head_metadata(vid))
+    except Exception as e:
+        # Best-effort: never let reconcile break the caller
+        print(f"⚠️ S3 reconcile failed: {e}")
+
+
 def _register_video(video_data: dict):
     """Register extracted video metadata in videos_db and upload to S3.
     Shared by the upload route and the YouTube download job."""
@@ -84,8 +128,11 @@ async def upload_video(
 
 @router.get("")
 async def list_videos():
-    """List all uploaded videos"""
-    
+    """List all videos. Reconciles with S3 first so completed download jobs
+    appear without depending on a client having polled them."""
+
+    await asyncio.to_thread(reconcile_from_s3)
+
     video_list = []
     for video_id, video_info in videos_db.items():
         video_list.append({
@@ -344,9 +391,11 @@ async def get_download_status(job_id: str):
             job.update(status="downloading", **res.info)
         elif res.state == "SUCCESS":
             video_data = res.result
-            # Register once (worker already uploaded to S3)
+            # Worker already uploaded to S3 — just index it (don't re-upload;
+            # the worker's local file isn't present in this pod anyway)
             if video_data["video_id"] not in videos_db:
-                _register_video(video_data)
+                videos_db[video_data["video_id"]] = video_info_from_s3_meta(
+                    video_data["video_id"], storage.head_metadata(video_data["video_id"]))
             job.update(
                 status="completed",
                 current_step="syncing",

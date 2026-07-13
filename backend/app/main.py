@@ -159,27 +159,15 @@ async def restore_video_database():
     if storage.enabled():
         try:
             print("🔄 Restoring video database from S3...")
+            from .routers.videos import video_info_from_s3_meta
             restored = 0
             for item in storage.list_videos():
-                m = item["metadata"]
-                video_id = item["video_id"]
                 try:
-                    videos_db[video_id] = VideoInfo(
-                        id=video_id,
-                        filename=m.get("filename", f"{video_id}.mp4"),
-                        # Local cache path; endpoints call storage.ensure_local()
-                        file_path=str(storage.LOCAL_CACHE_DIR / f"{video_id}.mp4"),
-                        duration=float(m.get("duration", 0)),
-                        fps=float(m.get("fps", 0)),
-                        width=int(m.get("width", 0)),
-                        height=int(m.get("height", 0)),
-                        total_frames=int(m.get("total_frames", 0)),
-                        upload_date=datetime.fromisoformat(m["upload_date"]) if m.get("upload_date") else item["last_modified"].replace(tzinfo=None),
-                        status="ready",
-                    )
+                    videos_db[item["video_id"]] = video_info_from_s3_meta(
+                        item["video_id"], item["metadata"], item["last_modified"])
                     restored += 1
                 except Exception as e:
-                    print(f"⚠️ Skipping {video_id}: {e}")
+                    print(f"⚠️ Skipping {item['video_id']}: {e}")
             print(f"✅ Restored {restored} videos from S3")
             return
         except Exception as e:
