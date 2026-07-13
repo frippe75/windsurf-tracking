@@ -1809,26 +1809,26 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-4 py-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <img 
-                src={logos[currentLogoIndex]} 
-                alt="LabelBee Logo" 
-                className="h-16 w-auto ml-2 mr-4 my-1 cursor-pointer hover:opacity-80 transition-opacity"
+              <img
+                src={logos[currentLogoIndex]}
+                alt="LabelBee Logo"
+                className="h-12 sm:h-16 w-auto ml-1 mr-2 sm:mr-4 my-1 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
               />
               <div>
-                <h1 className="text-xl font-bold">
+                <h1 className="text-base sm:text-xl font-bold">
                   AI Annotation
                 </h1>
-                <p className="text-xs text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
+                <p className="hidden sm:block text-xs text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <BackendSelector 
                 backendStatus={backendStatus} 
                 onBackendsChange={setBackends}
@@ -1907,9 +1907,9 @@ const Index = () => {
             </div>
           </div>
         ) : (
-          <div className={`grid grid-cols-12 ${maximizeVideo ? "gap-0" : "gap-3"}` }>
+          <div className={`grid grid-cols-1 lg:grid-cols-12 ${maximizeVideo ? "gap-0" : "gap-3"}` }>
             {/* Left sidebar - Controls */}
-            <div className={maximizeVideo ? "hidden" : "col-span-2 space-y-4"}>
+            <div className={maximizeVideo ? "hidden" : "lg:col-span-2 space-y-4"}>
               <Toolbox
                 selectedTool={selectedTool}
                 onToolChange={setSelectedTool}
@@ -1941,7 +1941,7 @@ const Index = () => {
             </div>
 
             {/* Center - Video player & Timeline */}
-            <div className={maximizeVideo ? "col-span-12 space-y-4" : "col-span-8 space-y-4"}>
+            <div className={maximizeVideo ? "lg:col-span-12 space-y-4 min-w-0" : "lg:col-span-8 space-y-4 min-w-0"}>
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
@@ -1992,8 +1992,8 @@ const Index = () => {
             </div>
 
             {/* Right sidebar - Scenes & Tracking tabs */}
-            <div className={maximizeVideo ? "hidden" : "col-span-2 min-w-[220px]"}>
-              <Tabs defaultValue="scenes" className="h-full w-[110%]">
+            <div className={maximizeVideo ? "hidden" : "lg:col-span-2 min-w-0"}>
+              <Tabs defaultValue="scenes" className="h-full w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
