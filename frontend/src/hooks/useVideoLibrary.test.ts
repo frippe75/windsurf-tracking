@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useVideoLibrary, mergeBackendVideos, type UseVideoLibraryOptions, type VideoLibraryApi } from "./useVideoLibrary";
+import { useVideoLibrary, mergeBackendVideos, reconcileStaleProgress, type UseVideoLibraryOptions, type VideoLibraryApi } from "./useVideoLibrary";
 import { ManagedVideo } from "@/types/video";
 import type { VideoInfoResponse } from "@/lib/api";
 
@@ -228,6 +228,58 @@ describe("useVideoLibrary delete", () => {
 
     expect(result.current.managedVideos).toHaveLength(0);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Video deleted" }));
+  });
+});
+
+describe("reconcileStaleProgress", () => {
+  it("drops stale downloading/syncing entries, keeps ready/error", () => {
+    const local = [
+      makeLocalVideo({ id: "a", status: "ready" }),
+      makeLocalVideo({ id: "b", status: "downloading" }),
+      makeLocalVideo({ id: "c", status: "syncing" }),
+      makeLocalVideo({ id: "d", status: "error" }),
+    ];
+    expect(reconcileStaleProgress(local).map((v) => v.id)).toEqual(["a", "d"]);
+  });
+});
+
+describe("useVideoLibrary heals stuck entries on mount", () => {
+  it("clears a frozen 'syncing' entry and shows the backend's ready copy", async () => {
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([
+        // stale temp entry from an interrupted download (job-id keyed)
+        makeLocalVideo({ id: "dl-123", filename: "Why.mp4", status: "syncing", frontendProgress: 41, metadata: undefined }),
+      ])
+    );
+    const api = makeApi({
+      getVideos: vi.fn().mockResolvedValue({
+        videos: [makeBackendVideo({ video_id: "real-id", filename: "Why.mp4" })],
+        total: 1,
+      }),
+    });
+
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api })));
+
+    await waitFor(() => expect(result.current.managedVideos.some((v) => v.id === "real-id")).toBe(true));
+    // stale syncing entry gone; only the ready backend copy remains
+    expect(result.current.managedVideos.map((v) => v.id)).toEqual(["real-id"]);
+    expect(result.current.managedVideos[0].status).toBe("ready");
+  });
+
+  it("clears a stuck entry even when the backend is offline", async () => {
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([
+        makeLocalVideo({ id: "ready-1", status: "ready" }),
+        makeLocalVideo({ id: "dl-9", status: "downloading", backendProgress: 25 }),
+      ])
+    );
+    const api = makeApi({ getVideos: vi.fn().mockRejectedValue(new Error("offline")) });
+
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api })));
+
+    await waitFor(() => expect(result.current.managedVideos.map((v) => v.id)).toEqual(["ready-1"]));
   });
 });
 
