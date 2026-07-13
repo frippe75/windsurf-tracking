@@ -34,6 +34,25 @@ test-frontend:
     - main
     - merge_requests
 
+test-backend:
+  stage: test
+  interruptible: true
+  tags:
+    - docker
+    - vm
+  # Base image carries the ML/DB deps the app imports; overlay current source
+  image: harbor.tclab.org/windsurf/annotation-api:v2-auth
+  variables:
+    PYTHONPATH: /app
+  script:
+    - cp -r backend/app/* /app/app/
+    - cp -r windsurf-sail-dataset/windsurf /app/windsurf && echo '__version__="test"' > /app/windsurf/__init__.py
+    - cp -r backend/tests /app/tests
+    - cd /app && python -m pytest tests/ -q -p no:cacheprovider
+  only:
+    - main
+    - merge_requests
+
 build-frontend:
   stage: build
   interruptible: true
