@@ -222,12 +222,12 @@ export function ProjectManager({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
           <DialogTitle className="sr-only">Project Manager</DialogTitle>
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
-          <div className="flex h-full min-h-0">
+          <div className="flex flex-col md:flex-row h-full min-h-0">
             {/* Left Pane: Video List */}
-            <div className="w-[420px] min-w-[420px] max-w-[420px] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
+            <div className="w-full md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex-1 md:flex-none border-b md:border-b-0 md:border-r border-border flex flex-col md:h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
@@ -347,7 +347,7 @@ export function ProjectManager({
               </div>
 
             {/* Right Pane: Tabs */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0 md:h-full overflow-hidden">
               <Tabs value={currentTab} onValueChange={(v: any) => setCurrentTab(v)} className="flex-1 flex flex-col">
                 <TabsList className="grid w-full grid-cols-3 rounded-none border-b shrink-0">
                   <TabsTrigger value="project" disabled={!activeProject}>
