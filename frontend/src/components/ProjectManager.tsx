@@ -200,8 +200,13 @@ export function ProjectManager({
 
     onYoutubeUrl(youtubeUrl);
     setYoutubeUrl("");
-    // Close the dialog so the library (with the new downloading item) is visible
-    onOpenChange(false);
+    // Keep the manager open and surface the new downloading item in the list
+    // (with its progress bar) so the user can track the download.
+    setVideoFilter("youtube");
+    toast({
+      title: "Download started",
+      description: "Tracking progress in the list below.",
+    });
   };
 
   return (

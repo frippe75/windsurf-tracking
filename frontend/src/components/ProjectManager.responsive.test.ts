@@ -26,8 +26,15 @@ describe("ProjectManager responsive layout", () => {
   it("applies the 420px sidebar only at the md breakpoint and up", () => {
     expect(source).toContain("md:w-[420px]");
     expect(source).toContain("md:min-w-[420px]");
-    // Full width below md so it never exceeds the viewport.
-    expect(source).toMatch(/w-full md:w-\[420px\]/);
+    // Full width below md so it never exceeds the viewport (min-w-0 lets long
+    // filenames truncate instead of forcing the pane wider).
+    expect(source).toMatch(/w-full min-w-0 md:w-\[420px\]/);
+  });
+
+  it("mobile puts the tabs pane on top (order) and clears the close button", () => {
+    expect(source).toContain("order-1 md:order-2"); // tabs pane first on mobile
+    expect(source).toContain("order-2 md:order-1"); // video list below on mobile
+    expect(source).toMatch(/pt-10 md:pt-0/);        // clears absolute close button
   });
 
   it("constrains the dialog to the viewport (w-[95vw]) instead of a fixed 5xl", () => {
