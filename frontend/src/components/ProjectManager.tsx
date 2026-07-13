@@ -210,9 +210,13 @@ export function ProjectManager({
         <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
           <DialogTitle className="sr-only">Project Manager</DialogTitle>
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
-          <div className="flex flex-col md:flex-row h-full min-h-0">
-            {/* Left Pane: Video List */}
-            <div className="w-full md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex-1 md:flex-none border-b md:border-b-0 md:border-r border-border flex flex-col md:h-full min-h-0 overflow-hidden">
+          {/* pt-10 on mobile clears the dialog's absolute top-right close button.
+              w-full + min-w-0 so long filenames truncate instead of forcing the
+              grid child wider than the dialog. */}
+          <div className="flex flex-col md:flex-row h-full min-h-0 w-full min-w-0 pt-10 md:pt-0">
+            {/* Left Pane: Video List — on mobile it sits BELOW the tabs (order-2)
+                with a capped height; on desktop it's the 420px left column. */}
+            <div className="order-2 md:order-1 w-full min-w-0 md:w-[420px] md:min-w-[420px] md:max-w-[420px] max-h-[45vh] md:max-h-none flex-none border-t md:border-t-0 md:border-r border-border flex flex-col md:h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
@@ -327,8 +331,8 @@ export function ProjectManager({
                 </div>
               </div>
 
-            {/* Right Pane: Tabs */}
-            <div className="flex-1 flex flex-col min-h-0 md:h-full overflow-hidden">
+            {/* Right Pane: Tabs — on mobile this is ON TOP (order-1) */}
+            <div className="order-1 md:order-2 flex-1 flex flex-col min-h-0 min-w-0 md:h-full overflow-hidden">
               <Tabs value={currentTab} onValueChange={(v: any) => setCurrentTab(v)} className="flex-1 flex flex-col">
                 <TabsList className="grid w-full grid-cols-3 rounded-none border-b shrink-0">
                   <TabsTrigger value="project" disabled={!activeProject}>
