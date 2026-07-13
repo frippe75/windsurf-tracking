@@ -11,8 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, FileText, Filter, FolderOpen } from "lucide-react";
-import { config } from "@/lib/config";
-import { isValidYoutubeUrl, extractYoutubeId } from "@/lib/youtubeUrl";
+import { isValidYoutubeUrl } from "@/lib/youtubeUrl";
+import { thumbnailUrl } from "@/lib/thumbnailUrl";
+import { LazyThumbnail } from "@/components/LazyThumbnail";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
 
@@ -139,25 +140,9 @@ export function ProjectManager({
     return `${mb.toFixed(1)} MB`;
   };
 
-  const getYouTubeVideoId = extractYoutubeId;
-
-  const getThumbnailUrl = (video: ManagedVideo): string => {
-    // Use cached thumbnail if available
-    if (video.youtubeThumbnail) {
-      return video.youtubeThumbnail;
-    }
-    
-    // Fallback to extracting from URL
-    if (video.youtubeUrl) {
-      const videoId = getYouTubeVideoId(video.youtubeUrl);
-      if (videoId) {
-        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-      }
-    }
-    
-    // Default to backend frame
-    return `${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`;
-  };
+  // Thumbnail URL resolution lives in @/lib/thumbnailUrl (single source of truth).
+  // Rendering goes through <LazyThumbnail> so the (expensive) backend frame is
+  // only requested once the item scrolls into view.
 
   const handleVideoClick = (videoId: string) => {
     setSelectedVideoId(videoId);
@@ -284,13 +269,9 @@ export function ProjectManager({
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
-                              <img 
-                                src={getThumbnailUrl(video)}
+                              <LazyThumbnail
+                                src={thumbnailUrl(video)}
                                 alt={video.filename}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
                               />
                             </div>
                           ) : (
@@ -400,13 +381,9 @@ export function ProjectManager({
                                     <div className="flex items-center gap-3">
                                       {/* Thumbnail */}
                                       <div className="w-16 h-12 rounded overflow-hidden bg-muted shrink-0">
-                                        <img 
-                                          src={getThumbnailUrl(video)}
+                                        <LazyThumbnail
+                                          src={thumbnailUrl(video)}
                                           alt={video.filename}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                          }}
                                         />
                                       </div>
                                       

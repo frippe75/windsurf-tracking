@@ -11,7 +11,8 @@ import {
   Youtube,
   FileVideo
 } from "lucide-react";
-import { config } from "@/lib/config";
+import { thumbnailUrl } from "@/lib/thumbnailUrl";
+import { LazyThumbnail } from "@/components/LazyThumbnail";
 import { ManagedVideo } from "@/types/video";
 
 interface VideoListItemProps {
@@ -161,13 +162,9 @@ export function VideoListItem({
         {showThumbnail && (
           video.status === 'ready' && video.metadata ? (
             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
-              <img 
-                src={`${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`}
+              <LazyThumbnail
+                src={thumbnailUrl(video)}
                 alt={video.filename}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
               />
             </div>
           ) : (
