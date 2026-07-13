@@ -40,15 +40,18 @@ test-backend:
   tags:
     - docker
     - vm
-  # Base image carries the ML/DB deps the app imports; overlay current source
+  # Base image carries the ML/DB deps (site-packages); assemble current source
+  # in a writable /tmp workspace (the container runs as non-root; /app is ro).
   image: harbor.tclab.org/windsurf/annotation-api:v2-auth
   variables:
-    PYTHONPATH: /app
+    PYTHONPATH: /tmp/ws
+    HOME: /tmp
   script:
-    - cp -r backend/app/* /app/app/
-    - cp -r windsurf-sail-dataset/windsurf /app/windsurf && echo '__version__="test"' > /app/windsurf/__init__.py
-    - cp -r backend/tests /app/tests
-    - cd /app && python -m pytest tests/ -q -p no:cacheprovider
+    - mkdir -p /tmp/ws
+    - cp -r backend/app /tmp/ws/app
+    - cp -r windsurf-sail-dataset/windsurf /tmp/ws/windsurf && echo '__version__="test"' > /tmp/ws/windsurf/__init__.py
+    - cp -r backend/tests /tmp/ws/tests
+    - cd /tmp/ws && python -m pytest tests/ -q -p no:cacheprovider
   only:
     - main
     - merge_requests
