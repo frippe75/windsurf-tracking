@@ -11,8 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Clock, Download, AlertCircle, Trash2, Upload, Youtube, Plus, Video as VideoIcon, Play, FileText, Filter, FolderOpen } from "lucide-react";
-import { config } from "@/lib/config";
-import { isValidYoutubeUrl, extractYoutubeId } from "@/lib/youtubeUrl";
+import { isValidYoutubeUrl } from "@/lib/youtubeUrl";
+import { thumbnailUrl } from "@/lib/thumbnailUrl";
+import { LazyThumbnail } from "@/components/LazyThumbnail";
 import { ManagedVideo } from "@/types/video";
 import { useToast } from "@/hooks/use-toast";
 
@@ -139,25 +140,9 @@ export function ProjectManager({
     return `${mb.toFixed(1)} MB`;
   };
 
-  const getYouTubeVideoId = extractYoutubeId;
-
-  const getThumbnailUrl = (video: ManagedVideo): string => {
-    // Use cached thumbnail if available
-    if (video.youtubeThumbnail) {
-      return video.youtubeThumbnail;
-    }
-    
-    // Fallback to extracting from URL
-    if (video.youtubeUrl) {
-      const videoId = getYouTubeVideoId(video.youtubeUrl);
-      if (videoId) {
-        return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-      }
-    }
-    
-    // Default to backend frame
-    return `${config.backendUrl}/api/videos/${video.id}/frame/0?width=160&height=112`;
-  };
+  // Thumbnail URL resolution lives in @/lib/thumbnailUrl (single source of truth).
+  // Rendering goes through <LazyThumbnail> so the (expensive) backend frame is
+  // only requested once the item scrolls into view.
 
   const handleVideoClick = (videoId: string) => {
     setSelectedVideoId(videoId);
@@ -222,12 +207,12 @@ export function ProjectManager({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0 gap-0 overflow-hidden">
           <DialogTitle className="sr-only">Project Manager</DialogTitle>
           <DialogDescription className="sr-only">Manage videos and projects</DialogDescription>
-          <div className="flex h-full min-h-0">
+          <div className="flex flex-col md:flex-row h-full min-h-0">
             {/* Left Pane: Video List */}
-            <div className="w-[420px] min-w-[420px] max-w-[420px] border-r border-border flex flex-col h-full min-h-0 overflow-hidden">
+            <div className="w-full md:w-[420px] md:min-w-[420px] md:max-w-[420px] flex-1 md:flex-none border-b md:border-b-0 md:border-r border-border flex flex-col md:h-full min-h-0 overflow-hidden">
               <div className="p-6 border-b border-border shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-semibold">My Videos</h2>
@@ -284,13 +269,9 @@ export function ProjectManager({
                           {/* Thumbnail */}
                           {video.status === 'ready' && video.metadata ? (
                             <div className="w-20 h-14 rounded overflow-hidden bg-muted shrink-0">
-                              <img 
-                                src={getThumbnailUrl(video)}
+                              <LazyThumbnail
+                                src={thumbnailUrl(video)}
                                 alt={video.filename}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
                               />
                             </div>
                           ) : (
@@ -347,7 +328,7 @@ export function ProjectManager({
               </div>
 
             {/* Right Pane: Tabs */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0 md:h-full overflow-hidden">
               <Tabs value={currentTab} onValueChange={(v: any) => setCurrentTab(v)} className="flex-1 flex flex-col">
                 <TabsList className="grid w-full grid-cols-3 rounded-none border-b shrink-0">
                   <TabsTrigger value="project" disabled={!activeProject}>
@@ -400,13 +381,9 @@ export function ProjectManager({
                                     <div className="flex items-center gap-3">
                                       {/* Thumbnail */}
                                       <div className="w-16 h-12 rounded overflow-hidden bg-muted shrink-0">
-                                        <img 
-                                          src={getThumbnailUrl(video)}
+                                        <LazyThumbnail
+                                          src={thumbnailUrl(video)}
                                           alt={video.filename}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                          }}
                                         />
                                       </div>
                                       
