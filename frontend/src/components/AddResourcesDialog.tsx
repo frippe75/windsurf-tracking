@@ -17,7 +17,8 @@ import {
   PlayCircle,
   CheckCircle2,
   FileVideo,
-  AlertCircle 
+  AlertCircle,
+  Trash2
 } from "lucide-react";
 
 interface AddResourcesDialogProps {
@@ -26,6 +27,7 @@ interface AddResourcesDialogProps {
   projectVideoIds: string[]; // Videos already in project
   availableVideos: ManagedVideo[]; // All videos in cache
   onAddToProject: (videoIds: string[]) => void;
+  onDeleteVideos?: (videoIds: string[]) => void; // remove from cache + library
   onFileSelect: (file: File) => void;
   onYoutubeUrl: (url: string) => void;
   isUploading: boolean;
@@ -37,6 +39,7 @@ export function AddResourcesDialog({
   projectVideoIds,
   availableVideos,
   onAddToProject,
+  onDeleteVideos,
   onFileSelect,
   onYoutubeUrl,
   isUploading,
@@ -44,11 +47,24 @@ export function AddResourcesDialog({
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [youtubeUrl, setYoutubeUrl] = useState("");
 
+  // Only 'ready' videos can be added to a project; any selected (incl. stuck
+  // downloads) can be deleted from the cache.
+  const readySelectedIds = selectedVideoIds.filter(
+    (id) => availableVideos.find((v) => v.id === id)?.status === "ready"
+  );
+
   const handleAddSelected = () => {
-    if (selectedVideoIds.length > 0) {
-      onAddToProject(selectedVideoIds);
+    if (readySelectedIds.length > 0) {
+      onAddToProject(readySelectedIds);
       setSelectedVideoIds([]);
       onOpenChange(false);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedVideoIds.length > 0 && onDeleteVideos) {
+      onDeleteVideos(selectedVideoIds);
+      setSelectedVideoIds([]);
     }
   };
 
@@ -141,9 +157,19 @@ export function AddResourcesDialog({
                   {availableVideos.length} videos in cache
                 </p>
                 {selectedVideoIds.length > 0 && (
-                  <Button onClick={handleAddSelected}>
-                    Add {selectedVideoIds.length} Video{selectedVideoIds.length > 1 ? 's' : ''} to Project
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {onDeleteVideos && (
+                      <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete {selectedVideoIds.length}
+                      </Button>
+                    )}
+                    {readySelectedIds.length > 0 && (
+                      <Button size="sm" onClick={handleAddSelected}>
+                        Add {readySelectedIds.length} to Project
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -152,7 +178,9 @@ export function AddResourcesDialog({
                   {availableVideos.map((video) => {
                     const isInProject = projectVideoIds.includes(video.id);
                     const isSelected = selectedVideoIds.includes(video.id);
-                    const canSelect = !isInProject && video.status === 'ready';
+                    // Selectable if not already in a project — includes stuck
+                    // downloading/syncing/error items so they can be deleted.
+                    const canSelect = !isInProject;
 
                     return (
                       <Card

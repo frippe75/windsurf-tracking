@@ -152,6 +152,7 @@ const Index = () => {
     setManagedVideos,
     addVideo,
     handleVideoDelete,
+    deleteVideosFromCache,
   } = useVideoLibrary({
     toast,
     countProjectsUsingVideo: (id) => projects.filter(p => p.videoIds.includes(id)).length,
@@ -2119,6 +2120,7 @@ const Index = () => {
         projectVideoIds={activeProjectId ? (projects.find(p => p.id === activeProjectId)?.videoIds || []) : []}
         availableVideos={managedVideos}
         onAddToProject={handleAddVideosToProject}
+        onDeleteVideos={deleteVideosFromCache}
         onFileSelect={processVideoFile}
         onYoutubeUrl={handleYoutubeUrl}
         isUploading={isUploading}
