@@ -37,6 +37,7 @@ import { useTrackingJobs } from "@/hooks/useTrackingJobs";
 import { SAIL_COLORS, annotationsAtFrame } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { extractYoutubeId, youtubeThumbnail } from "@/lib/youtubeUrl";
+import { resolvePromptType, type PromptType } from "@/lib/promptType";
 import { videoCache } from "@/lib/videoCache";
 import { BackendSelector, type Backend, getProbeBackends, updateBackendProbeStatus } from "@/components/BackendSelector";
 import { UserMenu } from "@/components/UserMenu";
@@ -118,6 +119,9 @@ const Index = () => {
   const toolPrefs = getToolPreferences();
   const [overlays, setOverlays] = useState(toolPrefs.overlays);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
+  // Touch prompt mode: on phones there is no Ctrl/Alt, so a plain tap places
+  // this prompt type. null = desktop behaviour (hold a modifier).
+  const [promptTapMode, setPromptTapMode] = useState<PromptType | null>(null);
   const [autoTrack, setAutoTrack] = useState(toolPrefs.autoTrack);
   const [autoDetect, setAutoDetect] = useState(toolPrefs.autoDetect);
   const [useSAM2, setUseSAM2] = useState(toolPrefs.useSAM2);
@@ -1352,18 +1356,18 @@ const Index = () => {
 
       console.log('🎯 Mapped to native coords:', { videoX, videoY, videoNativeWidth, videoNativeHeight });
 
-      // Determine prompt type: Alt (or Alt-Gr) = negative, Ctrl only = positive
-      // Note: Alt-Gr registers as both ctrlKey and altKey on many keyboards
-      const promptType: 'positive' | 'negative' = altKey ? 'negative' : 'positive';
-      
-      // Require at least one modifier key
-      if (!ctrlKey && !altKey) {
+      // Determine prompt type. Desktop: Ctrl = +, Alt/Alt-Gr = −. Mobile (no
+      // keyboard): fall back to the tap-mode toggle (promptTapMode).
+      const promptType = resolvePromptType(ctrlKey, altKey, promptTapMode);
+
+      if (!promptType) {
         toast({
-          title: "Hold modifier key",
-          description: "Hold Ctrl for + prompt or Alt/Alt-Gr for - prompt while clicking",
+          title: "Pick a prompt mode",
+          description: "Tap the +/− toggle to place prompts, or hold Ctrl (+) / Alt (−) while clicking.",
         });
         return;
       }
+      const isNegative = promptType === 'negative';
 
       // Check if clicking on an existing annotation to add a prompt
       const clickedAnnotation = annotations.find(ann => {
@@ -1395,7 +1399,7 @@ const Index = () => {
         console.log('🎯 SAM2 enabled, checking videoId:', videoId);
         
         // Don't create new annotations with negative prompts
-        if (altKey) {
+        if (isNegative) {
           toast({
             title: "No annotation selected",
             description: "Negative prompts must be added to existing annotations",
@@ -1943,6 +1947,43 @@ const Index = () => {
 
             {/* Center - Video player & Timeline */}
             <div className={maximizeVideo ? "lg:col-span-12 space-y-4 min-w-0" : "lg:col-span-8 space-y-4 min-w-0"}>
+              {/* Tap-to-place prompt mode (needed on touch: no Ctrl/Alt keys) */}
+              {selectedTool === "annotate" && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">Tap places:</span>
+                  <div className="inline-flex rounded-md border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setPromptTapMode(m => (m === "positive" ? null : "positive"))}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                        promptTapMode === "positive"
+                          ? "bg-green-500/20 text-green-500"
+                          : "bg-card text-muted-foreground hover:bg-muted"
+                      }`}
+                      aria-pressed={promptTapMode === "positive"}
+                    >
+                      ＋ Positive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPromptTapMode(m => (m === "negative" ? null : "negative"))}
+                      className={`px-3 py-1.5 text-sm font-medium border-l border-border transition-colors ${
+                        promptTapMode === "negative"
+                          ? "bg-red-500/20 text-red-500"
+                          : "bg-card text-muted-foreground hover:bg-muted"
+                      }`}
+                      aria-pressed={promptTapMode === "negative"}
+                    >
+                      － Negative
+                    </button>
+                  </div>
+                  {promptTapMode && (
+                    <span className="text-xs text-muted-foreground">
+                      Tap the video to add {promptTapMode} prompts
+                    </span>
+                  )}
+                </div>
+              )}
               <VideoPlayer
                 videoUrl={videoUrl}
                 currentFrame={currentFrame}
