@@ -66,6 +66,9 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Touch tap tracking (mobile has no mouse click on the canvas)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchHandledRef = useRef(false);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [videoDims, setVideoDims] = useState<{ width: number; height: number }>({ width: 1280, height: 720 });
   const [isPlaying, setIsPlaying] = useState(false);
@@ -659,34 +662,52 @@ export function VideoPlayer({
     setIsPanning(false);
   };
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Shared placement: convert screen coords → video-frame % and dispatch.
+  const placePromptAt = (clientX: number, clientY: number, ctrlKey: boolean, altKey: boolean) => {
     if (selectedTool !== "annotate") return;
-    
     const canvas = canvasRef.current;
     const video = videoRef.current;
     if (!canvas || !video) return;
 
     const rect = canvas.getBoundingClientRect();
-    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY, rect);
-    
-    // Canvas has zoom/DPR scaling, so we need to account for that
-    // The canvas internal bitmap is canvas.width x canvas.height (includes zoom * DPR)
-    // But the underlying video rendering area corresponds to the displayed rect
+    const { x: canvasX, y: canvasY } = screenToCanvas(clientX, clientY, rect);
     const displayed = getDisplayedRect();
     const dpr = window.devicePixelRatio || 1;
-    
-    // Convert canvas internal coords to displayed video rect coords
-    // canvas.width = displayed.width * dpr * zoom
     const displayedX = canvasX / (dpr * zoom);
     const displayedY = canvasY / (dpr * zoom);
-    
-    // Now convert displayed coords to percentage of video frame (0-100)
     const x = (displayedX / displayed.width) * 100;
     const y = (displayedY / displayed.height) * 100;
-    
-    // Pass percentages (0-100) to parent - parent will convert to native video pixels
+    onCanvasClick(x, y, displayed.width, displayed.height, ctrlKey, altKey);
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Touch taps are handled by onPointerUp; skip the synthesized mouse click
+    // so we don't place the prompt twice.
+    if (touchHandledRef.current) {
+      touchHandledRef.current = false;
+      return;
+    }
     const isAltLike = e.altKey || e.getModifierState?.('AltGraph') === true;
-    onCanvasClick(x, y, displayed.width, displayed.height, e.ctrlKey || e.metaKey, isAltLike);
+    placePromptAt(e.clientX, e.clientY, e.ctrlKey || e.metaKey, isAltLike);
+  };
+
+  // Touch: pointer events fire reliably on the canvas where a synthesized
+  // mouse click may not. Treat a pointerup close to its pointerdown as a tap.
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType !== "touch") return;
+    touchStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType !== "touch") return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+    if (moved > 12) return; // a drag/pan, not a tap
+    touchHandledRef.current = true; // swallow the following synthesized click
+    // No keyboard on touch → let Index's tap-mode toggle decide the prompt type.
+    placePromptAt(e.clientX, e.clientY, false, false);
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -790,8 +811,11 @@ export function VideoPlayer({
             transformOrigin: 'top left',
             cursor: isPanning ? "grabbing" : cursorStyle,
             pointerEvents: "auto",
+            touchAction: "none",
           }}
           onClick={handleCanvasClick}
+          onPointerDown={handleCanvasPointerDown}
+          onPointerUp={handleCanvasPointerUp}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
