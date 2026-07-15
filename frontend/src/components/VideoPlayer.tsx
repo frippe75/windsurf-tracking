@@ -108,7 +108,12 @@ export function VideoPlayer({
 
   useEffect(() => {
     drawAnnotations();
-  }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool, showLabels]);
+    // containerSize/videoDims MUST be deps: the canvas bitmap is sized from the
+    // displayed rect inside drawAnnotations. Without them, the first draw runs
+    // while the container is 0×0 (canvas clamps to 1×1) and never re-sizes when
+    // the ResizeObserver reports the real size — leaving a 1×1 canvas that maps
+    // every click/tap to the corner. (Was broken on mobile.)
+  }, [annotations, overlays, currentFrame, zoom, pan, selectedAnnotationId, selectedTool, showLabels, containerSize, videoDims]);
 
   // Track container size so we can align canvas to the video's rendered box (object-contain)
   useEffect(() => {
