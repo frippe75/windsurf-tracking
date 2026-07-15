@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { deriveFps } from "@/lib/fps";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,11 @@ export function VideoPlayer({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [videoDims, setVideoDims] = useState<{ width: number; height: number }>({ width: 1280, height: 720 });
   const [isPlaying, setIsPlaying] = useState(false);
-  const [fps] = useState(30); // Default FPS
+  // Real fps, derived from the backend frame count and the video's duration on
+  // load. A hardcoded 30 mis-seeks every non-30fps video (frame N shows at
+  // N/30s while the backend indexes frame N at N/realFps) → SAM2 masks a
+  // DIFFERENT frame than the one on screen. Falls back to 30 until known.
+  const [fps, setFps] = useState(30);
   const [zoom, setZoom] = useState(1); // Zoom level (1 = 100%)
   const [pan, setPan] = useState({ x: 0, y: 0 }); // Pan offset in pixels
   const [isPanning, setIsPanning] = useState(false);
@@ -786,14 +791,20 @@ export function VideoPlayer({
           }}
           onLoadedMetadata={() => {
             if (videoRef.current) {
+              const duration = videoRef.current.duration;
+              // Derive the real fps from the known frame count (backend) and
+              // the actual duration. This is what makes scrubbing land on the
+              // same frame the backend extracts for SAM2.
+              const realFps = deriveFps(totalFrames, duration, fps);
+              if (realFps > 0 && Number.isFinite(realFps)) {
+                setFps(realFps);
+              }
               // Report metadata to parent
               if (onVideoMetadata) {
-                const duration = videoRef.current.duration;
-                const calculatedFrames = Math.floor(duration * fps);
                 onVideoMetadata({
                   duration,
-                  totalFrames: calculatedFrames,
-                  fps,
+                  totalFrames: totalFrames > 0 ? totalFrames : Math.floor(duration * realFps),
+                  fps: realFps,
                 });
               }
               // Track intrinsic video dimensions for object-contain math
