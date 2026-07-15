@@ -12,7 +12,7 @@ interface VideoPlayerProps {
   totalFrames: number;
   frameRange: [number, number];
   onFrameChange: (frame: number) => void;
-  onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number }) => void;
+  onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number; width?: number; height?: number }) => void;
   onCanvasClick: (x: number, y: number, videoWidth: number, videoHeight: number, ctrlKey: boolean, altKey: boolean) => void;
   classes: Array<{ id: string; color: string; name: string }>;
   instances: Array<{ id: string; classId: string; instanceNumber: number }>;
@@ -799,18 +799,26 @@ export function VideoPlayer({
               if (realFps > 0 && Number.isFinite(realFps)) {
                 setFps(realFps);
               }
-              // Report metadata to parent
+              // The video element's intrinsic size is the GROUND TRUTH for the
+              // native resolution used to scale click prompts. Report it so the
+              // parent doesn't depend on (possibly stale/missing) backend
+              // metadata — clicking the wrong region came from a 1280x720
+              // fallback on a 1920x1080 video.
+              const vw = videoRef.current.videoWidth;
+              const vh = videoRef.current.videoHeight;
               if (onVideoMetadata) {
                 onVideoMetadata({
                   duration,
                   totalFrames: totalFrames > 0 ? totalFrames : Math.floor(duration * realFps),
                   fps: realFps,
+                  width: vw || undefined,
+                  height: vh || undefined,
                 });
               }
               // Track intrinsic video dimensions for object-contain math
               setVideoDims({
-                width: videoRef.current.videoWidth || 1280,
-                height: videoRef.current.videoHeight || 720,
+                width: vw || 1280,
+                height: vh || 720,
               });
             }
           }}

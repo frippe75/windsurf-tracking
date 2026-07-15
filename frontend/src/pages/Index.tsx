@@ -2005,6 +2005,13 @@ const Index = () => {
                   if (!videoId) {
                     setTotalFrames(metadata.totalFrames);
                   }
+                  // Ground-truth native resolution from the actual video element
+                  // — overrides any stale/missing backend metadata so click
+                  // prompts scale to the real pixel grid.
+                  if (metadata.width && metadata.height) {
+                    setVideoNativeWidth(metadata.width);
+                    setVideoNativeHeight(metadata.height);
+                  }
                 }}
                 onCanvasClick={handleCanvasClick}
                 classes={classes}

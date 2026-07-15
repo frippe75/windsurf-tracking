@@ -140,6 +140,11 @@ async def list_videos():
             "filename": video_info.filename,
             "duration": video_info.duration,
             "fps": video_info.fps,
+            # width/height are what the frontend maps to native click coords.
+            # Without them, non-1280x720 videos mis-scale click prompts (SAM2
+            # segments the wrong region). `resolution` kept for back-compat.
+            "width": video_info.width,
+            "height": video_info.height,
             "resolution": f"{video_info.width}x{video_info.height}",
             "total_frames": video_info.total_frames,
             "upload_date": video_info.upload_date.isoformat(),
