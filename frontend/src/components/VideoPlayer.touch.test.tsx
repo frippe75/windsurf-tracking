@@ -77,3 +77,23 @@ describe("VideoPlayer touch tap (mobile prompt placement)", () => {
     expect(onCanvasClick.mock.calls[0][4]).toBe(true); // ctrlKey passed through
   });
 });
+
+import fs from "node:fs";
+import path from "node:path";
+
+describe("VideoPlayer canvas sizing (regression: 1×1 canvas on mobile)", () => {
+  it("the draw effect depends on containerSize and videoDims", () => {
+    // The canvas bitmap is sized inside drawAnnotations from the displayed rect.
+    // If the draw effect doesn't re-run when the container/video size changes,
+    // the canvas stays 1×1 (first draw at 0×0) and every tap maps to the corner.
+    const src = fs.readFileSync(
+      path.join(__dirname, "VideoPlayer.tsx"),
+      "utf8",
+    );
+    // The effect that calls drawAnnotations must list containerSize + videoDims.
+    const effectDeps = src.match(/drawAnnotations\(\);[\s\S]*?\}, \[([^\]]*)\]/);
+    expect(effectDeps).not.toBeNull();
+    expect(effectDeps![1]).toContain("containerSize");
+    expect(effectDeps![1]).toContain("videoDims");
+  });
+});

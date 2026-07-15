@@ -1351,10 +1351,20 @@ const Index = () => {
         nativeHeight: videoNativeHeight
       });
 
-      // Convert percentage (0-100) to native video pixel coordinates
-      const { x: videoX, y: videoY } = pctToNative(x, y, videoNativeWidth, videoNativeHeight);
+      // Guard: some load paths leave native dims unset → pctToNative would
+      // yield NaN and SAM2 would 422. Fall back to the active video's metadata.
+      let nativeW = videoNativeWidth;
+      let nativeH = videoNativeHeight;
+      if (!nativeW || !nativeH || Number.isNaN(nativeW) || Number.isNaN(nativeH)) {
+        const active = managedVideos.find(v => v.id === videoId);
+        nativeW = active?.metadata?.width || 1280;
+        nativeH = active?.metadata?.height || 720;
+      }
 
-      console.log('🎯 Mapped to native coords:', { videoX, videoY, videoNativeWidth, videoNativeHeight });
+      // Convert percentage (0-100) to native video pixel coordinates
+      const { x: videoX, y: videoY } = pctToNative(x, y, nativeW, nativeH);
+
+      console.log('🎯 Mapped to native coords:', { videoX, videoY, nativeW, nativeH });
 
       // Determine prompt type. Desktop: Ctrl = +, Alt/Alt-Gr = −. Mobile (no
       // keyboard): fall back to the tap-mode toggle (promptTapMode).
@@ -1426,7 +1436,7 @@ const Index = () => {
         });
 
         // Convert percentage (0-100) to native video pixel coordinates for backend
-        const { x: videoX, y: videoY } = pctToNative(x, y, videoNativeWidth, videoNativeHeight);
+        const { x: videoX, y: videoY } = pctToNative(x, y, nativeW, nativeH);
 
         console.log('🎯 Calling SAM2 API with:', { 
           videoId, 
@@ -1458,7 +1468,7 @@ const Index = () => {
           const maskBase64 = results.mask_base64 as string | undefined;
           
           // Backend returns native-resolution corners; normalize to display %
-          const bbox = nativeBBoxToPct([x1, y1, x2, y2], videoNativeWidth, videoNativeHeight);
+          const bbox = nativeBBoxToPct([x1, y1, x2, y2], nativeW, nativeH);
           
           // Keep mask for later
           const maskPixels = results.mask_pixels;
@@ -1615,7 +1625,7 @@ const Index = () => {
         });
       }
     },
-    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, videoId, videoNativeWidth, videoNativeHeight]
+    [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, videoId, videoNativeWidth, videoNativeHeight, promptTapMode, annotations]
   );
 
   const handleContextMenu = (x: number, y: number, context: any) => {
