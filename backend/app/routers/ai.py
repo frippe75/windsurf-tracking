@@ -119,26 +119,15 @@ async def sam2_segment(
         local_path = storage.ensure_local(video_id)
         video_path = str(local_path) if local_path else video_info.file_path
 
-        # Extract frame using OpenCV and convert to base64
-        import cv2
+        # Extract frame (cv2 with ffmpeg fallback for AV1 etc.) → base64
         import base64
-        from PIL import Image
         from io import BytesIO
+        from ..frames import extract_frame_image
 
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise HTTPException(status_code=500, detail="Could not open video file")
-        
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        ret, frame = cap.read()
-        cap.release()
-        
-        if not ret:
-            raise HTTPException(status_code=400, detail=f"Could not extract frame {frame_number}")
-        
-        # Convert BGR to RGB and to PIL Image
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(frame_rgb)
+        try:
+            pil_image = extract_frame_image(video_path, frame_number)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         
         # Convert to base64
         buffer = BytesIO()
