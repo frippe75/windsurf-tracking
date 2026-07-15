@@ -209,30 +209,13 @@ async def get_frame(video_id: str, frame_number: int, width: Optional[int] = Non
     local_path = storage.ensure_local(video_id) or Path(video_info.file_path)
 
     try:
-        import cv2
         import io
         from PIL import Image
+        from ..frames import extract_frame_image
 
-        # Extract frame using OpenCV directly
-        cap = cv2.VideoCapture(str(local_path))
-        if not cap.isOpened():
-            raise HTTPException(status_code=500, detail="Could not open video file")
-        
-        # Set frame position
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        
-        ret, frame = cap.read()
-        cap.release()
-        
-        if not ret:
-            raise HTTPException(status_code=400, detail=f"Could not extract frame {frame_number}")
-        
-        # Convert BGR to RGB
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Convert to PIL Image
-        pil_image = Image.fromarray(frame_rgb)
-        
+        # cv2 with an ffmpeg fallback (AV1 etc. that OpenCV can't decode)
+        pil_image = extract_frame_image(str(local_path), frame_number)
+
         # Resize if requested
         if width and height:
             pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)

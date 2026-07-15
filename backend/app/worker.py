@@ -45,7 +45,13 @@ def download_youtube_task(self, url: str, quality: str = "720p"):
     try:
         height = {"480p": 480, "720p": 720, "1080p": 1080}.get(quality or "720p", 720)
         opts = {
-            "format": f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+            # Prefer H.264 (avc1): OpenCV can't decode AV1, which YouTube now
+            # serves widely. Fall back to any mp4, then anything.
+            "format": (
+                f"bv*[height<={height}][vcodec^=avc1]+ba[ext=m4a]/"
+                f"b[height<={height}][vcodec^=avc1]/"
+                f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
+            ),
             "merge_output_format": "mp4",
             "outtmpl": f"{tmpdir}/%(title).100B.%(ext)s",
             "restrictfilenames": True,  # S3 metadata rejects non-ASCII
