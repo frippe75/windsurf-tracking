@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.3-tracking
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.4-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_0_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
@@ -118,7 +118,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.3-tracking
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.4-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_1_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
