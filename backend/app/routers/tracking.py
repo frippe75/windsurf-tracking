@@ -38,19 +38,33 @@ def _celery_status(job: dict) -> dict:
         return {"job_id": job["job_id"], "status": job.get("status", "pending"), "percentage": 0}
 
     res = _celery().AsyncResult(task_id)
-    state = res.state
     out = {"job_id": job["job_id"]}
+
+    # Reading state/info/result deserializes the stored meta, which can raise if
+    # the meta is malformed — never let that 500 a status poll.
+    try:
+        state = res.state
+    except Exception:
+        return {"job_id": job["job_id"], "status": job.get("status", "running"),
+                "percentage": job.get("percentage", 0)}
+
+    def _safe(attr):
+        try:
+            val = getattr(res, attr)
+            return val if isinstance(val, dict) else {}
+        except Exception:
+            return {}
 
     if state in ("PENDING", "RECEIVED", "STARTED", "RETRY"):
         out.update(status="running", percentage=job.get("percentage", 0))
     elif state == "PROGRESS":
-        info = res.info if isinstance(res.info, dict) else {}
+        info = _safe("info")
         pct = info.get("percentage", job.get("percentage", 0))
         job["percentage"] = pct
         out.update(status="running", percentage=pct,
                    current_frame=info.get("current_frame"), stage=info.get("stage"))
     elif state == "SUCCESS":
-        result = res.result if isinstance(res.result, dict) else {}
+        result = _safe("result")
         if result.get("success"):
             job["status"] = "completed"
             out.update(status="completed", percentage=100)
@@ -135,8 +149,11 @@ async def get_job_results(job_id: str):
     result_payload = None
     task_id = job.get("task_id")
     if status["status"] == "completed" and task_id:
-        res = _celery().AsyncResult(task_id)
-        worker_result = res.result if isinstance(res.result, dict) else {}
+        try:
+            res = _celery().AsyncResult(task_id)
+            worker_result = res.result if isinstance(res.result, dict) else {}
+        except Exception:
+            worker_result = {}
         # Worker returns {success, results: {frames: [...], summary}}
         result_payload = worker_result.get("results")
 

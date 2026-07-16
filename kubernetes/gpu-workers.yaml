@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.2-tracking
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.3-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_0_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
@@ -64,9 +64,11 @@ spec:
             memory: 16Gi
             cpu: 4
             nvidia.com/gpu: 1
-      # k8s-w07 has an NVIDIA driver/library version mismatch (new GPU
-      # containers fail the prestart hook; existing ones keep running).
-      # Avoid it until the node gets a driver reload/reboot.
+      # GPU node health (2026-07-16): k8s-w06 & k8s-w07 have an NVIDIA
+      # driver/library version mismatch (new GPU containers fail the prestart
+      # hook); k8s-w08 GPUs are fully allocated (ClearML). k8s-w09 is the only
+      # node with working drivers + free GPUs, so pin here. Widen this back to a
+      # NotIn exclusion once the w06/w07 drivers are reloaded.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -76,11 +78,17 @@ spec:
                 operator: In
                 values: ["true"]
               - key: kubernetes.io/hostname
-                operator: NotIn
-                values: ["k8s-w07"]
+                operator: In
+                values: ["k8s-w09"]
       tolerations:
       - effect: NoSchedule
         key: nvidia.com/gpu
+        operator: Exists
+      # k8s-w09 (the only node with working GPU drivers + free GPUs) is cordoned;
+      # tolerate the cordon so THIS pod can run there without uncordoning the node
+      # cluster-wide. Remove once w06/w07 drivers are fixed and the pin is widened.
+      - effect: NoSchedule
+        key: node.kubernetes.io/unschedulable
         operator: Exists
 ---
 apiVersion: apps/v1
@@ -110,7 +118,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.2-tracking
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.3-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_1_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
@@ -146,9 +154,11 @@ spec:
             memory: 16Gi
             cpu: 4
             nvidia.com/gpu: 1
-      # k8s-w07 has an NVIDIA driver/library version mismatch (new GPU
-      # containers fail the prestart hook; existing ones keep running).
-      # Avoid it until the node gets a driver reload/reboot.
+      # GPU node health (2026-07-16): k8s-w06 & k8s-w07 have an NVIDIA
+      # driver/library version mismatch (new GPU containers fail the prestart
+      # hook); k8s-w08 GPUs are fully allocated (ClearML). k8s-w09 is the only
+      # node with working drivers + free GPUs, so pin here. Widen this back to a
+      # NotIn exclusion once the w06/w07 drivers are reloaded.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -158,9 +168,15 @@ spec:
                 operator: In
                 values: ["true"]
               - key: kubernetes.io/hostname
-                operator: NotIn
-                values: ["k8s-w07"]
+                operator: In
+                values: ["k8s-w09"]
       tolerations:
       - effect: NoSchedule
         key: nvidia.com/gpu
+        operator: Exists
+      # k8s-w09 (the only node with working GPU drivers + free GPUs) is cordoned;
+      # tolerate the cordon so THIS pod can run there without uncordoning the node
+      # cluster-wide. Remove once w06/w07 drivers are fixed and the pin is widened.
+      - effect: NoSchedule
+        key: node.kubernetes.io/unschedulable
         operator: Exists
