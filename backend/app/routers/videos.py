@@ -219,7 +219,7 @@ async def get_frame(video_id: str, frame_number: int, width: Optional[int] = Non
         from ..frames import extract_frame_image
 
         # cv2 with an ffmpeg fallback (AV1 etc. that OpenCV can't decode)
-        pil_image = extract_frame_image(str(local_path), frame_number)
+        pil_image = extract_frame_image(str(local_path), frame_number, video_info.fps)
 
         # Resize if requested
         if width and height:
