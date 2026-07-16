@@ -5,7 +5,7 @@ Video management endpoints
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from fastapi.responses import StreamingResponse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 import asyncio
 
 from ..api_models import YouTubeDownloadRequest
@@ -18,6 +18,17 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 # These will be injected from main
 videos_db = {}
 download_jobs_db = {}
+tracking_jobs_db = {}  # shared with routers.tracking (execute/status/results)
+
+
+def _estimate_sam2_memory(total_frames: int, num_objects: int = 1) -> float:
+    """Heuristic SAM2 VRAM estimate (GB) used to decide auto-splitting for the
+    T4 (~15GB usable). Ported from the pre-refactor monolith."""
+    model_memory = 2.0
+    memory_per_frame = 0.1
+    memory_bank = min(total_frames, 100) * memory_per_frame
+    object_memory = num_objects * memory_bank * 0.8
+    return (model_memory + memory_bank + object_memory) * 1.4  # safety factor
 
 def video_info_from_s3_meta(video_id: str, meta: dict, last_modified=None):
     """Build a VideoInfo from an S3 object's metadata (shared by startup
@@ -435,3 +446,115 @@ async def detect_scenes_api(video_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{video_id}/tracking/jobs")
+async def create_tracking_job(video_id: str, request: Dict):
+    """
+    Create a SAM2 tracking job for a segment, auto-splitting large ranges to
+    stay within T4 memory. Execute each returned (sub-)job via
+    POST /api/tracking/jobs/{job_id}/execute.
+
+    Click-prompt coordinates must be in NATIVE video resolution (same contract
+    as GET /videos/{id}). Request:
+        {"segments": [{"start_frame": 100, "end_frame": 160,
+                       "click_prompts": [{"x": 640, "y": 360, "type": "positive"}]}]}
+    """
+    import uuid
+
+    if video_id not in videos_db:
+        raise HTTPException(status_code=404, detail="Video not found")
+    video_info = videos_db[video_id]
+
+    segments = request.get("segments", [])
+    if not segments:
+        raise HTTPException(status_code=400, detail="No segments provided")
+    seg = segments[0]  # one segment per job (matches the frontend)
+
+    try:
+        start_frame = int(seg["start_frame"])
+        end_frame = int(seg["end_frame"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="segment needs integer start_frame/end_frame")
+    if end_frame <= start_frame:
+        raise HTTPException(status_code=400, detail="end_frame must be greater than start_frame")
+
+    # Each positive click becomes a tracked object (1-based ids, matching the
+    # frontend which maps object_id-1 back to the source annotation).
+    objects_data = []
+    obj_id = 1
+    for p in seg.get("click_prompts", []):
+        if p.get("type", "positive") == "positive":
+            objects_data.append({
+                "object_id": obj_id,
+                "positive_points": [(p["x"], p["y"])],
+                "negative_points": [],
+            })
+            obj_id += 1
+    if not objects_data:
+        raise HTTPException(status_code=400, detail="At least one positive click prompt required")
+
+    total_frames = end_frame - start_frame
+    estimated = _estimate_sam2_memory(total_frames, len(objects_data))
+
+    base = {
+        "video_id": video_id,
+        "s3_bucket": storage.S3_BUCKET,
+        "s3_key": storage._key(video_id),
+        "objects_data": objects_data,
+        "model_size": "tiny",
+        "fps": video_info.fps,
+        "status": "pending",
+    }
+    parent_id = str(uuid.uuid4())
+    MAX_FRAMES = 100
+
+    if estimated > 12.0 and total_frames > MAX_FRAMES:
+        # Split into T4-safe chunks. NOTE: cross-part prompt propagation (using
+        # part N's final masks to seed part N+1) is not implemented — every part
+        # re-uses the initial clicks, so parts after the first track best when
+        # the object hasn't moved far. The common case (small range) is a single
+        # job and unaffected.
+        num_parts = (total_frames + MAX_FRAMES - 1) // MAX_FRAMES
+        created_jobs = []
+        for part in range(num_parts):
+            part_start = start_frame + part * MAX_FRAMES - (1 if part > 0 else 0)
+            part_end = min(part_start + MAX_FRAMES, end_frame)
+            part_frames = part_end - part_start
+            pid = f"{parent_id}-part-{part + 1}"
+            name = f"Tracking Job [Part {part + 1}/{num_parts}]"
+            tracking_jobs_db[pid] = {
+                **base, "job_id": pid, "name": name,
+                "start_frame": part_start, "end_frame": part_end, "frames": part_frames,
+            }
+            created_jobs.append({
+                "job_id": pid, "name": name,
+                "start_frame": part_start, "end_frame": part_end, "frames": part_frames,
+                "prompt_source": "manual" if part == 0 else "propagated",
+                "estimated_memory": f"{_estimate_sam2_memory(part_frames, len(objects_data)):.1f}GB",
+            })
+        return {
+            "job_id": parent_id,
+            "auto_split_result": {
+                "split_required": True,
+                "estimated_memory": f"{estimated:.1f}GB",
+                "max_frames_per_job": MAX_FRAMES,
+                "created_jobs": created_jobs,
+            },
+            "message": f"Segment auto-split into {num_parts} T4-safe jobs",
+        }
+
+    # Single job — fits on a T4.
+    tracking_jobs_db[parent_id] = {
+        **base, "job_id": parent_id, "name": "Tracking Job",
+        "start_frame": start_frame, "end_frame": end_frame, "frames": total_frames,
+    }
+    return {
+        "job_id": parent_id,
+        "single_job": {
+            "job_id": parent_id, "name": "Tracking Job",
+            "start_frame": start_frame, "end_frame": end_frame, "frames": total_frames,
+            "estimated_memory": f"{estimated:.1f}GB",
+        },
+        "message": "Single T4-safe tracking job created",
+    }

@@ -67,6 +67,9 @@ app.add_middleware(
 projects.videos_db = videos_db
 videos.videos_db = videos_db
 videos.download_jobs_db = download_jobs_db
+# tracking jobs are created in routers.videos and executed in routers.tracking —
+# both must share the same dict
+videos.tracking_jobs_db = tracking_jobs_db
 tracking.tracking_jobs_db = tracking_jobs_db
 tracking.job_status_db = {}
 

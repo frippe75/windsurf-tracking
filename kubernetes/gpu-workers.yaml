@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.1-prod
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.2-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_0_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
@@ -39,6 +39,22 @@ spec:
           value: "redis://windsurf-prod-redis:6379"
         - name: CELERY_BROKER
           value: "redis://windsurf-prod-redis:6379/1"
+        # S3 access so track_objects_task can fetch the source video (the worker
+        # has no shared FS with the API). Same bucket/creds as the backend.
+        - name: S3_ENDPOINT
+          value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+        - name: S3_BUCKET
+          value: "windsurf-videos"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: secret-key
         resources:
           requests:
             memory: 4Gi
@@ -94,7 +110,7 @@ spec:
     spec:
       containers:
       - name: gpu-worker
-        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.1-prod
+        image: harbor.tclab.org/windsurf/ai-celery-worker:v2.2-tracking
         command: ["celery", "-A", "workers.celery", "worker", "--loglevel=info", "--queues=gpu_1_worker", "--without-heartbeat", "--without-gossip", "--without-mingle", "--pool=solo"]
         env:
         - name: CUDA_VISIBLE_DEVICES
@@ -105,6 +121,22 @@ spec:
           value: "redis://windsurf-prod-redis:6379"
         - name: CELERY_BROKER
           value: "redis://windsurf-prod-redis:6379/1"
+        # S3 access so track_objects_task can fetch the source video (the worker
+        # has no shared FS with the API). Same bucket/creds as the backend.
+        - name: S3_ENDPOINT
+          value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+        - name: S3_BUCKET
+          value: "windsurf-videos"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: secret-key
         resources:
           requests:
             memory: 4Gi
