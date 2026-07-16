@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
-import { useVideoLibrary, mergeBackendVideos, reconcileStaleProgress, type UseVideoLibraryOptions, type VideoLibraryApi } from "./useVideoLibrary";
+import { renderHook, act, waitFor, cleanup } from "@testing-library/react";
+import { useVideoLibrary, mergeBackendVideos, reconcileStaleProgress, pruneDeletedBackendVideos, type UseVideoLibraryOptions, type VideoLibraryApi } from "./useVideoLibrary";
 import { ManagedVideo } from "@/types/video";
 import type { VideoInfoResponse } from "@/lib/api";
+import { videoCache } from "@/lib/videoCache";
 
 function makeLocalVideo(overrides: Partial<ManagedVideo> = {}): ManagedVideo {
   return {
@@ -50,9 +51,17 @@ function makeOptions(overrides: Partial<UseVideoLibraryOptions> = {}): UseVideoL
 
 beforeEach(() => {
   localStorage.clear();
+  // Stub the IndexedDB blob cache so the backend-sync prune never touches real
+  // storage or logs; individual tests re-spy .delete when they assert on it.
+  vi.spyOn(videoCache, "init").mockResolvedValue();
+  vi.spyOn(videoCache, "delete").mockResolvedValue();
 });
 
 afterEach(() => {
+  // Unmount rendered hooks first (removes focus listeners, sets disposed=true so
+  // any pending backend sync bails) before restoring mocks — keeps the new
+  // focus re-sync from leaking across tests.
+  cleanup();
   vi.restoreAllMocks();
 });
 
@@ -294,7 +303,22 @@ describe("useVideoLibrary deleteVideosFromCache", () => {
       ])
     );
     const toast = vi.fn();
-    const { result } = renderHook(() => useVideoLibrary(makeOptions({ toast })));
+    // Backend lists all three, so the mount sync keeps them (no prune) and we
+    // exercise the delete itself, not the sync.
+    const api = makeApi({
+      getVideos: vi.fn().mockResolvedValue({
+        videos: [
+          makeBackendVideo({ video_id: "v1", filename: "a.mp4" }),
+          makeBackendVideo({ video_id: "v2", filename: "b.mp4" }),
+          makeBackendVideo({ video_id: "v3", filename: "c.mp4" }),
+        ],
+        total: 3,
+      }),
+    });
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ toast, api })));
+    await waitFor(() =>
+      expect(result.current.managedVideos.map((v) => v.id).sort()).toEqual(["v1", "v2", "v3"])
+    );
 
     await act(async () => {
       await result.current.deleteVideosFromCache(["v1", "v2"]);
@@ -309,12 +333,118 @@ describe("useVideoLibrary deleteVideosFromCache", () => {
 
   it("is a no-op for ids not in the library", async () => {
     localStorage.setItem("managedVideos", JSON.stringify([makeLocalVideo({ id: "v1" })]));
-    const { result } = renderHook(() => useVideoLibrary(makeOptions()));
+    const api = makeApi({
+      getVideos: vi.fn().mockResolvedValue({ videos: [makeBackendVideo({ video_id: "v1" })], total: 1 }),
+    });
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api })));
+    await waitFor(() => expect(result.current.managedVideos).toHaveLength(1));
 
     await act(async () => {
       await result.current.deleteVideosFromCache(["nope"]);
     });
 
     expect(result.current.managedVideos).toHaveLength(1);
+  });
+});
+
+describe("pruneDeletedBackendVideos", () => {
+  it("removes ready entries absent from the backend, keeps present ones", () => {
+    const local = [
+      makeLocalVideo({ id: "gone", status: "ready" }),
+      makeLocalVideo({ id: "here", status: "ready" }),
+    ];
+    const backend = [makeBackendVideo({ video_id: "here" })];
+
+    const { kept, removed } = pruneDeletedBackendVideos(local, backend);
+
+    expect(removed.map((v) => v.id)).toEqual(["gone"]);
+    expect(kept.map((v) => v.id)).toEqual(["here"]);
+  });
+
+  it("never prunes in-flight or error entries even when absent from the backend", () => {
+    const local = [
+      makeLocalVideo({ id: "dl", status: "downloading" }),
+      makeLocalVideo({ id: "sy", status: "syncing" }),
+      makeLocalVideo({ id: "qu", status: "queued" }),
+      makeLocalVideo({ id: "er", status: "error" }),
+    ];
+
+    const { kept, removed } = pruneDeletedBackendVideos(local, []);
+
+    expect(removed).toHaveLength(0);
+    expect(kept.map((v) => v.id)).toEqual(["dl", "sy", "qu", "er"]);
+  });
+});
+
+describe("useVideoLibrary follows the DB (prune deleted-from-backend videos)", () => {
+  it("drops a ready video gone from the backend and purges its cached blob", async () => {
+    const deleteSpy = vi.spyOn(videoCache, "delete").mockResolvedValue();
+    vi.spyOn(videoCache, "init").mockResolvedValue();
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([
+        makeLocalVideo({ id: "stays", filename: "stays.mp4", status: "ready" }),
+        makeLocalVideo({ id: "deleted", filename: "deleted.mp4", status: "ready" }),
+      ])
+    );
+    const toast = vi.fn();
+    // backend only knows about "stays" now — "deleted" was removed elsewhere
+    const api = makeApi({
+      getVideos: vi.fn().mockResolvedValue({
+        videos: [makeBackendVideo({ video_id: "stays", filename: "stays.mp4" })],
+        total: 1,
+      }),
+    });
+
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api, toast })));
+
+    await waitFor(() => expect(result.current.managedVideos.map((v) => v.id)).toEqual(["stays"]));
+    expect(deleteSpy).toHaveBeenCalledWith("deleted.mp4");
+    expect(deleteSpy).not.toHaveBeenCalledWith("stays.mp4");
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining("Removed 1 deleted video") })
+    );
+  });
+
+  it("does not prune when the backend is offline (keeps the local library)", async () => {
+    const deleteSpy = vi.spyOn(videoCache, "delete").mockResolvedValue();
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([makeLocalVideo({ id: "v1", filename: "a.mp4", status: "ready" })])
+    );
+    const api = makeApi({ getVideos: vi.fn().mockRejectedValue(new Error("offline")) });
+
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api })));
+
+    await waitFor(() => expect(api.getVideos).toHaveBeenCalled());
+    expect(result.current.managedVideos.map((v) => v.id)).toEqual(["v1"]);
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it("re-syncs on tab focus and prunes a video deleted from another browser", async () => {
+    vi.spyOn(videoCache, "delete").mockResolvedValue();
+    vi.spyOn(videoCache, "init").mockResolvedValue();
+    localStorage.setItem(
+      "managedVideos",
+      JSON.stringify([makeLocalVideo({ id: "v1", filename: "a.mp4", status: "ready" })])
+    );
+    const getVideos = vi
+      .fn()
+      // mount: video still present
+      .mockResolvedValueOnce({ videos: [makeBackendVideo({ video_id: "v1", filename: "a.mp4" })], total: 1 })
+      // after focus: video was deleted elsewhere
+      .mockResolvedValueOnce({ videos: [], total: 0 });
+    const { result } = renderHook(() => useVideoLibrary(makeOptions({ api: makeApi({ getVideos }) })));
+
+    await waitFor(() => expect(getVideos).toHaveBeenCalledTimes(1));
+    expect(result.current.managedVideos.map((v) => v.id)).toEqual(["v1"]);
+
+    act(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await waitFor(() => expect(result.current.managedVideos).toHaveLength(0));
+    expect(getVideos).toHaveBeenCalledTimes(2);
   });
 });
