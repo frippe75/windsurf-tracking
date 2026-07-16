@@ -125,7 +125,7 @@ async def sam2_segment(
         from ..frames import extract_frame_image
 
         try:
-            pil_image = extract_frame_image(video_path, frame_number)
+            pil_image = extract_frame_image(video_path, frame_number, video_info.fps)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
