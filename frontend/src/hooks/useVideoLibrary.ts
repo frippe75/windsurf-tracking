@@ -11,12 +11,21 @@
  *   API, local entries keep their extra fields (youtube info, progress,
  *   timestamps), and a backend failure is tolerated (offline → localStorage
  *   only).
+ * - backend prune (follow-the-DB): the merge used to only ever *add*, so a
+ *   video deleted from the backend (here or from another browser) lingered
+ *   forever as a stale "ready" entry pointing at a gone video, with its cached
+ *   blob still in IndexedDB. Now a successful getVideos() also prunes local
+ *   `ready` entries absent from the backend list and purges their blob, so
+ *   local storage follows the DB. The sync re-runs when the tab regains focus,
+ *   so a cross-browser delete is picked up without a full reload. In-flight
+ *   entries (queued/downloading/syncing) and the offline path are never pruned
+ *   — absence there means "not uploaded yet" or "unreachable", not "deleted".
  *
  * The upload / YouTube-download orchestration flows still live in the page
  * and mutate the library through setManagedVideos/addVideo.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ManagedVideo } from "@/types/video";
 import { getVideos as apiGetVideos, type VideoInfoResponse } from "@/lib/api";
 import { videoCache } from "@/lib/videoCache";
@@ -99,6 +108,56 @@ export function mergeBackendVideos(
   return merged;
 }
 
+/**
+ * Split the local library into the entries that survive a backend sync and the
+ * ones deleted from the backend. A local `ready` entry whose video_id is absent
+ * from a *successfully fetched* backend list was removed on the server (here or
+ * from another browser) → it's stale and should be dropped, its cached blob
+ * purged. Two guards keep this from deleting videos that were never deleted:
+ *
+ *  - Only `ready` entries are candidates: queued/downloading/syncing entries
+ *    are in-flight uploads/downloads not yet on the backend, and `error`
+ *    entries never landed there — absence doesn't mean deletion for those.
+ *  - `prunableIds`, when given, restricts pruning to ids the client has already
+ *    seen on the backend (persisted entries + anything a prior sync confirmed).
+ *    A freshly-uploaded video not yet reflected in getVideos() is thus NOT in
+ *    the set and is protected from a racing prune. Omit the set to prune every
+ *    absent `ready` entry.
+ *
+ * Pure: callers purge the IndexedDB blobs of `removed` themselves.
+ */
+export function pruneDeletedBackendVideos(
+  local: ManagedVideo[],
+  backendVideos: VideoInfoResponse[],
+  prunableIds?: ReadonlySet<string>
+): { kept: ManagedVideo[]; removed: ManagedVideo[] } {
+  const backendIds = new Set(backendVideos.map((bv) => bv.video_id));
+  const kept: ManagedVideo[] = [];
+  const removed: ManagedVideo[] = [];
+  for (const v of local) {
+    const deleted =
+      v.status === "ready" && !backendIds.has(v.id) && (!prunableIds || prunableIds.has(v.id));
+    if (deleted) {
+      removed.push(v);
+    } else {
+      kept.push(v);
+    }
+  }
+  return { kept, removed };
+}
+
+/** Best-effort purge of the IndexedDB blob for each video (by filename). */
+async function purgeCachedBlobs(videos: ManagedVideo[]): Promise<void> {
+  for (const v of videos) {
+    try {
+      await videoCache.init();
+      await videoCache.delete(v.filename);
+    } catch {
+      // IndexedDB purge is best-effort (entry may never have been cached)
+    }
+  }
+}
+
 export function useVideoLibrary(options: UseVideoLibraryOptions) {
   const { toast, countProjectsUsingVideo } = options;
   const api = options.api ?? defaultApi;
@@ -123,29 +182,84 @@ export function useVideoLibrary(options: UseVideoLibraryOptions) {
     }
   }, [managedVideos]);
 
-  // Merge the backend video list into the library on mount (offline tolerated)
+  // Latest library snapshot for the sync effect (which runs with empty deps and
+  // on focus, so it must read current state without re-subscribing).
+  const managedVideosRef = useRef(managedVideos);
   useEffect(() => {
-    let cancelled = false;
+    managedVideosRef.current = managedVideos;
+  }, [managedVideos]);
 
-    const syncFromBackend = async () => {
+  // Ids the client has confirmed on the backend: persisted entries (they were
+  // saved because they were backend-backed) plus every id a successful sync
+  // returns. Only these are eligible for prune-on-delete — a just-uploaded
+  // video not yet listed by getVideos() is absent here and so protected from a
+  // racing prune. `useRef(fn)` seeds it exactly once from the initial library.
+  const knownBackendIdsRef = useRef<Set<string>>(new Set(managedVideos.map((v) => v.id)));
+
+  // Sync the library against the backend: add backend-only videos, and prune
+  // local `ready` entries that are gone from the backend (deleted here or from
+  // another browser) — purging their cached blob so storage follows the DB.
+  // Runs on mount and whenever the tab regains focus, so a cross-browser delete
+  // is picked up without a full reload.
+  useEffect(() => {
+    let disposed = false;
+
+    // healStale: on mount, drop in-flight entries whose progress poll died on
+    // reload. On a focus re-sync the polls are still live, so leave them alone.
+    const syncFromBackend = async (healStale: boolean) => {
+      let backendVideos: VideoInfoResponse[];
       try {
-        const response = await api.getVideos();
-        if (cancelled) return;
-        // Heal stale in-progress entries first (their polls died on reload),
-        // then union the backend list — completed downloads reappear as ready.
-        setManagedVideos((prev) =>
-          mergeBackendVideos(reconcileStaleProgress(prev), response.videos, now)
-        );
+        backendVideos = (await api.getVideos()).videos;
       } catch (error) {
-        // Offline / backend down → still clear stale in-progress entries
+        // Offline / backend down → never prune (can't tell deleted from
+        // unreachable). Only heal stale in-flight entries, and only on mount.
         console.warn("📚 Video library: backend list unavailable, using local library:", error);
-        if (!cancelled) setManagedVideos((prev) => reconcileStaleProgress(prev));
+        if (!disposed && healStale) setManagedVideos((prev) => reconcileStaleProgress(prev));
+        return;
       }
+      if (disposed) return;
+
+      // Everything the backend just returned is now "known" for future syncs.
+      for (const bv of backendVideos) knownBackendIdsRef.current.add(bv.video_id);
+
+      // Compute prunes from the latest snapshot so we can purge blobs + toast
+      // outside the (pure) state updater. Only known ids are prunable, so a
+      // just-uploaded video the backend hasn't listed yet is left alone.
+      const base = healStale
+        ? reconcileStaleProgress(managedVideosRef.current)
+        : managedVideosRef.current;
+      const { removed } = pruneDeletedBackendVideos(base, backendVideos, knownBackendIdsRef.current);
+      const removedIds = new Set(removed.map((v) => v.id));
+
+      if (removed.length) {
+        await purgeCachedBlobs(removed);
+        if (disposed) return;
+        toast({
+          title: `Removed ${removed.length} deleted video${removed.length !== 1 ? "s" : ""}`,
+          description: "No longer on the server — cleared from your local cache.",
+        });
+      }
+
+      if (disposed) return;
+      setManagedVideos((prev) => {
+        const healed = healStale ? reconcileStaleProgress(prev) : prev;
+        const pruned = removedIds.size ? healed.filter((v) => !removedIds.has(v.id)) : healed;
+        return mergeBackendVideos(pruned, backendVideos, now);
+      });
     };
 
-    syncFromBackend();
+    syncFromBackend(true);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncFromBackend(false);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
     return () => {
-      cancelled = true;
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -182,14 +296,7 @@ export function useVideoLibrary(options: UseVideoLibraryOptions) {
     const ids = new Set(videoIds);
     const targets = managedVideos.filter((v) => ids.has(v.id));
 
-    for (const v of targets) {
-      try {
-        await videoCache.init();
-        await videoCache.delete(v.filename);
-      } catch {
-        // IndexedDB purge is best-effort (entry may never have been cached)
-      }
-    }
+    await purgeCachedBlobs(targets);
 
     setManagedVideos((prev) => prev.filter((v) => !ids.has(v.id)));
 
