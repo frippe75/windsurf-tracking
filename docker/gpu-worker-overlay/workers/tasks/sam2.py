@@ -97,26 +97,19 @@ def track_objects_task(self, job_data):
         total = max(1, end_frame - start_frame)
         self.update_state(state='PROGRESS', meta={
             'current_frame': start_frame, 'total_frames': total,
-            'percentage': 0.0, 'stage': 'initializing',
+            'percentage': 0.0, 'stage': 'tracking',
         })
 
-        def progress_callback(current_frame, percentage, phase):
-            self.update_state(state='PROGRESS', meta={
-                'current_frame': start_frame + int(current_frame),
-                'total_frames': total,
-                'percentage': float(percentage),
-                'stage': phase,
-                'frames_completed': int((float(percentage) / 100.0) * total),
-            })
-
-        # Real SAM2 video propagation.
+        # Real SAM2 video propagation. No progress_callback: the tracker schedules
+        # it via asyncio.create_task (sail_tracking.py), which needs a running
+        # event loop the sync Celery worker doesn't have. Status therefore reports
+        # running -> completed without granular per-frame percentage.
         results, frame_masks, _scaled = track_objects_in_video(
             video_path=video_path,
             objects_data=objects_data,
             initial_frame=start_frame,
             end_frame=end_frame,
             model_size=model_size,
-            progress_callback=progress_callback,
         )
 
         # Flatten to a JSON-serializable per-frame array the frontend parses
