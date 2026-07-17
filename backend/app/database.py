@@ -51,6 +51,26 @@ class DBAnnotationClass(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     __table_args__ = (UniqueConstraint('project_id', 'name', name='uq_class_project_name'),)
 
+class DBJob(Base):
+    """Durable job record (tracking today; export/others later). Replaces the
+    in-memory tracking_jobs_db, which lost jobs on any pod restart/rollout and
+    404'd status/results across replicas. The heavy per-frame tracking result
+    stays in the Celery result backend (Redis); this row holds the metadata +
+    status + task_id needed to find and report it after a restart."""
+    __tablename__ = "jobs"
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    kind = Column(String(50), nullable=False)              # tracking | export
+    video_id = Column(UUID(as_uuid=True))
+    project_id = Column(UUID(as_uuid=True))
+    status = Column(String(50), nullable=False, default="pending")  # pending|running|completed|failed
+    params = Column(JSONB, default={})
+    result = Column(JSONB)
+    task_id = Column(String(255))                          # celery task id
+    error = Column(Text)
+    progress = Column(Float, default=0)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
 class DBAnnotation(Base):
     __tablename__ = "annotations"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())

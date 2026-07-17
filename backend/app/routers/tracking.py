@@ -1,26 +1,23 @@
 """
-Tracking job execution endpoints.
+Tracking job execution endpoints — backed by the durable `jobs` table.
 
-Jobs are *created* by `POST /api/videos/{video_id}/tracking/jobs` (see
-routers/videos.py), which stores each (sub-)job in `tracking_jobs_db`. Here we
-execute a stored job on the GPU worker (Celery task
-`workers.tasks.sam2.track_objects_task`, queue `gpu_0_worker`) and expose its
-live status/results. The worker pulls the source video from S3 itself, runs
-SAM2 video propagation, and returns per-frame bboxes + base64 masks.
+Jobs are *created* by `POST /api/videos/{video_id}/tracking/jobs` (routers/videos.py),
+which inserts DBJob(kind='tracking') rows. Here we execute a stored job on the GPU
+worker (Celery task `workers.tasks.sam2.track_objects_task`, queue `gpu_0_worker`)
+and expose its live status/results. The job row (params + task_id + status) lives in
+Postgres so status/results survive pod restarts, rollouts, and multiple replicas —
+the heavy per-frame result stays in the Celery result backend (Redis).
 """
-
 import os
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from ..database import get_db, DBJob
 
 router = APIRouter(prefix="/api/tracking", tags=["tracking"])
 
-# Injected from main (shared with routers.videos so create/execute see the same jobs)
-tracking_jobs_db = {}
-job_status_db = {}
-
 
 def _celery():
-    """Celery client bound to the shared Redis (broker db 1, results db 2)."""
     from celery import Celery
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     app = Celery("windsurf_workers")
@@ -29,172 +26,149 @@ def _celery():
     return app
 
 
-def _celery_status(job: dict) -> dict:
-    """Translate the Celery task state of a job into the frontend's status shape
-    ({status, percentage, ...}). Also flips the stored job status on terminal
-    states so a completed job stays completed after the result expires."""
-    task_id = job.get("task_id")
-    if not task_id:
-        return {"job_id": job["job_id"], "status": job.get("status", "pending"), "percentage": 0}
+def _get_job(job_id: str, db: Session) -> DBJob:
+    job = db.query(DBJob).filter(DBJob.id == job_id, DBJob.kind == "tracking").first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
-    res = _celery().AsyncResult(task_id)
-    out = {"job_id": job["job_id"]}
 
-    # Reading state/info/result deserializes the stored meta, which can raise if
-    # the meta is malformed — never let that 500 a status poll.
+def _job_status(db: Session, job: DBJob) -> dict:
+    """Reconcile the job's Celery task state into {status, percentage}, persisting
+    terminal/progress transitions. Never lets an undecodable meta 500 a poll."""
+    out = {"job_id": str(job.id)}
+    if not job.task_id:
+        return {**out, "status": job.status or "pending", "percentage": job.progress or 0}
+
+    res = _celery().AsyncResult(job.task_id)
     try:
         state = res.state
     except Exception:
-        return {"job_id": job["job_id"], "status": job.get("status", "running"),
-                "percentage": job.get("percentage", 0)}
+        return {**out, "status": job.status or "running", "percentage": job.progress or 0}
 
     def _safe(attr):
         try:
-            val = getattr(res, attr)
-            return val if isinstance(val, dict) else {}
+            v = getattr(res, attr)
+            return v if isinstance(v, dict) else {}
         except Exception:
             return {}
 
+    changed = False
     if state in ("PENDING", "RECEIVED", "STARTED", "RETRY"):
-        out.update(status="running", percentage=job.get("percentage", 0))
+        out.update(status="running", percentage=job.progress or 0)
     elif state == "PROGRESS":
-        info = _safe("info")
-        pct = info.get("percentage", job.get("percentage", 0))
-        job["percentage"] = pct
-        out.update(status="running", percentage=pct,
-                   current_frame=info.get("current_frame"), stage=info.get("stage"))
+        pct = _safe("info").get("percentage", job.progress or 0)
+        if pct != job.progress:
+            job.progress = pct
+            changed = True
+        out.update(status="running", percentage=pct)
     elif state == "SUCCESS":
-        result = _safe("result")
-        if result.get("success"):
-            job["status"] = "completed"
-            out.update(status="completed", percentage=100)
-        else:
-            job["status"] = "failed"
-            out.update(status="failed", percentage=0,
-                       error=result.get("error", "tracking failed in worker"))
+        ok = _safe("result").get("success")
+        new_status = "completed" if ok else "failed"
+        if job.status != new_status:
+            job.status = new_status
+            job.progress = 100 if ok else job.progress
+            changed = True
+        out.update(status=new_status, percentage=100 if ok else (job.progress or 0))
+        if not ok:
+            out["error"] = _safe("result").get("error", "tracking failed in worker")
     elif state == "FAILURE":
-        job["status"] = "failed"
+        if job.status != "failed":
+            job.status = "failed"
+            changed = True
         out.update(status="failed", percentage=0, error=str(res.info)[:300])
     else:
-        out.update(status=job.get("status", "running"), percentage=job.get("percentage", 0))
+        out.update(status=job.status or "running", percentage=job.progress or 0)
 
+    if changed:
+        db.commit()
     return out
 
 
 @router.post("/jobs/{job_id}/execute")
-async def execute_tracking_job(job_id: str, background_tasks: BackgroundTasks):
+async def execute_tracking_job(job_id: str, db: Session = Depends(get_db)):
     """Dispatch a pending tracking job to the GPU worker."""
+    job = _get_job(job_id, db)
 
-    if job_id not in tracking_jobs_db:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    job = tracking_jobs_db[job_id]
-
-    if job.get("status") not in (None, "pending"):
-        # Idempotent: re-executing a running/completed job just reports it.
-        return {"job_id": job_id, "status": job.get("status"),
-                "message": f"Job already {job.get('status')}",
+    if job.status not in (None, "pending"):
+        return {"job_id": job_id, "status": job.status,
+                "message": f"Job already {job.status}",
                 "monitor_url": f"/api/tracking/jobs/{job_id}/status"}
 
+    p = job.params or {}
     task_data = {
-        "s3_bucket": job["s3_bucket"],
-        "s3_key": job["s3_key"],
-        "objects_data": job["objects_data"],
-        "start_frame": job["start_frame"],
-        "end_frame": job["end_frame"],
-        "model_size": job.get("model_size", "tiny"),
+        "s3_bucket": p.get("s3_bucket"),
+        "s3_key": p.get("s3_key"),
+        "objects_data": p.get("objects_data"),
+        "start_frame": p.get("start_frame"),
+        "end_frame": p.get("end_frame"),
+        "model_size": p.get("model_size", "tiny"),
     }
-
     try:
         task = _celery().send_task(
-            "workers.tasks.sam2.track_objects_task",
-            args=[task_data],
-            queue="gpu_0_worker",
+            "workers.tasks.sam2.track_objects_task", args=[task_data], queue="gpu_0_worker",
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not reach GPU worker: {e}")
 
-    job["task_id"] = task.id
-    job["status"] = "running"
-    job["percentage"] = 0
-
-    return {
-        "job_id": job_id,
-        "status": "started",
-        "message": "SAM2 tracking dispatched to GPU worker",
-        "monitor_url": f"/api/tracking/jobs/{job_id}/status",
-    }
+    job.task_id = task.id
+    job.status = "running"
+    job.progress = 0
+    db.commit()
+    return {"job_id": job_id, "status": "started",
+            "message": "SAM2 tracking dispatched to GPU worker",
+            "monitor_url": f"/api/tracking/jobs/{job_id}/status"}
 
 
 @router.get("/jobs/{job_id}/status")
-async def get_job_status(job_id: str):
-    """Live status/progress of a tracking job (Celery task state)."""
-
-    if job_id not in tracking_jobs_db:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return _celery_status(tracking_jobs_db[job_id])
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):
+    return _job_status(db, _get_job(job_id, db))
 
 
 @router.get("/jobs/{job_id}/results")
-async def get_job_results(job_id: str):
-    """Per-frame tracking results once the job has completed."""
-
-    if job_id not in tracking_jobs_db:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    job = tracking_jobs_db[job_id]
-    status = _celery_status(job)
+async def get_job_results(job_id: str, db: Session = Depends(get_db)):
+    job = _get_job(job_id, db)
+    status = _job_status(db, job)
 
     result_payload = None
-    task_id = job.get("task_id")
-    if status["status"] == "completed" and task_id:
+    if status["status"] == "completed" and job.task_id:
         try:
-            res = _celery().AsyncResult(task_id)
+            res = _celery().AsyncResult(job.task_id)
             worker_result = res.result if isinstance(res.result, dict) else {}
         except Exception:
             worker_result = {}
-        # Worker returns {success, results: {frames: [...], summary}}
         result_payload = worker_result.get("results")
 
+    p = job.params or {}
     return {
         "job_id": job_id,
-        "video_id": job.get("video_id"),
-        "name": job.get("name", "Tracking Job"),
+        "video_id": str(job.video_id) if job.video_id else None,
+        "name": p.get("name", "Tracking Job"),
         "status": status["status"],
-        "start_frame": job.get("start_frame"),
-        "end_frame": job.get("end_frame"),
-        "frames": job.get("frames"),
+        "start_frame": p.get("start_frame"),
+        "end_frame": p.get("end_frame"),
+        "frames": p.get("frames"),
         "results": result_payload,
         "error": status.get("error"),
     }
 
 
 @router.get("/results")
-async def get_tracking_results():
-    """Summary of all known tracking jobs."""
-
+async def get_tracking_results(db: Session = Depends(get_db)):
+    jobs = db.query(DBJob).filter(DBJob.kind == "tracking").all()
     results = []
-    for job_id, job in tracking_jobs_db.items():
-        st = _celery_status(job)
+    for job in jobs:
+        st = _job_status(db, job)
+        p = job.params or {}
         results.append({
-            "job_id": job_id,
-            "video_id": job.get("video_id"),
-            "name": job.get("name", "Tracking Job"),
-            "status": st["status"],
+            "job_id": str(job.id), "video_id": str(job.video_id) if job.video_id else None,
+            "name": p.get("name", "Tracking Job"), "status": st["status"],
             "percentage": st.get("percentage", 0),
-            "start_frame": job.get("start_frame"),
-            "end_frame": job.get("end_frame"),
-            "frames": job.get("frames"),
+            "start_frame": p.get("start_frame"), "end_frame": p.get("end_frame"),
+            "frames": p.get("frames"),
         })
-
     return {
-        "results": results,
-        "total": len(results),
-        "summary": {
-            "completed": len([r for r in results if r["status"] == "completed"]),
-            "running": len([r for r in results if r["status"] == "running"]),
-            "pending": len([r for r in results if r["status"] == "pending"]),
-            "failed": len([r for r in results if r["status"] == "failed"]),
-        },
+        "results": results, "total": len(results),
+        "summary": {s: len([r for r in results if r["status"] == s])
+                    for s in ("completed", "running", "pending", "failed")},
     }
