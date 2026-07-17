@@ -1387,21 +1387,69 @@ const Index = () => {
         return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
       });
 
-      // If clicking on existing annotation, add SAM2 prompt to it
+      // Clicking an existing annotation: add the prompt AND re-run SAM2 with the
+      // full prompt set, so negative clicks actually refine the mask.
       if (clickedAnnotation) {
-        
-        setAnnotations(prev => prev.map(ann => {
-          if (ann.id === clickedAnnotation.id) {
-            const existingPrompts = ann.sam2Prompts || [];
-            return { ...ann, sam2Prompts: [...existingPrompts, { x, y, type: promptType }] };
-          }
-          return ann;
-        }));
+        const updatedPrompts = [
+          ...(clickedAnnotation.sam2Prompts || []),
+          { x, y, type: promptType },
+        ];
 
-        toast({
-          title: `${promptType === 'positive' ? '+' : '-'} prompt added`,
-          description: `Click added to existing annotation`,
-        });
+        // Persist the new prompt immediately
+        setAnnotations(prev => prev.map(ann =>
+          ann.id === clickedAnnotation.id ? { ...ann, sam2Prompts: updatedPrompts } : ann
+        ));
+
+        if (!useSAM2 || !videoId) {
+          toast({
+            title: `${isNegative ? '−' : '+'} prompt added`,
+            description: useSAM2 ? "No video loaded — mask not updated." : "Enable SAM2 to update the mask.",
+          });
+          return;
+        }
+
+        // SAM2 needs at least one positive point
+        if (!updatedPrompts.some(p => p.type === 'positive')) {
+          toast({
+            title: "Add a positive prompt first",
+            description: "SAM2 needs at least one + point before refining with − points.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        toast({ title: `${isNegative ? '−' : '+'} prompt added`, description: "Updating segmentation…" });
+        try {
+          const click_prompts = updatedPrompts.map(p => {
+            const n = pctToNative(p.x, p.y, nativeW, nativeH);
+            return { x: n.x, y: n.y, type: p.type };
+          });
+          const sam2Response = await segmentWithSAM2({
+            video_id: videoId,
+            frame_number: currentFrame,
+            click_prompts,
+          });
+          const results = (sam2Response as any).results;
+          if (results?.bbox) {
+            const [x1, y1, x2, y2] = results.bbox as [number, number, number, number];
+            const newBbox = nativeBBoxToPct([x1, y1, x2, y2], nativeW, nativeH);
+            setAnnotations(prev => prev.map(ann =>
+              ann.id === clickedAnnotation.id
+                ? { ...ann, bbox: newBbox, maskBBox: newBbox, maskBase64: results.mask_base64, points: bboxToPolygon(newBbox) }
+                : ann
+            ));
+            const pos = updatedPrompts.filter(p => p.type === 'positive').length;
+            const neg = updatedPrompts.filter(p => p.type === 'negative').length;
+            toast({ title: "Segmentation updated", description: `${pos}+ / ${neg}− prompts` });
+          }
+        } catch (error) {
+          console.error('SAM2 re-segment failed:', error);
+          toast({
+            title: "Segmentation update failed",
+            description: error instanceof Error ? error.message : "Unknown error",
+            variant: "destructive",
+          });
+        }
         return;
       }
 
