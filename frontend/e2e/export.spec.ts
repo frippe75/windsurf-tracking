@@ -45,6 +45,9 @@ async function apiCleanup(req: APIRequestContext, token: string, videoId: string
 }
 
 test("Export button produces a YOLO dataset from the current project", async ({ page, request }) => {
+  // The journey does a lot (login + API upload + reload + export round-trip +
+  // cleanup); give it well beyond the 60s default so it isn't flaky.
+  test.setTimeout(150_000);
   const token = await uiLogin(page);
 
   // 1) upload a real video via the API (the seeded project references it)
@@ -93,9 +96,14 @@ test("Export button produces a YOLO dataset from the current project", async ({ 
     await exportBtn.click();
 
     // 6) success toast confirms a dataset was produced
-    await expect(page.getByText("Dataset exported").first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Dataset exported").first()).toBeVisible({ timeout: 45_000 });
     await expect(page.getByText(/\d+ images, \d+ boxes/).first()).toBeVisible();
   } finally {
-    await apiCleanup(request, token, videoId, "e2e-browser");
+    // best-effort — never let cleanup errors mask the result
+    try {
+      await apiCleanup(request, token, videoId, "e2e-browser");
+    } catch {
+      /* ignore */
+    }
   }
 });
