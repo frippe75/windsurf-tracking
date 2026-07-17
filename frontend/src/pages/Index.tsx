@@ -28,7 +28,8 @@ import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import { ManagedVideo } from "@/types/video";
 import { Project, createEmptyProject } from "@/types/project";
-import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, createProject } from "@/lib/api";
+import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, createProject, createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset } from "@/lib/api";
+import { exportProjectAsYolo } from "@/lib/datasetExport";
 import { pctToNative, nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
 import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
@@ -1731,28 +1732,50 @@ const Index = () => {
     });
   };
 
-  const handleExportData = () => {
-    const exportData = {
-      classes,
-      instances,
-      annotations,
-      keyframes,
-      exportedAt: new Date().toISOString(),
-    };
+  const handleExportData = async () => {
+    if (!videoId) {
+      toast({ title: "No video", description: "Open a video before exporting.", variant: "destructive" });
+      return;
+    }
+    if (classes.length === 0 || annotations.length === 0) {
+      toast({ title: "Nothing to export", description: "Add classes and annotations first.", variant: "destructive" });
+      return;
+    }
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `annotations-export-${Date.now()}.json`;
-    a.click();
+    toast({ title: "Exporting dataset…", description: "Saving annotations and building the YOLO dataset." });
+    try {
+      const activeProject = projects.find((p) => p.id === activeProjectId);
+      const res = await exportProjectAsYolo({
+        projectName: activeProject?.name ?? "windsurf-project",
+        videoId,
+        classes,
+        instances,
+        annotations,
+        api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
+      });
 
-    toast({
-      title: "Data exported",
-      description: "Hierarchical annotations exported to JSON",
-    });
+      const url = res.result?.url;
+      if (url) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+
+      const { images, boxes, splits } = res.stats;
+      toast({
+        title: "Dataset exported",
+        description: `${images} images, ${boxes} boxes (${splits.train ?? 0} train / ${splits.val ?? 0} val) — ${res.sink}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   // === Additional Project Management Handlers (v2) ===

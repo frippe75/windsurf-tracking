@@ -1223,3 +1223,83 @@ export const getTrackingJobResults = async (jobId: string): Promise<TrackingJobR
 
   throw new Error(`Tracking results not available yet for job ${jobId} after ${maxAttempts} retries`);
 };
+
+// ---------------------------------------------------------------------------
+// Dataset export (YOLO) — persist project/classes/annotations to the backend,
+// then generate a dataset via a pluggable sink. All auth-guarded.
+// ---------------------------------------------------------------------------
+
+export const createBackendProject = async (name: string, videoId: string, description = ""): Promise<{ id: string }> => {
+  const r = await fetch(`${config.backendUrl}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ name, video_id: videoId, description }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    throw new Error(`Failed to create project: ${r.status} ${r.statusText}`);
+  }
+  return r.json();
+};
+
+export const createBackendClass = async (projectId: string, name: string, color: string): Promise<{ id: string }> => {
+  const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/classes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ name, color }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    throw new Error(`Failed to create class '${name}': ${r.status} ${r.statusText}`);
+  }
+  return r.json();
+};
+
+export interface BackendAnnotation {
+  instance_id: string;
+  class_id: string;
+  frame_number: number;
+  annotation_type: string;
+  geometry: { bbox: { x: number; y: number; w: number; h: number } };
+  is_keyframe: boolean;
+}
+
+export const saveBackendAnnotations = async (projectId: string, annotations: BackendAnnotation[]): Promise<{ saved: number }> => {
+  const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/annotations`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ annotations }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    throw new Error(`Failed to save annotations: ${r.status} ${r.statusText}`);
+  }
+  return r.json();
+};
+
+export const getExportSinks = async (): Promise<{ sinks: string[] }> => {
+  const r = await fetch(`${config.backendUrl}/api/export/sinks`, { headers: getAuthHeaders() });
+  if (!r.ok) throw new Error(`Failed to list export sinks: ${r.status}`);
+  return r.json();
+};
+
+export interface ExportResult {
+  project_id: string;
+  sink: string;
+  stats: { images: number; labels: number; boxes: number; skipped: number; classes: string[]; splits: Record<string, number> };
+  result: { kind: string; url?: string; id?: string; bytes?: number };
+}
+
+export const exportDataset = async (projectId: string, sink = "zip"): Promise<ExportResult> => {
+  const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/export`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ sink }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    const t = await r.text().catch(() => "");
+    throw new Error(`Export failed: ${r.status} ${r.statusText} ${t}`);
+  }
+  return r.json();
+};
