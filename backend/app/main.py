@@ -34,7 +34,6 @@ from .routers import auth, projects, videos, ai, tracking, export
 
 # Global storage (TODO: migrate to proper dependency injection)
 videos_db: Dict[str, VideoInfo] = {}
-tracking_jobs_db = {}
 download_jobs_db = {}
 
 # Version reflects the deployed build: CI injects APP_VERSION=<commit sha>
@@ -67,11 +66,7 @@ app.add_middleware(
 projects.videos_db = videos_db
 videos.videos_db = videos_db
 videos.download_jobs_db = download_jobs_db
-# tracking jobs are created in routers.videos and executed in routers.tracking —
-# both must share the same dict
-videos.tracking_jobs_db = tracking_jobs_db
-tracking.tracking_jobs_db = tracking_jobs_db
-tracking.job_status_db = {}
+# tracking jobs now live in the `jobs` table (routers.tracking uses the DB session)
 export.videos_db = videos_db
 
 # Register routers

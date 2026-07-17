@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Optional, Dict
 import asyncio
 
+from sqlalchemy.orm import Session
+
 from ..api_models import YouTubeDownloadRequest
 from ..auth import get_current_active_user
-from ..database import DBUser
+from ..database import DBUser, DBJob, get_db
 from .. import storage
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -18,7 +20,6 @@ router = APIRouter(prefix="/api/videos", tags=["videos"])
 # These will be injected from main
 videos_db = {}
 download_jobs_db = {}
-tracking_jobs_db = {}  # shared with routers.tracking (execute/status/results)
 
 
 def _estimate_sam2_memory(total_frames: int, num_objects: int = 1) -> float:
@@ -448,20 +449,29 @@ async def detect_scenes_api(video_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _create_tracking_db_job(db, video_id, base_params, name, start, end, frames) -> str:
+    """Insert one tracking DBJob and return its id (str)."""
+    job = DBJob(
+        kind="tracking", video_id=video_id, status="pending",
+        params={**base_params, "name": name, "start_frame": start, "end_frame": end, "frames": frames},
+    )
+    db.add(job)
+    db.flush()  # assign id without ending the transaction
+    return str(job.id)
+
+
 @router.post("/{video_id}/tracking/jobs")
-async def create_tracking_job(video_id: str, request: Dict):
+async def create_tracking_job(video_id: str, request: Dict, db: Session = Depends(get_db)):
     """
     Create a SAM2 tracking job for a segment, auto-splitting large ranges to
     stay within T4 memory. Execute each returned (sub-)job via
-    POST /api/tracking/jobs/{job_id}/execute.
+    POST /api/tracking/jobs/{job_id}/execute. Jobs persist in the `jobs` table.
 
     Click-prompt coordinates must be in NATIVE video resolution (same contract
     as GET /videos/{id}). Request:
         {"segments": [{"start_frame": 100, "end_frame": 160,
                        "click_prompts": [{"x": 640, "y": 360, "type": "positive"}]}]}
     """
-    import uuid
-
     if video_id not in videos_db:
         raise HTTPException(status_code=404, detail="Video not found")
     video_info = videos_db[video_id]
@@ -497,16 +507,13 @@ async def create_tracking_job(video_id: str, request: Dict):
     total_frames = end_frame - start_frame
     estimated = _estimate_sam2_memory(total_frames, len(objects_data))
 
-    base = {
-        "video_id": video_id,
+    base_params = {
         "s3_bucket": storage.S3_BUCKET,
         "s3_key": storage._key(video_id),
         "objects_data": objects_data,
         "model_size": "tiny",
         "fps": video_info.fps,
-        "status": "pending",
     }
-    parent_id = str(uuid.uuid4())
     MAX_FRAMES = 100
 
     if estimated > 12.0 and total_frames > MAX_FRAMES:
@@ -521,20 +528,17 @@ async def create_tracking_job(video_id: str, request: Dict):
             part_start = start_frame + part * MAX_FRAMES - (1 if part > 0 else 0)
             part_end = min(part_start + MAX_FRAMES, end_frame)
             part_frames = part_end - part_start
-            pid = f"{parent_id}-part-{part + 1}"
             name = f"Tracking Job [Part {part + 1}/{num_parts}]"
-            tracking_jobs_db[pid] = {
-                **base, "job_id": pid, "name": name,
-                "start_frame": part_start, "end_frame": part_end, "frames": part_frames,
-            }
+            jid = _create_tracking_db_job(db, video_id, base_params, name, part_start, part_end, part_frames)
             created_jobs.append({
-                "job_id": pid, "name": name,
+                "job_id": jid, "name": name,
                 "start_frame": part_start, "end_frame": part_end, "frames": part_frames,
                 "prompt_source": "manual" if part == 0 else "propagated",
                 "estimated_memory": f"{_estimate_sam2_memory(part_frames, len(objects_data)):.1f}GB",
             })
+        db.commit()
         return {
-            "job_id": parent_id,
+            "job_id": created_jobs[0]["job_id"],
             "auto_split_result": {
                 "split_required": True,
                 "estimated_memory": f"{estimated:.1f}GB",
@@ -545,14 +549,12 @@ async def create_tracking_job(video_id: str, request: Dict):
         }
 
     # Single job — fits on a T4.
-    tracking_jobs_db[parent_id] = {
-        **base, "job_id": parent_id, "name": "Tracking Job",
-        "start_frame": start_frame, "end_frame": end_frame, "frames": total_frames,
-    }
+    jid = _create_tracking_db_job(db, video_id, base_params, "Tracking Job", start_frame, end_frame, total_frames)
+    db.commit()
     return {
-        "job_id": parent_id,
+        "job_id": jid,
         "single_job": {
-            "job_id": parent_id, "name": "Tracking Job",
+            "job_id": jid, "name": "Tracking Job",
             "start_frame": start_frame, "end_frame": end_frame, "frames": total_frames,
             "estimated_memory": f"{estimated:.1f}GB",
         },
