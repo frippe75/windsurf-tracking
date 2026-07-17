@@ -63,3 +63,5 @@ sam2/
 
 # Kubernetes sensitive files
 kubectl
+# but do track small e2e video fixtures
+!backend/tests/e2e/fixtures/*.mp4
