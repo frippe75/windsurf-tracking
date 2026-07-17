@@ -42,7 +42,8 @@ test-backend:
     - vm
   # Base image carries the ML/DB deps (site-packages); assemble current source
   # in a writable /tmp workspace (the container runs as non-root; /app is ro).
-  image: harbor.tclab.org/windsurf/annotation-api:v2-auth
+  # :base replaced :v2-auth (deleted from Harbor 2026-07-17).
+  image: harbor.tclab.org/windsurf/annotation-api:base
   variables:
     PYTHONPATH: /tmp/ws
     HOME: /tmp

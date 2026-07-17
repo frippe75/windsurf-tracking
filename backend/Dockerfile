@@ -1,10 +1,10 @@
-# Overlay build: the v2-auth base carries the full ML stack (torch, SAM2, DINO —
+# Overlay build: the :base image carries the full ML stack (torch, SAM2, DINO —
 # ~4.3GB) whose original build context is lost. We only replace the app code.
-# The base was built from source newer than windsurf-sail-dataset/backend/ in
-# this repo; backend/app/ is that source, recovered from the running image
-# (2026-07-07) and maintained here going forward.
+# `:base` replaced the old `:v2-auth` base (which was deleted from Harbor on
+# 2026-07-17); it was bootstrapped from the last-good self-built image and is the
+# immutable ML-stack base going forward.
 # Build context is the REPO ROOT (CI: docker build -f backend/Dockerfile .)
-FROM harbor.tclab.org/windsurf/annotation-api:v2-auth
+FROM harbor.tclab.org/windsurf/annotation-api:base
 
 RUN pip install --no-cache-dir boto3 yt-dlp
 
