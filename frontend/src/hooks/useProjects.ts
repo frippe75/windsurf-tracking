@@ -33,8 +33,10 @@ import {
   getProjects as apiGetProjects,
   getProject as apiGetProject,
   updateProject as apiUpdateProject,
+  createProject as apiCreateProject,
   type ProjectResponse,
 } from "@/lib/api";
+import { saveProjectToBackend } from "@/lib/projectSync";
 
 export type BackendStatus = "checking" | "healthy" | "offline";
 
@@ -51,6 +53,7 @@ export interface ProjectsApi {
   getProjects: typeof apiGetProjects;
   getProject: typeof apiGetProject;
   updateProject: typeof apiUpdateProject;
+  createProject: typeof apiCreateProject;
 }
 
 export interface ToastOptions {
@@ -78,6 +81,7 @@ const defaultApi: ProjectsApi = {
   getProjects: apiGetProjects,
   getProject: apiGetProject,
   updateProject: apiUpdateProject,
+  createProject: apiCreateProject,
 };
 
 const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
@@ -137,7 +141,7 @@ export async function mergeBackendProjects(
     const createdAt = new Date(bp.created_at).getTime();
     const lastModified = new Date(bp.last_modified).getTime();
 
-    const existingIdx = merged.findIndex((p) => p.id === bp.id);
+    const existingIdx = merged.findIndex((p) => (p.backendProjectId ?? p.id) === bp.id);
     const local = existingIdx >= 0 ? merged[existingIdx] : undefined;
 
     // Keep the one with the latest modification (ties keep local, as before)
@@ -160,6 +164,7 @@ export async function mergeBackendProjects(
     if (!local) {
       merged.push({
         id: bp.id,
+        backendProjectId: bp.id,
         name: bp.name,
         videoIds: backendVideoIds,
         createdAt,
@@ -286,21 +291,22 @@ export function useProjects(options: UseProjectsOptions) {
 
     setProjects((prev) => prev.map((p) => (p.id === activeProjectId ? updatedProject : p)));
 
-    // Try to save to backend if online (debounced)
+    // Try to save to backend if online (debounced). saveProjectToBackend backs the
+    // project on first save (creating the backend project when needed) so
+    // explicitly-created projects — not just video-select ones — become durable.
     if (backendStatus === "healthy") {
       const timeoutId = setTimeout(async () => {
         try {
-          await api.updateProject(activeProjectId, {
-            name: project.name,
-            settings: {
-              classes,
-              instances,
-              annotations,
-              keyframes,
-              scenes,
-              videoMetadata,
-            },
-          });
+          const { backendProjectId } = await saveProjectToBackend(
+            updatedProject,
+            { classes, instances, annotations, keyframes, scenes, videoMetadata },
+            api,
+          );
+          if (backendProjectId) {
+            setProjects((prev) =>
+              prev.map((p) => (p.id === activeProjectId ? { ...p, backendProjectId } : p))
+            );
+          }
           console.log("💾 Auto-saved project to backend");
         } catch (error) {
           console.error("Failed to auto-save to backend (offline mode active):", error);

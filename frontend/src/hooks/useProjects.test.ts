@@ -59,6 +59,7 @@ function makeApi(overrides: Partial<ProjectsApi> = {}): ProjectsApi {
     getProjects: vi.fn().mockResolvedValue({ projects: [], total: 0 }),
     getProject: vi.fn().mockResolvedValue(makeBackendProject()),
     updateProject: vi.fn().mockResolvedValue(makeBackendProject()),
+    createProject: vi.fn().mockResolvedValue(makeBackendProject()),
     ...overrides,
   };
 }

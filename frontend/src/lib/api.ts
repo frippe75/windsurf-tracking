@@ -709,7 +709,7 @@ export const updateProject = async (
 
   if (!response.ok) {
     if (response.status === 401) handleUnauthorized();
-    throw new Error(`Failed to update project: ${response.statusText}`);
+    throw new Error(`Failed to update project: ${response.status} ${response.statusText}`);
   }
 
   return await response.json();

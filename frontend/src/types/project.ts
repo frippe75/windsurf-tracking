@@ -1,11 +1,16 @@
 import { Class, Instance, Annotation, Keyframe, Scene } from "./annotation";
 
 export interface Project {
-  id: string;                    // UUID
+  id: string;                    // local UUID (stable across the session)
   name: string;                  // User-editable project name
   videoIds: string[];            // Array of video IDs in this dataset
   createdAt: number;             // Timestamp
   lastModified: number;          // Timestamp
+
+  // Backend project id once this project has been persisted to the DB. May equal
+  // `id` for older projects that adopted the backend id on the video-select path.
+  // Auto-save/hydrate use `backendProjectId ?? id`.
+  backendProjectId?: string;
   
   // All annotation state
   classes: Class[];
