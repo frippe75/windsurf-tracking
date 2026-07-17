@@ -1,9 +1,9 @@
 # GitLab CI for windsurf-tracking
 # Builds the frontend, pushes to Harbor, bumps the kustomize tag for ArgoCD.
 #
-# Backend builds are overlays on the v2-auth base (backend/Dockerfile): the
-# base's ML-stack build context is lost, so only /app/app code is replaced.
-# backend/app/ is the recovered v2-auth source, canonical as of 2026-07-07.
+# Backend builds are overlays on the annotation-api:base image (backend/Dockerfile):
+# the base's ML-stack build context is lost, so only /app/app code is replaced.
+# (:base replaced :v2-auth, which was deleted from Harbor 2026-07-17.)
 
 workflow:
   auto_cancel:
@@ -149,3 +149,20 @@ update-manifest:
   environment:
     name: production
     url: https://labelbee.tclab.org
+
+# Nightly synthetic-monitoring e2e: runs the full tracking journey (auth ->
+# project -> class -> upload clip -> track -> assert -> cleanup) against the
+# DEPLOYED API. Gated to scheduled pipelines with NIGHTLY_E2E=true (set by a
+# GitLab pipeline schedule); never runs on pushes/MRs. Needs masked CI var
+# E2E_PASSWORD. Also doubles as a GPU-worker canary. ~3 min.
+e2e-tracking-nightly:
+  stage: test
+  interruptible: false
+  tags:
+    - docker
+    - vm
+  image: harbor.tclab.org/dockerhub/library/python:3.12-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_E2E == "true"'
+  script:
+    - python scripts/e2e_tracking.py --base https://windsurf-api.tclab.org --timeout 300
