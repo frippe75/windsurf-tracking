@@ -174,3 +174,21 @@ e2e-tracking-nightly:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_E2E == "true"'
   script:
     - python scripts/e2e_tracking.py --base https://windsurf-api.tclab.org --timeout 300
+
+# Browser e2e (tier 2) — drives the deployed app in Chromium. Same nightly gate
+# as the API journey. Installs Chromium into the node image (slow but nightly-ok).
+# Needs masked CI var E2E_PASSWORD (shared with the API journey).
+browser-e2e-nightly:
+  stage: test
+  interruptible: false
+  tags:
+    - docker
+    - vm
+  image: harbor.tclab.org/dockerhub/library/node:22-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_E2E == "true"'
+  script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+    - npx playwright install --with-deps chromium
+    - npx playwright test
