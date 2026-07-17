@@ -30,7 +30,7 @@ from .database import get_db, SessionLocal
 from .api_models import VideoInfo
 
 # Router imports
-from .routers import auth, projects, videos, ai, tracking
+from .routers import auth, projects, videos, ai, tracking, export
 
 # Global storage (TODO: migrate to proper dependency injection)
 videos_db: Dict[str, VideoInfo] = {}
@@ -72,6 +72,7 @@ videos.download_jobs_db = download_jobs_db
 videos.tracking_jobs_db = tracking_jobs_db
 tracking.tracking_jobs_db = tracking_jobs_db
 tracking.job_status_db = {}
+export.videos_db = videos_db
 
 # Register routers
 app.include_router(auth.router)
@@ -79,6 +80,7 @@ app.include_router(projects.router)
 app.include_router(videos.router)
 app.include_router(ai.router)
 app.include_router(tracking.router)
+app.include_router(export.router)
 
 @app.get("/")
 async def root():
