@@ -71,8 +71,8 @@ def _centroid_area(bbox):
     return ((x1 + x2) / 2.0, (y1 + y2) / 2.0), abs((x2 - x1) * (y2 - y1))
 
 
-def run(base, email, password, timeout):
-    ctx = {}
+def run(base, email, password, timeout, ctx):
+    # ctx is owned by the caller so teardown can clean up even if a stage raises.
     base = base.rstrip("/")
 
     def stage(name):
@@ -156,8 +156,6 @@ def run(base, email, password, timeout):
     assert area0 < 0.5 * frame_area, f"first bbox is full-frame-ish (area {area0:.0f}/{frame_area})"
     print(f"  tracked {len(with_bbox)} frames; centroid ({cx0:.0f},{cy0:.0f})->({cx1:.0f},{cy1:.0f}) ✓")
 
-    return ctx
-
 
 def teardown(base, email, password, ctx):
     """Best-effort cleanup — runs even if a stage failed."""
@@ -195,7 +193,7 @@ def main():
     ctx = {}
     t0 = time.time()
     try:
-        ctx = run(args.base, args.email, args.password, args.timeout)
+        run(args.base, args.email, args.password, args.timeout, ctx)
         print(f"✅ PASS in {time.time()-t0:.0f}s")
         return 0
     except AssertionError as e:
