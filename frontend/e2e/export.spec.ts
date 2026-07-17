@@ -95,8 +95,10 @@ test("Export button produces a YOLO dataset from the current project", async ({ 
     // 5) click the real button → real export → backend
     await exportBtn.click();
 
-    // 6) success toast confirms a dataset was produced
-    await expect(page.getByText("Dataset exported").first()).toBeVisible({ timeout: 45_000 });
+    // 6) success toast confirms a dataset was produced. Generous timeout: the
+    // FIRST export is cold — the backend downloads the just-uploaded video from
+    // S3 (ensure_local) before extracting frames; a warm retry is much faster.
+    await expect(page.getByText("Dataset exported").first()).toBeVisible({ timeout: 90_000 });
     await expect(page.getByText(/\d+ images, \d+ boxes/).first()).toBeVisible();
   } finally {
     // best-effort — never let cleanup errors mask the result
