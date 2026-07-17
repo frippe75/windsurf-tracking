@@ -47,6 +47,17 @@ class ProjectUpdateRequest(BaseModel):
     description: Optional[str] = None
     settings: Optional[Dict] = None
 
+class ClassCreateRequest(BaseModel):
+    name: str
+    color: Optional[str] = "#3b82f6"
+
+    @field_validator('name')
+    @classmethod
+    def name_not_blank(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Class name must not be blank')
+        return v.strip()
+
 # Authentication models
 class UserCreate(BaseModel):
     email: EmailStr
