@@ -3,7 +3,7 @@ Pydantic models for API requests and responses
 """
 
 from pydantic import BaseModel, field_validator, EmailStr
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime
 
 class VideoInfo(BaseModel):
@@ -57,6 +57,21 @@ class ClassCreateRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError('Class name must not be blank')
         return v.strip()
+
+class AnnotationItem(BaseModel):
+    instance_id: str
+    class_id: Optional[str] = None
+    frame_number: int
+    annotation_type: str = "bbox"
+    geometry: Dict                       # e.g. {"bbox": {...}} or {"points": [...]}
+    is_keyframe: bool = False
+    confidence: Optional[float] = None
+    created_by_method: str = "manual"    # manual | tracked
+    tracking_metadata: Optional[Dict] = None
+
+class AnnotationsSaveRequest(BaseModel):
+    """Full annotation set for a project (bulk replace)."""
+    annotations: List[AnnotationItem]
 
 # Authentication models
 class UserCreate(BaseModel):
