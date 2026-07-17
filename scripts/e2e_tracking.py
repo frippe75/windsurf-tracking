@@ -13,6 +13,7 @@ Run:  E2E_PASSWORD=... python scripts/e2e_tracking.py --base https://windsurf-ap
 Exit: 0 = pass, 1 = fail. Nightly-schedule this (see .gitlab-ci.yml e2e-tracking-nightly).
 """
 import argparse
+import io
 import json
 import os
 import sys
@@ -20,6 +21,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import zipfile
 from pathlib import Path
 
 FIXTURE = Path(__file__).resolve().parents[1] / "backend/tests/e2e/fixtures/moving_square.mp4"
@@ -155,6 +157,39 @@ def run(base, email, password, timeout, ctx):
     # and must be an object, not a full-frame mask
     assert area0 < 0.5 * frame_area, f"first bbox is full-frame-ish (area {area0:.0f}/{frame_area})"
     print(f"  tracked {len(with_bbox)} frames; centroid ({cx0:.0f},{cy0:.0f})->({cx1:.0f},{cy1:.0f}) ✓")
+
+    # 8) persist annotations for the square, then export a YOLO dataset
+    stage("save_annotations")
+    anns = [{
+        "instance_id": str(uuid.uuid4()), "class_id": ctx["class_id"],
+        "frame_number": i, "annotation_type": "bbox",
+        "geometry": {"bbox": {"x": (30 + i * 11) / vw, "y": (30 + i * 8) / vh,
+                              "w": 48 / vw, "h": 48 / vh}},
+        "is_keyframe": i == 0,
+    } for i in (0, 5, 10, 15, 19)]
+    s, sv = _req("PUT", f"{base}/api/projects/{ctx['project_id']}/annotations", token=token,
+                 json_body={"annotations": anns})
+    assert s == 200 and sv.get("saved") == len(anns), f"save annotations failed ({s}): {sv}"
+
+    stage("export")
+    s, ex = _req("POST", f"{base}/api/projects/{ctx['project_id']}/export", token=token,
+                 json_body={"sink": "zip"}, timeout=180)
+    assert s == 200, f"export failed ({s}): {ex}"
+    st = ex["stats"]
+    assert st["images"] == len(anns) and st["boxes"] == len(anns), f"unexpected export stats: {st}"
+    url = (ex.get("result") or {}).get("url")
+    assert url, f"export produced no download url: {ex}"
+
+    zbytes = urllib.request.urlopen(url, timeout=120).read()
+    names = zipfile.ZipFile(io.BytesIO(zbytes)).namelist()
+    assert "data.yaml" in names, f"zip missing data.yaml: {names[:5]}"
+    imgs = [n for n in names if n.endswith(".jpg")]
+    lbls = [n for n in names if n.endswith(".txt")]
+    assert len(imgs) == len(anns) and len(lbls) == len(anns), \
+        f"zip: {len(imgs)} images / {len(lbls)} labels (want {len(anns)})"
+    sample = zipfile.ZipFile(io.BytesIO(zbytes)).read(lbls[0]).decode().split()[0]
+    assert sample == "0", f"first label class idx not 0: {sample!r}"
+    print(f"  exported YOLO: {st['images']} imgs, {st['boxes']} boxes, splits {st['splits']} ✓")
 
 
 def teardown(base, email, password, ctx):
