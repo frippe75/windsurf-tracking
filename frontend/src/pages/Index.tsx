@@ -1910,13 +1910,24 @@ const Index = () => {
                 <Video className="h-4 w-4 mr-2" />
                 My Projects (Old)
               </Button>
-              <Button 
-                variant="default" 
-                size="sm" 
+              <Button
+                variant="default"
+                size="sm"
                 onClick={() => setShowProjectManager_v2(true)}
               >
                 <FolderOpen className="h-4 w-4 mr-2" />
                 Projects
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="export-button"
+                onClick={handleExportData}
+                disabled={!videoId}
+                title="Export the current project as a YOLO dataset"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export
               </Button>
             </div>
           </div>
