@@ -3,7 +3,7 @@ Database configuration and SQLAlchemy models
 """
 
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, Text, ForeignKey, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -39,6 +39,17 @@ class DBProject(Base):
     last_modified = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     is_active = Column(Boolean, default=True)
     settings = Column(JSONB, default={})
+
+class DBAnnotationClass(Base):
+    """An annotation label (name + display color) scoped to a project. Annotations
+    reference a class by id; tracked annotations inherit the class of their seed."""
+    __tablename__ = "annotation_classes"
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    project_id = Column(UUID(as_uuid=True), ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
+    name = Column(String(255), nullable=False)
+    color = Column(String(32), nullable=False, default='#3b82f6')
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    __table_args__ = (UniqueConstraint('project_id', 'name', name='uq_class_project_name'),)
 
 class DBAnnotation(Base):
     __tablename__ = "annotations"
