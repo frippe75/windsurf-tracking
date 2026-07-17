@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
 from ..database import get_db, DBProject, DBUser, DBAnnotation, DBAnnotationClass
-from ..api_models import ProjectCreateRequest, ProjectUpdateRequest, ClassCreateRequest
+from ..api_models import (
+    ProjectCreateRequest, ProjectUpdateRequest, ClassCreateRequest, AnnotationsSaveRequest,
+)
 from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -32,6 +34,21 @@ def _class_dict(cls: DBAnnotationClass) -> dict:
         "name": cls.name,
         "color": cls.color,
         "created_at": cls.created_at.isoformat() if cls.created_at else None,
+    }
+
+
+def _annotation_dict(a: DBAnnotation) -> dict:
+    return {
+        "id": str(a.id),
+        "instance_id": str(a.instance_id),
+        "class_id": str(a.class_id) if a.class_id else None,
+        "frame_number": a.frame_number,
+        "annotation_type": a.annotation_type,
+        "geometry": a.geometry,
+        "is_keyframe": a.is_keyframe,
+        "confidence": a.confidence,
+        "created_by_method": a.created_by_method,
+        "tracking_metadata": a.tracking_metadata or {},
     }
 
 # Import videos_db from main (temporary until refactored)
@@ -260,3 +277,47 @@ async def delete_class(
     db.delete(cls)
     db.commit()
     return {"message": "Class deleted"}
+
+
+# --- Annotations (persisted, source of truth for export) --------------------
+
+@router.put("/{project_id}/annotations")
+async def save_annotations(
+    project_id: str,
+    request: AnnotationsSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """Replace the project's full annotation set (bulk, idempotent save)."""
+    _owned_project_or_404(project_id, db, current_user)
+
+    db.query(DBAnnotation).filter(DBAnnotation.project_id == project_id).delete()
+    for a in request.annotations:
+        db.add(DBAnnotation(
+            project_id=project_id,
+            instance_id=a.instance_id,
+            class_id=a.class_id,
+            frame_number=a.frame_number,
+            annotation_type=a.annotation_type,
+            geometry=a.geometry,
+            is_keyframe=a.is_keyframe,
+            confidence=a.confidence,
+            created_by_method=a.created_by_method,
+            tracking_metadata=a.tracking_metadata or {},
+        ))
+    db.commit()
+    return {"saved": len(request.annotations)}
+
+
+@router.get("/{project_id}/annotations")
+async def list_annotations(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """List the project's persisted annotations (ordered by frame)."""
+    _owned_project_or_404(project_id, db, current_user)
+    rows = (db.query(DBAnnotation)
+            .filter(DBAnnotation.project_id == project_id)
+            .order_by(DBAnnotation.frame_number).all())
+    return {"annotations": [_annotation_dict(r) for r in rows], "total": len(rows)}

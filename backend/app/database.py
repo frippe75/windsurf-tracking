@@ -55,7 +55,13 @@ class DBAnnotation(Base):
     __tablename__ = "annotations"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
     project_id = Column(UUID(as_uuid=True), ForeignKey('projects.id'), nullable=False)
+    # instance_id groups annotations of one physical object across frames (frontend
+    # concept). Kept as a plain id for now; a normalized instances table can come
+    # later for tracking-dataset export.
     instance_id = Column(UUID(as_uuid=True), nullable=False)
+    # Denormalized class link so YOLO export has a class per box without resolving
+    # through an instances table. SET NULL so deleting a class doesn't drop boxes.
+    class_id = Column(UUID(as_uuid=True), ForeignKey('annotation_classes.id', ondelete='SET NULL'))
     frame_number = Column(Integer, nullable=False)
     annotation_type = Column(String(50), nullable=False)
     geometry = Column(JSONB, nullable=False)
