@@ -73,6 +73,11 @@ class AnnotationsSaveRequest(BaseModel):
     """Full annotation set for a project (bulk replace)."""
     annotations: List[AnnotationItem]
 
+class ExportRequest(BaseModel):
+    sink: Optional[str] = None            # None → first available sink (zip)
+    val_fraction: float = 0.2
+    clearml_project: Optional[str] = None
+
 # Authentication models
 class UserCreate(BaseModel):
     email: EmailStr

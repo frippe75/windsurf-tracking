@@ -149,3 +149,17 @@ def delete_video(video_id: str) -> None:
     if enabled():
         internal().delete_object(Bucket=S3_BUCKET, Key=_key(video_id))
     (LOCAL_CACHE_DIR / f"{video_id}.mp4").unlink(missing_ok=True)
+
+
+# --- generic object helpers (used by dataset export, not video-specific) -----
+def put_bytes(key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+    """Upload raw bytes to an arbitrary bucket key."""
+    internal().put_object(Bucket=S3_BUCKET, Key=key, Body=data, ContentType=content_type)
+
+
+def presigned_get(key: str, filename: str = "") -> str:
+    """Presign a browser-fetchable GET URL for any bucket key."""
+    params = {"Bucket": S3_BUCKET, "Key": key}
+    if filename:
+        params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
+    return public().generate_presigned_url("get_object", Params=params, ExpiresIn=PRESIGN_EXPIRY)
