@@ -1,0 +1,36 @@
+# Predefined pipeline #1 — read brand/model metadata off a windsurf sail.
+# Class is a constant ("SAIL"); the value is the brand/model metadata, usually printed
+# on the sail -> an OCR-strong VLM with guided JSON. See docs/PIPELINE_ARCHITECTURE.md.
+name: sail-brand-model
+
+inputs:
+  image: Image   # the video frame
+  point: Point   # the user's positive click on the sail
+
+stages:
+  - id: segment
+    uses: sam2
+    wire:
+      image: "@input.image"
+      point: "@input.point"
+
+  - id: crop
+    uses: crop_mask
+    params:
+      margin_pct: 20            # keep disambiguating context around the sail
+      suppress_background: true # gray out everything outside the mask
+      min_px: 768               # upscale small crops so printed text stays legible
+    wire:
+      image: "@input.image"
+      mask: "segment.mask"
+
+  - id: metadata
+    uses: vlm_extract
+    params:
+      # T4/Turing: serve via LMDeploy TurboMind (vLLM's Qwen-VL vision path is not
+      # Turing-supported). Default AWQ-4bit InternVL3.5-8B; see the doc for rationale.
+      model: "internvl3.5-8b"
+      schema: "SailMeta"
+      gazetteer: "sail_brands"
+    wire:
+      crop: "crop.crop"
