@@ -88,7 +88,8 @@ test("Export button produces a YOLO dataset from the current project", async ({ 
     // 3) reload so the mount effect hydrates the project (sets videoId + annotations)
     await page.reload();
 
-    // 4) the Export button enables once a video/project is active
+    // 4) Export is a project-scoped action → it lives in the Project Manager
+    await page.getByRole("button", { name: "Projects" }).click();
     const exportBtn = page.getByTestId("export-button");
     await expect(exportBtn).toBeEnabled({ timeout: 20_000 });
 

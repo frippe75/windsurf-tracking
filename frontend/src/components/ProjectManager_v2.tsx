@@ -6,12 +6,13 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Project } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
-import { 
-  FolderOpen, 
-  Plus, 
+import {
+  FolderOpen,
+  Plus,
   Video,
   Layers,
-  Calendar
+  Calendar,
+  Download
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { VideoListItem } from "@/components/VideoListItem";
@@ -27,6 +28,8 @@ interface ProjectManager_v2Props {
   onLoadVideo: (videoId: string) => void;
   onRemoveVideo: (videoId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
+  /** Export the active project as a YOLO dataset (project-scoped action). */
+  onExport?: () => void;
 }
 
 export function ProjectManager_v2({
@@ -40,6 +43,7 @@ export function ProjectManager_v2({
   onLoadVideo,
   onRemoveVideo,
   onRenameProject,
+  onExport,
 }: ProjectManager_v2Props) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
@@ -114,10 +118,24 @@ export function ProjectManager_v2({
                     </p>
                   </div>
                 </div>
-                <Button onClick={onOpenProjectSwitcher} variant="outline">
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Switch Project
-                </Button>
+                <div className="flex items-center gap-2">
+                  {onExport && (
+                    <Button
+                      onClick={onExport}
+                      variant="outline"
+                      data-testid="export-button"
+                      disabled={!currentVideoId}
+                      title={currentVideoId ? "Export this project as a YOLO dataset" : "Load a video to export"}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  )}
+                  <Button onClick={onOpenProjectSwitcher} variant="outline">
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Switch Project
+                  </Button>
+                </div>
               </div>
             </div>
 

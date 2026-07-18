@@ -22,7 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Keyboard, Save, Download, Video, FolderOpen, LogIn, LogOut } from "lucide-react";
+import { Upload, Keyboard, Save, Download, Video, FolderOpen } from "lucide-react";
 import labelBeeLogoNoByline from "@/assets/labelbee-logo-no-byline.png";
 import labelBeeDarkSailLogo from "@/assets/labelbee-dark-sail.png";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
@@ -1915,53 +1915,12 @@ const Index = () => {
                 <h1 className="text-base sm:text-xl font-bold">
                   AI Annotation
                 </h1>
-                <p className="hidden sm:block text-xs text-muted-foreground">v0.3.0 - Hierarchical class-based tracking</p>
               </div>
             </div>
+            {/* Right cluster per docs/UX_ARCHITECTURE.md: project (primary),
+                help, dev (compact), then the single identity control. Export is
+                project-scoped → it lives in the Project Manager, not here. */}
             <div className="flex flex-wrap items-center gap-2">
-              <BackendSelector 
-                backendStatus={backendStatus} 
-                onBackendsChange={setBackends}
-                probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
-              />
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/login')}
-                className="gap-2"
-              >
-                <LogIn className="h-4 w-4" />
-                Login
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  logout();
-                  toast({ title: "Logged out successfully" });
-                }}
-                className="gap-2"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-              <UserMenu />
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setShowShortcuts(true)}
-              >
-                <Keyboard className="h-4 w-4 mr-2" />
-                Shortcuts
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setVideoManagerOpen(true)}
-              >
-                <Video className="h-4 w-4 mr-2" />
-                My Projects (Old)
-              </Button>
               <Button
                 variant="default"
                 size="sm"
@@ -1971,16 +1930,19 @@ const Index = () => {
                 Projects
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                data-testid="export-button"
-                onClick={handleExportData}
-                disabled={!videoId}
-                title="Export the current project as a YOLO dataset"
+                onClick={() => setShowShortcuts(true)}
               >
-                <Download className="h-4 w-4 mr-2" />
-                Export
+                <Keyboard className="h-4 w-4 mr-2" />
+                Shortcuts
               </Button>
+              <BackendSelector
+                backendStatus={backendStatus}
+                onBackendsChange={setBackends}
+                probeStatuses={Object.fromEntries(backends.filter(b => b.probeStatus).map(b => [b.id, b.probeStatus!]))}
+              />
+              <UserMenu />
             </div>
           </div>
         </div>
@@ -2256,6 +2218,7 @@ const Index = () => {
         onLoadVideo={handleLoadVideoInProject}
         onRemoveVideo={handleRemoveVideoFromProject}
         onRenameProject={handleProjectRename}
+        onExport={handleExportData}
       />
 
       <AddResourcesDialog

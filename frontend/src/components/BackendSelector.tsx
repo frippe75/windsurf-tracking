@@ -276,27 +276,25 @@ export const BackendSelector = ({ backendStatus, onBackendsChange, probeStatuses
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-[252px] h-auto min-h-[40px] py-2 justify-between">
-            {selectedBackend ? (
-              <div className="grid grid-cols-[16px,1fr] grid-rows-2 gap-x-2 w-full text-left">
-                <div className="col-start-1 row-start-1 row-span-2 flex items-start justify-center pt-0.5">
-                  {backendStatus === "offline" ? (
-                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
-                      <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
-                      <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
-                    </span>
-                  ) : (
-                    <span className="relative flex items-center justify-center h-[8px] w-[8px]">
-                      <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
-                      <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
-                    </span>
-                  )}
-                </div>
-                <span className="col-start-2 row-start-1 font-bold leading-tight">{selectedBackend.name}</span>
-                <span className="col-start-2 row-start-2 text-xs text-muted-foreground leading-tight">{selectedBackend.url}</span>
-              </div>
+          {/* Dev affordance — compact: a health dot + chevron. Name/URL and the
+              endpoint list live in the dropdown; hover shows the active backend. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 px-2 gap-1.5"
+            aria-label="Backend selector (dev)"
+            title={selectedBackend ? `Backend: ${selectedBackend.name} (${selectedBackend.url})` : "Select backend"}
+          >
+            {backendStatus === "offline" ? (
+              <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                <span className="absolute inset-0 animate-ping-slow rounded-full bg-red-200 opacity-90" />
+                <span className="relative block h-[5px] w-[5px] rounded-full bg-red-400 ring-2 ring-red-500/50" />
+              </span>
             ) : (
-              <span>Select backend</span>
+              <span className="relative flex items-center justify-center h-[8px] w-[8px]">
+                <span className="absolute inset-0 animate-ping-slow rounded-full opacity-90" style={{ backgroundColor: 'hsl(142 71% 85%)' }} />
+                <span className="relative block h-[5px] w-[5px] rounded-full" style={{ backgroundColor: 'hsl(142 71% 55%)', boxShadow: '0 0 0 2px hsl(142 71% 45% / 0.5)' }} />
+              </span>
             )}
             <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
           </Button>
