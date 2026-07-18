@@ -28,29 +28,28 @@ if [ -z "${RUNPOD_API_KEY:-}" ]; then
 fi
 
 # What to serve. Defaults chosen for the sail brand/model pipeline.
-ENDPOINT_NAME="${ENDPOINT_NAME:-sail-vlm}"
+ENDPOINT_NAME="${ENDPOINT_NAME:-qwen3-vl}"
 # RunPod's OpenAI-compatible vLLM worker. NB: there is NO 'latest' tag and the API
 # validates the image at template-creation time. Find newer stable tags with:
 #   curl -s 'https://hub.docker.com/v2/repositories/runpod/worker-v1-vllm/tags?page_size=100' \
 #     | jq -r '.results[].name' | grep -E '^v[0-9.]+$' | sort -V | tail
 VLM_IMAGE="${VLM_IMAGE:-runpod/worker-v1-vllm:v2.22.5}"
-# Best OCR-strong VLM that fits one 80GB GPU (OCRBench 895, Apache-2.0). Fallback if the
-# worker's vLLM can't load Qwen3-VL: Benasd/Qwen2.5-VL-72B-Instruct-AWQ (awq).
-VLM_MODEL="${VLM_MODEL:-QuantTrio/Qwen3-VL-32B-Instruct-AWQ}"
-VLM_QUANTIZATION="${VLM_QUANTIZATION:-awq}"
+# Qwen3-VL-8B: OCRBench 896 (top of the family), fp16 ~16GB fits any 24GB+ GPU. Verified.
+# For "best possible" on an 80GB GPU use QuantTrio/Qwen3-VL-32B-Instruct-AWQ + VLM_QUANTIZATION=awq.
+VLM_MODEL="${VLM_MODEL:-Qwen/Qwen3-VL-8B-Instruct}"
+VLM_QUANTIZATION="${VLM_QUANTIZATION:-}"   # empty = fp16; set "awq" for AWQ checkpoints
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-8192}"
 
-# Serverless GPU + scaling. gpuIds are POOL ids (see the error/docs): AMPERE_16, AMPERE_24,
-# ADA_24, AMPERE_48, ADA_48_PRO, AMPERE_80, ADA_80_PRO, BLACKWELL_96, HOPPER_141, ...
-# 80GB pool for a 32B: AMPERE_80 (A100 80GB), with HOPPER_141 (H200) as an availability fallback.
-GPU_IDS="${GPU_IDS:-AMPERE_80,HOPPER_141}"
+# Serverless GPU + scaling. gpuIds are POOL ids: AMPERE_16/24, ADA_24, AMPERE_48, ADA_48_PRO,
+# AMPERE_80, HOPPER_141, ... A VLM needs >=24GB (RunPod won't place it on 16GB).
+GPU_IDS="${GPU_IDS:-ADA_24,AMPERE_48,AMPERE_80}"
 WORKERS_MIN="${WORKERS_MIN:-0}"          # 0 = scale to zero when idle (cheapest)
-WORKERS_MAX="${WORKERS_MAX:-1}"
+WORKERS_MAX="${WORKERS_MAX:-3}"
 IDLE_TIMEOUT="${IDLE_TIMEOUT:-600}"      # seconds a worker stays warm after the last request
-# Ephemeral disk must hold the model download each cold start (no network volume yet):
-# ~20GB for the 32B AWQ, ~40GB for the 72B fallback. See README for the network-volume TODO.
-CONTAINER_DISK_GB="${CONTAINER_DISK_GB:-80}"
-LOCATIONS="${LOCATIONS:-EU}"
+CONTAINER_DISK_GB="${CONTAINER_DISK_GB:-40}"
+# CRITICAL: RunPod silently defaults new endpoints to EU-only, which has scarce 24GB+ GPU
+# capacity -> workers never start. Empty here means "all datacenters" (filled in below).
+LOCATIONS="${LOCATIONS:-}"
 SCALER_TYPE="${SCALER_TYPE:-QUEUE_DELAY}"
 SCALER_VALUE="${SCALER_VALUE:-4}"
 HF_TOKEN="${HF_TOKEN:-}"                  # only needed for gated models (InternVL3.5 is not gated)
@@ -61,6 +60,13 @@ gql() {  # $1 = GraphQL query text; wraps it as {"query": "..."} with jq (safe e
   local body; body="$(jq -n --arg q "$1" '{query:$q}')"
   curl -s --request POST --header 'content-type: application/json' --url "$GQL_URL" --data "$body"
 }
+
+# CRITICAL FIX: RunPod defaults a new endpoint to EU-only region -> no 24GB+ GPU capacity ->
+# workers never start. Explicitly allow ALL datacenters unless the caller restricted LOCATIONS.
+if [ -z "$LOCATIONS" ]; then
+  LOCATIONS="$(gql 'query { dataCenters { id } }' | jq -r '[.data.dataCenters[].id] | join(",")')"
+  [ -n "$LOCATIONS" ] && echo "locations: all datacenters" || echo "WARN: could not list datacenters; endpoint may default to EU-only"
+fi
 
 echo "=========================================="
 echo "RunPod serverless VLM endpoint"
