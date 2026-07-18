@@ -23,13 +23,16 @@
   hood, but YAML is the authored surface from Phase 1.)
 - **Metadata extraction:** **VLM + guided-JSON schema** on the high-res masked crop,
   brand gazetteer to constrain. Not OCR-only, not an ensemble yet.
-  - **Default model: InternVL3.5-8B (AWQ 4-bit), served via LMDeploy TurboMind** with
-    `response_format=json_schema`. Fallback: Qwen2.5-VL-7B-Instruct-AWQ (LMDeploy).
-  - **T4/Turing caveat (important):** vLLM's Qwen-/Qwen3-VL vision-attention path is
-    **not** Turing-supported (vllm#29743) — on our T4s serve via **LMDeploy**, not vLLM.
-    Skip all `-FP8` checkpoints (need Ada/Hopper). Qwen3-VL-8B has the best OCR numbers
-    but no fast T4 serving path yet — revisit later. These choices live only in the
-    `vlm_extract` model handle, so swapping them touches one plugin.
+  - **Default model: Qwen3-VL-32B-Instruct (AWQ 4-bit), served on a RunPod 80GB GPU**
+    (A100 80GB / H200) via the OpenAI-compatible vLLM worker → the `openai-compat-http`
+    handle. Best OCR-strong VLM that fits one 80GB GPU (OCRBench 895, Apache-2.0).
+    Fallback: `Benasd/Qwen2.5-VL-72B-Instruct-AWQ` (OCRBench 885, more mature vLLM).
+    Deploy scripts: `scripts/runpod/`.
+  - **Serving is a config detail** — the model runs off-lab because the lab pool is 15×
+    Tesla **T4 (Turing)** and vLLM's VLM vision path isn't Turing-supported (vllm#29743).
+    The choice lives only in a `ModelConfig`/handle, so swapping model or endpoint (lab,
+    RunPod, any OpenAI-compatible server) never touches the pipeline. (If ever serving on
+    T4, use LMDeploy TurboMind, not vLLM.)
 - **Registry:** stdlib `importlib.metadata` entry points + a small decorator registry.
 - **Runners:** built-in default is mandatory; optional runners (e.g. distributed/remote)
   are pluggable. **ClearML is NOT a runner** — it's a user's own dataset/export tool,
@@ -190,7 +193,7 @@ stages:
   - id: crop      { uses: crop_mask,   wire: { image: "@input.image", mask: "segment.mask" },
                     params: { margin_pct: 20, suppress_background: true, min_px: 768 } }
   - id: metadata  { uses: vlm_extract, wire: { crop: "crop.crop" },
-                    params: { model: "internvl3.5-8b", schema: "SailMeta", gazetteer: "sail_brands" } }
+                    params: { model: "sail-vlm", schema: "SailMeta", gazetteer: "sail_brands" } }
 ```
 
 > **Status:** this pipeline is implemented and tested — see
@@ -217,8 +220,8 @@ Adding a future field ("year", "rig type") = one line in `SailMeta` + nothing el
 ## 5b. Model serving & BYOM (lab HW, RunPod, bring-your-own-endpoint)
 
 *Where* a model runs is a `ModelHandle`/config concern — the engine, the pipeline YAML,
-and the app never learn about it. A pipeline says `model: internvl3.5-8b`; a
-**`ModelConfig`** maps that logical name to a served endpoint.
+and the app never learn about it. A pipeline says `model: sail-vlm` (a stable *logical*
+name); a **`ModelConfig`** maps that name to a served endpoint + concrete model.
 
 - **Target the contract, not the vendor.** The built-in `openai-compat-http` handle
   speaks OpenAI chat-completions + `response_format: json_schema`. So a **RunPod
@@ -233,9 +236,9 @@ and the app never learn about it. A pipeline says `model: internvl3.5-8b`; a
   at call time (fits the lab vault/`.env` pattern).
 
 ```python
-MODELS.configure("internvl3.5-8b", ModelConfig(
+MODELS.configure("sail-vlm", ModelConfig(
     type="openai-compat-http",
-    model_name="OpenGVLab/InternVL3_5-8B",
+    model_name="QuantTrio/Qwen3-VL-32B-Instruct-AWQ",
     base_url="https://api.runpod.ai/v2/<endpoint>/openai/v1",
     auth_env="RUNPOD_API_KEY",
 ))

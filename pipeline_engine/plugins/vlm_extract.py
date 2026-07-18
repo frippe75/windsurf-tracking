@@ -52,7 +52,7 @@ class VlmExtract:
             )
         schema = SCHEMAS[schema_name]
 
-        model = MODELS.get(params.get("model", "internvl3.5-8b"))
+        model = MODELS.get(params.get("model", "sail-vlm"))
         raw = model.infer(
             image_png_base64=crop.png_base64,
             json_schema=schema.model_json_schema(),

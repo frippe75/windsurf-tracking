@@ -42,7 +42,7 @@ def fake_models():
             }
 
     class FakeVLM:
-        name: ClassVar[str] = "internvl3.5-8b"
+        name: ClassVar[str] = "sail-vlm"
 
         def infer(self, **kw: Any) -> dict:
             return {
@@ -55,12 +55,12 @@ def fake_models():
             }
 
     MODELS.register_instance("sam2", FakeSam2())
-    MODELS.register_instance("internvl3.5-8b", FakeVLM())
+    MODELS.register_instance("sail-vlm", FakeVLM())
     try:
         yield
     finally:
         MODELS._instances.pop("sam2", None)
-        MODELS._instances.pop("internvl3.5-8b", None)
+        MODELS._instances.pop("sail-vlm", None)
 
 
 @pytest.fixture

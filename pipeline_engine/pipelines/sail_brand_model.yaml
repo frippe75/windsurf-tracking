@@ -27,9 +27,10 @@ stages:
   - id: metadata
     uses: vlm_extract
     params:
-      # T4/Turing: serve via LMDeploy TurboMind (vLLM's Qwen-VL vision path is not
-      # Turing-supported). Default AWQ-4bit InternVL3.5-8B; see the doc for rationale.
-      model: "internvl3.5-8b"
+      # Stable *logical* model name — resolved by MODELS.configure() to a served
+      # endpoint (currently Qwen3-VL-32B on a RunPod 80GB GPU; see scripts/runpod/).
+      # Swapping the concrete model/endpoint never touches this pipeline.
+      model: "sail-vlm"
       schema: "SailMeta"
       gazetteer: "sail_brands"
     wire:
