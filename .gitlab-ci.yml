@@ -108,6 +108,12 @@ build-backend:
     - echo "BACKEND OVERLAY BUILD - Commit:$CI_COMMIT_SHORT_SHA"
     - docker build --progress=plain --build-arg APP_VERSION=$CI_COMMIT_SHORT_SHA -f backend/Dockerfile -t $IMAGE:$CI_COMMIT_SHORT_SHA .
     - docker push $IMAGE:$CI_COMMIT_SHORT_SHA
+    # Refresh the :base tag every build so it stays a recent artifact Harbor GC
+    # won't prune (it has repeatedly deleted the static base, breaking test-backend
+    # + build-backend which both FROM :base). Proper fix is a Harbor immutability/
+    # retention rule for `base` — needs project-admin (the CI robot is denied).
+    - docker tag $IMAGE:$CI_COMMIT_SHORT_SHA $IMAGE:base
+    - docker push $IMAGE:base
     - docker logout $HARBOR_REGISTRY
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE != "schedule"'
