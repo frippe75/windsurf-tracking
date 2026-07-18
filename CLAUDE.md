@@ -58,6 +58,14 @@ heuristic and `maskWidth || videoNativeWidth || 1280` fallbacks. Also
 unverified whether the backend transforms incoming native click coords into
 padded-target space before SAM2 in all paths.
 
+## UX
+
+Any UI change MUST follow `docs/UX_ARCHITECTURE.md` — the durable placement +
+progressive-disclosure framework. In short: classify the action's scope → it goes
+in the matching region (identity/project/tool/object/view/time/dev), show it only
+when it's actionable, reuse the consistency kit, and cover desktop + touch. New
+features slot into a region or a registry — never as another top-bar button.
+
 ## Machine quirk
 
 GitHub SSH auth fails on this laptop — use HTTPS with `gh auth token` for push/pull.
