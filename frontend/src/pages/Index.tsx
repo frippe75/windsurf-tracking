@@ -149,6 +149,7 @@ const Index = () => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [currentLogoIndex, setCurrentLogoIndex] = useState(0);
   const logos = [labelBeeLogoNoByline, labelBeeDarkSailLogo];
+  const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
   
   // Video library domain: localStorage persistence, backend merge on mount,
   // delete handler (guarded by project usage).
@@ -1901,12 +1902,15 @@ const Index = () => {
         <div className="px-4 py-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <img
-                src={logos[currentLogoIndex]}
-                alt="LabelBee Logo"
-                className="h-12 sm:h-16 w-auto ml-1 mr-2 sm:mr-4 my-1 cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
-              />
+              <div className="flex flex-col items-center ml-1 mr-2 sm:mr-4 my-1">
+                <img
+                  src={logos[currentLogoIndex]}
+                  alt="LabelBee Logo"
+                  className="h-12 sm:h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setCurrentLogoIndex((prev) => (prev + 1) % logos.length)}
+                />
+                <span className="text-[10px] leading-none text-muted-foreground font-mono">v{APP_VERSION}</span>
+              </div>
               <div>
                 <h1 className="text-base sm:text-xl font-bold">
                   AI Annotation
