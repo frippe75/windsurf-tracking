@@ -2043,9 +2043,9 @@ const Index = () => {
 
             {/* Center - Video player & Timeline */}
             <div className={maximizeVideo ? "lg:col-span-12 space-y-4 min-w-0" : "lg:col-span-8 space-y-4 min-w-0"}>
-              {/* Tap-to-place prompt mode (needed on touch: no Ctrl/Alt keys) */}
+              {/* Tap-to-place prompt mode — touch/mobile only (desktop uses Ctrl/Alt) */}
               {selectedTool === "annotate" && (
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="sm:hidden flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">Tap places:</span>
                   <div className="inline-flex rounded-md border border-border overflow-hidden">
                     <button
