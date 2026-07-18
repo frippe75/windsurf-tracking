@@ -68,7 +68,12 @@ class OpenAICompatHandle:
             }
         body.update(cfg.extra)
 
-        headers = {"Content-Type": "application/json"}
+        # Some endpoints (e.g. RunPod's Cloudflare-fronted proxy) block the default
+        # python-urllib User-Agent with HTTP 403/1010; send a normal UA. Overridable.
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": cfg.extra.get("user_agent", "Mozilla/5.0 (compatible; pipeline-engine/0.1)"),
+        }
         if cfg.auth_env:
             key = os.environ.get(cfg.auth_env)
             if not key:

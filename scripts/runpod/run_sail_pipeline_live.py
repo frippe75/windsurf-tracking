@@ -27,7 +27,8 @@ from pipeline_engine.runner import BuiltinRunner  # noqa: E402
 from pipeline_engine.stage import STAGES, RunContext  # noqa: E402
 from pipeline_engine.artifacts import Artifact, BBox, Image, Mask, Point  # noqa: E402
 
-INFO = Path(__file__).with_name("runpod-vlm-endpoint.json")
+INFO_POD = Path(__file__).with_name("runpod-vlm-pod.json")          # on-demand Pod (no auth)
+INFO_SERVERLESS = Path(__file__).with_name("runpod-vlm-endpoint.json")  # serverless (auth)
 SAIL_YAML = REPO / "pipeline_engine" / "pipelines" / "sail_brand_model.yaml"
 
 
@@ -55,17 +56,20 @@ def _sail_png() -> bytes:
 
 
 def main() -> int:
-    if not INFO.exists():
-        print(f"missing {INFO} — deploy the endpoint first"); return 1
-    meta = json.loads(INFO.read_text())
+    if INFO_POD.exists():
+        meta, auth_env = json.loads(INFO_POD.read_text()), None  # pod proxy: no auth
+    elif INFO_SERVERLESS.exists():
+        meta, auth_env = json.loads(INFO_SERVERLESS.read_text()), "RUNPOD_API_KEY"
+        if not os.environ.get("RUNPOD_API_KEY"):
+            print("set RUNPOD_API_KEY for the serverless endpoint"); return 1
+    else:
+        print("no runpod-vlm-pod.json / runpod-vlm-endpoint.json — deploy first"); return 1
     base_url, model_name = meta["openai_base_url"], meta["model"]
-    if not os.environ.get("RUNPOD_API_KEY"):
-        print("set RUNPOD_API_KEY in the environment"); return 1
 
     # 1) wire the live model under the stable logical name the pipeline references
     MODELS.configure("sail-vlm", ModelConfig(
         type="openai-compat-http", model_name=model_name, base_url=base_url,
-        auth_env="RUNPOD_API_KEY", timeout_s=300, max_tokens=256,
+        auth_env=auth_env, timeout_s=300, max_tokens=256,
     ))
 
     # 2) fake only SAM2 (not deployed): return a box+mask over the printed text region
