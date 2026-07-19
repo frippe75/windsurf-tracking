@@ -14,7 +14,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import pipeline_engine as pe
@@ -29,24 +30,31 @@ class SegmentRequest(BaseModel):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="pipeline-engine service")
+    # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
+    # so routes carry that prefix in prod; tests use "" (default).
+    prefix = os.environ.get("SERVICE_PREFIX", "").rstrip("/")
+    router = APIRouter(prefix=prefix)
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    )
 
     # Register the model fleet declaratively if configured (else models are added elsewhere).
     yaml_path = os.environ.get("MODELS_YAML")
     if yaml_path and os.path.exists(yaml_path):
         pe.load_models_yaml(yaml_path)
 
-    @app.get("/health")
+    @router.get("/health")
     def health() -> dict[str, Any]:
         return {"status": "ok", "models": MODELS.names()}
 
-    @app.get("/models")
+    @router.get("/models")
     def list_models(capability: str | None = None) -> dict[str, Any]:
         names = MODELS.by_capability(capability) if capability else MODELS.names()
         return {"models": [
             {"name": n, "capabilities": MODELS.capabilities_of(n)} for n in names
         ]}
 
-    @app.post("/segment")
+    @router.post("/segment")
     def segment(req: SegmentRequest) -> dict[str, Any]:
         name = req.model
         if not name and req.capability:
@@ -68,6 +76,7 @@ def create_app() -> FastAPI:
             raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
         return {"model": name, "capabilities": MODELS.capabilities_of(name), "result": result}
 
+    app.include_router(router)
     return app
 
 

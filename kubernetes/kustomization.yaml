@@ -13,6 +13,7 @@ resources:
   - frontend-deployment.yaml
   - frontend-service.yaml
   - gpu-workers.yaml
+  - pipeline-service.yaml
   - ingress-api.yaml
   - ingress-labelbee.yaml
 images:
@@ -20,3 +21,5 @@ images:
     newTag: "cf4b1b8c"
   - name: harbor.tclab.org/windsurf/annotation-api
     newTag: "e8a39021"
+  - name: harbor.tclab.org/windsurf/pipeline-service
+    newTag: "v1"
