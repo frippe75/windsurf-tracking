@@ -1,0 +1,27 @@
+# The AI model fleet — one declarative source of truth. Register with:
+#   from pipeline_engine.config import load_models_yaml; load_models_yaml("models.yaml")
+# Consumers pick by CAPABILITY, never by hardcoded name:
+#   MODELS.by_capability("concept-segment")  -> ["sam3"]
+#   MODELS.by_capability("vlm-extract")       -> ["qwen3-vl"]
+# Serving (local vs external) is just base_url. Secrets via auth_env (never inline).
+models:
+  # --- filtering / metadata pipeline ---
+  - name: qwen3-vl
+    type: openai-compat-http
+    capabilities: [vlm-extract]
+    model_name: Qwen/Qwen3-VL-8B-Instruct
+    base_url: https://api.runpod.ai/v2/<VLM_ENDPOINT_ID>/openai/v1
+    auth_env: RUNPOD_API_KEY
+
+  # --- concept (text) + click segmentation, prep for tracking ---
+  - name: sam3
+    type: sam3-runpod
+    capabilities: [concept-segment, segment-click]
+    base_url: https://api.runpod.ai/v2/<SAM3_ENDPOINT_ID>
+    auth_env: RUNPOD_API_KEY
+
+  # --- click segmentation on the lab backend (SAM2 stays local) ---
+  - name: sam2-local
+    type: sam2-http
+    capabilities: [segment-click]
+    base_url: https://windsurf-api.tclab.org/api/ai/sam2

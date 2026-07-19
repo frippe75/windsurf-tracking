@@ -21,6 +21,7 @@ from .artifacts import (
     Point,
     Track,
 )
+from .config import load_models, load_models_yaml
 from .errors import ModelError, PipelineDefError, PipelineError, RunError
 from .models import HANDLES, MODELS, ModelConfig, ModelHandle
 from .pipeline import PipelineDef, StageRef
@@ -53,6 +54,8 @@ __all__ = [
     "HANDLES",
     "ModelConfig",
     "ModelHandle",
+    "load_models",
+    "load_models_yaml",
     "PipelineDef",
     "StageRef",
     "RUNNERS",
