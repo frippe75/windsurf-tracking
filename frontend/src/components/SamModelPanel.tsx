@@ -3,14 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 /**
  * SAM model selector + concept (text-prompt) tester.
  *
- * Reads the model fleet from the pipeline_service (same-origin /pipeline), lets you pick
- * a segmentation model (Off / SAM2 / SAM3, local or external — whatever is registered),
- * and for a concept-segment model (SAM3) runs a TEXT prompt on the current video frame and
- * draws the returned boxes. This is the on/off + v2/v3 + local/external toggle, live.
+ * Reads the model fleet from the pipeline_service (same-origin /pipeline), lets you pick a
+ * segmentation model (Off / SAM2 / SAM3, local or external), and for a concept-segment model
+ * (SAM3) runs a TEXT prompt on the current video frame and draws the returned boxes.
+ *
+ * The frame is extracted SERVER-SIDE (we send the video url + timestamp): the app's video is a
+ * cross-origin presigned URL, so reading its pixels in the browser is blocked (tainted canvas).
  */
 const PIPELINE = "/pipeline";
 
 type ModelInfo = { name: string; capabilities: string[] };
+type Box = { left: number; top: number; width: number; height: number; score?: number };
 
 export function SamModelPanel() {
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -19,6 +22,7 @@ export function SamModelPanel() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>("");
   const [dets, setDets] = useState<any[] | null>(null);
+  const [boxes, setBoxes] = useState<Box[]>([]);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -35,23 +39,6 @@ export function SamModelPanel() {
   );
   const isConcept = models.find((m) => m.name === selected)?.capabilities.includes("concept-segment");
 
-  function grabFrameB64(): string {
-    const video = document.querySelector("video") as HTMLVideoElement | null;
-    if (!video || !video.videoWidth) {
-      throw new Error("No video frame — load a video and make sure a frame is visible.");
-    }
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    c.getContext("2d")!.drawImage(video, 0, 0);
-    try {
-      return c.toDataURL("image/png").split(",")[1];
-    } catch (e) {
-      throw new Error(`Can't read the video pixels (cross-origin/tainted canvas): ${e}`);
-    }
-  }
-
-  // a 200x200 black frame with a white square — lets you verify SAM3 without a video
   function testFrameB64(): string {
     const c = document.createElement("canvas");
     c.width = 200;
@@ -68,17 +55,47 @@ export function SamModelPanel() {
     setBusy(true);
     setErr("");
     setDets(null);
+    setBoxes([]);
     try {
-      const b64 = useTest ? testFrameB64() : grabFrameB64();
-      const text = useTest ? "white square" : prompt;
+      let inputs: Record<string, unknown>;
+      let vidEl: HTMLVideoElement | null = null;
+      if (useTest) {
+        inputs = { image_png_base64: testFrameB64(), text: "white square" };
+      } else {
+        vidEl = document.querySelector("video") as HTMLVideoElement | null;
+        if (!vidEl || !vidEl.currentSrc || !vidEl.videoWidth) {
+          throw new Error("Load a video first (and make sure a frame is showing).");
+        }
+        inputs = { video_url: vidEl.currentSrc, time_sec: vidEl.currentTime, text: prompt };
+      }
       const r = await fetch(`${PIPELINE}/segment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: selected, inputs: { image_png_base64: b64, text } }),
+        body: JSON.stringify({ model: selected, inputs }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}: ${JSON.stringify(d)}`);
-      setDets(d.result?.detections ?? []);
+      const detections: any[] = d.result?.detections ?? [];
+      setDets(detections);
+      if (vidEl && vidEl.videoWidth) {
+        const rect = vidEl.getBoundingClientRect();
+        const sx = rect.width / vidEl.videoWidth;
+        const sy = rect.height / vidEl.videoHeight;
+        setBoxes(
+          detections
+            .filter((x) => Array.isArray(x.bbox) && x.bbox.length === 4)
+            .map((x) => {
+              const [x1, y1, x2, y2] = x.bbox as number[];
+              return {
+                left: rect.left + x1 * sx,
+                top: rect.top + y1 * sy,
+                width: (x2 - x1) * sx,
+                height: (y2 - y1) * sy,
+                score: x.score,
+              };
+            }),
+        );
+      }
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.error("[SamModelPanel]", e);
@@ -87,6 +104,23 @@ export function SamModelPanel() {
       setBusy(false);
     }
   }
+
+  const overlay =
+    boxes.length > 0 ? (
+      <div className="pointer-events-none fixed inset-0 z-40">
+        {boxes.map((b, i) => (
+          <div
+            key={i}
+            className="absolute border-2 border-emerald-400"
+            style={{ left: b.left, top: b.top, width: b.width, height: b.height }}
+          >
+            <span className="absolute -top-4 left-0 bg-emerald-500 px-1 text-[10px] text-black">
+              {b.score != null ? b.score.toFixed(2) : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    ) : null;
 
   if (!open) {
     return (
@@ -100,65 +134,68 @@ export function SamModelPanel() {
   }
 
   return (
-    <div className="fixed bottom-3 right-3 z-50 w-72 rounded-lg border border-slate-600 bg-slate-900/95 p-3 text-xs text-slate-100 shadow-xl">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-semibold">SAM model (experimental)</span>
-        <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">✕</button>
-      </div>
-
-      <label className="mb-1 block text-slate-400">Segmentation</label>
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
-      >
-        <option value="off">Off</option>
-        {segModels.map((m) => (
-          <option key={m.name} value={m.name}>
-            {m.name} — {m.capabilities.join(", ")}
-          </option>
-        ))}
-      </select>
-
-      {isConcept && (
-        <>
-          <label className="mb-1 block text-slate-400">Text prompt (concept)</label>
-          <input
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
-          />
-          <button
-            onClick={() => runConcept(false)}
-            disabled={busy}
-            className="mb-1 w-full rounded bg-emerald-600 px-2 py-1 font-medium hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {busy ? "Detecting… (cold start ~1–4 min)" : "Detect on current frame"}
-          </button>
-          <button
-            onClick={() => runConcept(true)}
-            disabled={busy}
-            className="w-full rounded bg-slate-700 px-2 py-1 hover:bg-slate-600 disabled:opacity-50"
-            title="Runs SAM3 on a built-in black frame with a white square — verifies the path without a video"
-          >
-            Test (built-in image)
-          </button>
-        </>
-      )}
-      {selected !== "off" && !isConcept && (
-        <div className="text-slate-400">Click-based segmentation — click on the video (SAM2 flow).</div>
-      )}
-
-      {err && <div className="mt-2 break-words text-red-400">{err}</div>}
-      {dets && (
-        <div className="mt-2">
-          <div className="text-emerald-400">{dets.length} detection(s)</div>
-          <pre className="mt-1 max-h-32 overflow-auto rounded bg-black/40 p-1">
-            {JSON.stringify(dets.map((d) => ({ bbox: d.bbox?.map((v: number) => Math.round(v)), score: d.score?.toFixed?.(2) })), null, 1)}
-          </pre>
+    <>
+      {overlay}
+      <div className="fixed bottom-3 right-3 z-50 w-72 rounded-lg border border-slate-600 bg-slate-900/95 p-3 text-xs text-slate-100 shadow-xl">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-semibold">SAM model (experimental)</span>
+          <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">✕</button>
         </div>
-      )}
-      <div className="mt-2 text-[10px] text-slate-500">via /pipeline · fleet from models.yaml</div>
-    </div>
+
+        <label className="mb-1 block text-slate-400">Segmentation</label>
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
+        >
+          <option value="off">Off</option>
+          {segModels.map((m) => (
+            <option key={m.name} value={m.name}>
+              {m.name} — {m.capabilities.join(", ")}
+            </option>
+          ))}
+        </select>
+
+        {isConcept && (
+          <>
+            <label className="mb-1 block text-slate-400">Text prompt (concept)</label>
+            <input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
+            />
+            <button
+              onClick={() => runConcept(false)}
+              disabled={busy}
+              className="mb-1 w-full rounded bg-emerald-600 px-2 py-1 font-medium hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {busy ? "Detecting… (cold start ~1–4 min)" : "Detect on current frame"}
+            </button>
+            <button
+              onClick={() => runConcept(true)}
+              disabled={busy}
+              className="w-full rounded bg-slate-700 px-2 py-1 hover:bg-slate-600 disabled:opacity-50"
+              title="Runs SAM3 on a built-in white-square frame — verifies the path without a video"
+            >
+              Test (built-in image)
+            </button>
+          </>
+        )}
+        {selected !== "off" && !isConcept && (
+          <div className="text-slate-400">Click-based (SAM2): click on the video canvas.</div>
+        )}
+
+        {err && <div className="mt-2 break-words text-red-400">{err}</div>}
+        {dets && (
+          <div className="mt-2">
+            <div className="text-emerald-400">{dets.length} detection(s) {boxes.length > 0 ? "· drawn over the video" : ""}</div>
+            <pre className="mt-1 max-h-28 overflow-auto rounded bg-black/40 p-1">
+              {JSON.stringify(dets.map((d) => ({ bbox: d.bbox?.map((v: number) => Math.round(v)), score: d.score?.toFixed?.(2) })), null, 1)}
+            </pre>
+          </div>
+        )}
+        <div className="mt-2 text-[10px] text-slate-500">via /pipeline · frame extracted server-side</div>
+      </div>
+    </>
   );
 }
