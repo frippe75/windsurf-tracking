@@ -28,6 +28,31 @@ class SegmentRequest(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)  # passed to the handle's infer()
 
 
+def _extract_frame_b64(video_url: str, time_sec: float | None) -> str:
+    """Server-side frame grab from a (presigned, cross-origin) video URL -> base64 PNG.
+
+    Done here rather than in the browser because the video is a cross-origin presigned URL,
+    which taints the client canvas. cv2/ffmpeg seeks via HTTP range requests (no full download).
+    """
+    import base64
+
+    import cv2  # opencv-python-headless
+
+    cap = cv2.VideoCapture(video_url)
+    try:
+        if time_sec:
+            cap.set(cv2.CAP_PROP_POS_MSEC, float(time_sec) * 1000.0)
+        ok, frame = cap.read()
+    finally:
+        cap.release()
+    if not ok or frame is None:
+        raise HTTPException(502, "could not read a frame from the video url")
+    ok2, buf = cv2.imencode(".png", frame)
+    if not ok2:
+        raise HTTPException(500, "frame encode failed")
+    return base64.b64encode(buf.tobytes()).decode()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="pipeline-engine service")
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
@@ -68,8 +93,15 @@ def create_app() -> FastAPI:
             handle = MODELS.get(name)
         except Exception as exc:  # ModelError for unknown name
             raise HTTPException(404, str(exc)) from exc
+        inputs = dict(req.inputs)
+        # convenience: extract the frame server-side from a (cross-origin) video url
+        if inputs.get("video_url") and not inputs.get("image_png_base64"):
+            inputs["image_png_base64"] = _extract_frame_b64(
+                inputs.pop("video_url"), inputs.pop("time_sec", None)
+            )
+            inputs.pop("frame_number", None)
         try:
-            result = handle.infer(**req.inputs)
+            result = handle.infer(**inputs)
         except pe.ModelError as exc:
             raise HTTPException(502, str(exc)) from exc
         except TypeError as exc:  # inputs don't match the handle contract

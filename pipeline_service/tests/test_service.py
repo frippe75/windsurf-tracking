@@ -87,3 +87,16 @@ def test_bad_inputs_400(client):
 def test_model_error_502(client):
     r = client.post("/segment", json={"model": "t-vlm", "inputs": {}})
     assert r.status_code == 502
+
+
+def test_segment_video_url_extracts_frame(client, monkeypatch):
+    # video_url in inputs -> server-side frame extraction fills image_png_base64
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_extract_frame_b64", lambda url, t: "FRAMEB64")
+    r = client.post("/segment", json={
+        "model": "t-sam3",
+        "inputs": {"video_url": "http://x/v.mp4", "time_sec": 1.5, "text": "windsurf sail rig"},
+    })
+    assert r.status_code == 200
+    assert r.json()["result"]["detections"][0]["label"] == "windsurf sail rig"
