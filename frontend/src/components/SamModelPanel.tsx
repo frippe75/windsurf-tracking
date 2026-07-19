@@ -35,30 +35,53 @@ export function SamModelPanel() {
   );
   const isConcept = models.find((m) => m.name === selected)?.capabilities.includes("concept-segment");
 
-  async function runConcept() {
+  function grabFrameB64(): string {
     const video = document.querySelector("video") as HTMLVideoElement | null;
     if (!video || !video.videoWidth) {
-      setErr("no video frame (load a video first)");
-      return;
+      throw new Error("No video frame — load a video and make sure a frame is visible.");
     }
     const c = document.createElement("canvas");
     c.width = video.videoWidth;
     c.height = video.videoHeight;
     c.getContext("2d")!.drawImage(video, 0, 0);
-    const b64 = c.toDataURL("image/png").split(",")[1];
+    try {
+      return c.toDataURL("image/png").split(",")[1];
+    } catch (e) {
+      throw new Error(`Can't read the video pixels (cross-origin/tainted canvas): ${e}`);
+    }
+  }
+
+  // a 200x200 black frame with a white square — lets you verify SAM3 without a video
+  function testFrameB64(): string {
+    const c = document.createElement("canvas");
+    c.width = 200;
+    c.height = 200;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "black";
+    g.fillRect(0, 0, 200, 200);
+    g.fillStyle = "white";
+    g.fillRect(60, 60, 80, 80);
+    return c.toDataURL("image/png").split(",")[1];
+  }
+
+  async function runConcept(useTest = false) {
     setBusy(true);
     setErr("");
     setDets(null);
     try {
+      const b64 = useTest ? testFrameB64() : grabFrameB64();
+      const text = useTest ? "white square" : prompt;
       const r = await fetch(`${PIPELINE}/segment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: selected, inputs: { image_png_base64: b64, text: prompt } }),
+        body: JSON.stringify({ model: selected, inputs: { image_png_base64: b64, text } }),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}: ${JSON.stringify(d)}`);
       setDets(d.result?.detections ?? []);
     } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error("[SamModelPanel]", e);
       setErr(String(e?.message ?? e));
     } finally {
       setBusy(false);
@@ -106,11 +129,19 @@ export function SamModelPanel() {
             className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
           />
           <button
-            onClick={runConcept}
+            onClick={() => runConcept(false)}
             disabled={busy}
-            className="w-full rounded bg-emerald-600 px-2 py-1 font-medium hover:bg-emerald-500 disabled:opacity-50"
+            className="mb-1 w-full rounded bg-emerald-600 px-2 py-1 font-medium hover:bg-emerald-500 disabled:opacity-50"
           >
-            {busy ? "Detecting… (cold start ~1 min)" : "Detect on current frame"}
+            {busy ? "Detecting… (cold start ~1–4 min)" : "Detect on current frame"}
+          </button>
+          <button
+            onClick={() => runConcept(true)}
+            disabled={busy}
+            className="w-full rounded bg-slate-700 px-2 py-1 hover:bg-slate-600 disabled:opacity-50"
+            title="Runs SAM3 on a built-in black frame with a white square — verifies the path without a video"
+          >
+            Test (built-in image)
           </button>
         </>
       )}
