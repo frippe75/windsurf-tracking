@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeline_engine"
+version = "0.1.0"
+description = "Self-contained, vendor-neutral pipeline engine for annotation classification & metadata extraction"
+requires-python = ">=3.10"
+# Core stays deliberately tiny — no ML stack, no orchestrator, no web/DB.
+dependencies = [
+    "pydantic>=2",
+    "pyyaml>=6",
+    "networkx>=3",
+]
+
+[project.optional-dependencies]
+# Heavy bits used only by specific stage/model plugins — never by the core.
+crop = ["pillow>=10"]
+dev = ["pytest>=8", "pillow>=10"]
+
+# External packages contribute stages/models/runners by declaring entry points in
+# these groups; the core discovers them lazily (see registry.py). Built-ins register
+# eagerly on import, so they do not need to be listed here.
+# [project.entry-points."pipeline_engine.stages"]
+# my_stage = "my_pkg.stages:MyStage"
+# [project.entry-points."pipeline_engine.models"]
+# my_model = "my_pkg.models:MyModel"
+# [project.entry-points."pipeline_engine.runners"]
+# remote = "my_pkg.runners:RemoteRunner"
+
+[tool.setuptools]
+packages = ["pipeline_engine"]

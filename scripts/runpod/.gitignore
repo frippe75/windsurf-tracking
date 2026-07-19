@@ -1,0 +1,9 @@
+# never commit the local env or the generated endpoint info (may reveal ids/keys)
+.env
+runpod-vlm-endpoint.json
+# generated smoke-test artifacts
+.test-sail.b64
+.smoke-text.json
+.smoke-image.json
+.pod-smoke.json
+runpod-vlm-pod.json

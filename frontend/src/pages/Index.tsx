@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { VideoPlayer } from "@/components/VideoPlayer";
+import { SamModelPanel } from "@/components/SamModelPanel";
 import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
 import { HierarchicalTimeline } from "@/components/HierarchicalTimeline";
@@ -1340,7 +1341,7 @@ const Index = () => {
   };
 
   const handleCanvasClick = useCallback(
-    async (x: number, y: number, displayWidth: number, displayHeight: number, ctrlKey: boolean, altKey: boolean) => {
+    async (x: number, y: number, displayWidth: number, displayHeight: number, ctrlKey: boolean, altKey: boolean, shiftKey: boolean = false) => {
       // If in edit mode or select mode, don't handle canvas clicks
       if (selectedTool !== "annotate") return;
 
@@ -1381,8 +1382,10 @@ const Index = () => {
       }
       const isNegative = promptType === 'negative';
 
-      // Check if clicking on an existing annotation to add a prompt
-      const clickedAnnotation = annotations.find(ann => {
+      // Check if clicking on an existing annotation to add a prompt.
+      // Shift forces a brand-new object even when the click lands inside an
+      // existing bbox (so overlapping objects can be started on the same frame).
+      const clickedAnnotation = shiftKey ? undefined : annotations.find(ann => {
         if (!ann.bbox || ann.frameCreated !== currentFrame) return false;
         const { x: bx, y: by, w: bw, h: bh } = ann.bbox;
         return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
@@ -1479,10 +1482,22 @@ const Index = () => {
           return;
         }
 
+        // A new object takes the class the user has selected as active. (No auto
+        // "Sail" default and no DINO guess — the human selection is ground truth.)
+        const selectedClass = classes.find(c => c.id === selectedClassId);
+        if (!selectedClass) {
+          toast({
+            title: "Select a class first",
+            description: "Pick (or create) the class this object belongs to, then click to segment it.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Show loading toast
         toast({
           title: `Running SAM2 segmentation...`,
-          description: "Detecting object boundary and class",
+          description: `Segmenting a new ${selectedClass.name}`,
         });
 
         // Convert percentage (0-100) to native video pixel coordinates for backend
@@ -1536,22 +1551,9 @@ const Index = () => {
             nativeResolution: `${videoNativeWidth}×${videoNativeHeight}`
           });
           
-          // Use DINO detection or default to "Sail" class
-          const className = "Sail"; // TODO: Could call DINO here if needed
-
-          // Find or create class
-          let classData = classes.find(c => c.name === className);
-          if (!classData) {
-            const color = SAIL_COLORS[colorIndex % SAIL_COLORS.length];
-            classData = {
-              id: `class-${Date.now()}`,
-              name: className,
-              color: color.hex,
-              colorName: color.name,
-            };
-            setClasses(prev => [...prev, classData!]);
-            setColorIndex(prev => prev + 1);
-          }
+          // The new object belongs to the user's active class (guarded above).
+          const classData = selectedClass;
+          const className = classData.name;
 
           // Create new instance for this class
           const classInstances = instances.filter(inst => inst.classId === classData.id);
@@ -1677,6 +1679,66 @@ const Index = () => {
     },
     [currentFrame, selectedClassId, classes, instances, toast, autoTrack, keyframes, useSAM2, colorIndex, videoId, videoNativeWidth, videoNativeHeight, promptTapMode, annotations]
   );
+
+  // Delete a SAM2 prompt AND re-run segmentation on the remaining prompts, so
+  // removing a (e.g. negative) point actually reverts/updates the mask instead of
+  // leaving it stale. Mirrors the re-segment path in handleCanvasClick's
+  // existing-annotation branch. Falls back to a plain delete when SAM2/video is
+  // unavailable or no positive prompt remains (SAM2 needs at least one +).
+  const handleDeletePromptResegment = async (annotationId: string, promptIndex: number) => {
+    const annotation = annotations.find(a => a.id === annotationId);
+    const remaining = (annotation?.sam2Prompts || []).filter((_, i) => i !== promptIndex);
+
+    // Remove the prompt from state (+ shows the "Prompt deleted" toast)
+    handleDeletePrompt(annotationId, promptIndex);
+
+    if (!annotation || !useSAM2 || !videoId) return;
+    if (!remaining.some(p => p.type === 'positive')) {
+      // Nothing to segment from — leave the existing mask as-is.
+      return;
+    }
+
+    // Guard native dims the same way handleCanvasClick does.
+    let nativeW = videoNativeWidth;
+    let nativeH = videoNativeHeight;
+    if (!nativeW || !nativeH || Number.isNaN(nativeW) || Number.isNaN(nativeH)) {
+      const active = managedVideos.find(v => v.id === videoId);
+      nativeW = active?.metadata?.width || 1280;
+      nativeH = active?.metadata?.height || 720;
+    }
+
+    try {
+      const click_prompts = remaining.map(p => {
+        const n = pctToNative(p.x, p.y, nativeW, nativeH);
+        return { x: n.x, y: n.y, type: p.type };
+      });
+      const sam2Response = await segmentWithSAM2({
+        video_id: videoId,
+        frame_number: annotation.frameCreated,
+        click_prompts,
+      });
+      const results = (sam2Response as any).results;
+      if (results?.bbox) {
+        const [x1, y1, x2, y2] = results.bbox as [number, number, number, number];
+        const newBbox = nativeBBoxToPct([x1, y1, x2, y2], nativeW, nativeH);
+        setAnnotations(prev => prev.map(ann =>
+          ann.id === annotationId
+            ? { ...ann, bbox: newBbox, maskBBox: newBbox, maskBase64: results.mask_base64, points: bboxToPolygon(newBbox) }
+            : ann
+        ));
+        const pos = remaining.filter(p => p.type === 'positive').length;
+        const neg = remaining.filter(p => p.type === 'negative').length;
+        toast({ title: "Segmentation updated", description: `${pos}+ / ${neg}− prompts` });
+      }
+    } catch (error) {
+      console.error('SAM2 re-segment after delete failed:', error);
+      toast({
+        title: "Segmentation update failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleContextMenu = (x: number, y: number, context: any) => {
     setContextMenu({ x, y, context });
@@ -1897,6 +1959,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      <SamModelPanel />
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-4 py-2">
@@ -2171,7 +2234,7 @@ const Index = () => {
           onDeleteKeyframe={handleDeleteKeyframe}
           onAddKeyframe={handleAddKeyframe}
           onStartTracking={handleStartTracking}
-          onDeletePrompt={handleDeletePrompt}
+          onDeletePrompt={handleDeletePromptResegment}
           onClearMetadata={handleClearMetadata}
           onAddMetadata={handleAddMetadata}
           keyframes={keyframes}

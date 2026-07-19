@@ -40,6 +40,13 @@ spec:
             name: windsurf-prod-backend
             port:
               number: 8000
+      - path: /pipeline
+        pathType: Prefix
+        backend:
+          service:
+            name: windsurf-prod-pipeline-service
+            port:
+              number: 8080
       - path: /
         pathType: Prefix
         backend:

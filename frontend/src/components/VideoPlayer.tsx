@@ -13,7 +13,7 @@ interface VideoPlayerProps {
   frameRange: [number, number];
   onFrameChange: (frame: number) => void;
   onVideoMetadata?: (metadata: { duration: number; totalFrames: number; fps: number; width?: number; height?: number }) => void;
-  onCanvasClick: (x: number, y: number, videoWidth: number, videoHeight: number, ctrlKey: boolean, altKey: boolean) => void;
+  onCanvasClick: (x: number, y: number, videoWidth: number, videoHeight: number, ctrlKey: boolean, altKey: boolean, shiftKey: boolean) => void;
   classes: Array<{ id: string; color: string; name: string }>;
   instances: Array<{ id: string; classId: string; instanceNumber: number }>;
   annotations: Array<{
@@ -362,8 +362,14 @@ export function VideoPlayer({
         ctx.fill();
       }
 
-      // Draw SAM2 prompts (positive/negative point markers)
-      if (annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
+      // Draw SAM2 prompts (positive/negative point markers).
+      // Prompts are editing scaffolding, not part of the finished object: at rest
+      // they follow the "Show Points" overlay toggle; while editing the selected
+      // object they always show (regardless of the toggle) so they can be targeted
+      // for deletion. (A negative prompt sits OUTSIDE the mask by design — it pushes
+      // the boundary away — so it is kept, never auto-pruned.)
+      const editingThis = isSelected && selectedTool === "edit";
+      if ((overlays.points || editingThis) && annotation.sam2Prompts && annotation.sam2Prompts.length > 0) {
         annotation.sam2Prompts.forEach(prompt => {
           const x = (prompt.x / 100) * canvas.width;
           const y = (prompt.y / 100) * canvas.height;
@@ -673,7 +679,7 @@ export function VideoPlayer({
   };
 
   // Shared placement: convert screen coords → video-frame % and dispatch.
-  const placePromptAt = (clientX: number, clientY: number, ctrlKey: boolean, altKey: boolean) => {
+  const placePromptAt = (clientX: number, clientY: number, ctrlKey: boolean, altKey: boolean, shiftKey: boolean = false) => {
     if (selectedTool !== "annotate") return;
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -687,7 +693,7 @@ export function VideoPlayer({
     const displayedY = canvasY / (dpr * zoom);
     const x = (displayedX / displayed.width) * 100;
     const y = (displayedY / displayed.height) * 100;
-    onCanvasClick(x, y, displayed.width, displayed.height, ctrlKey, altKey);
+    onCanvasClick(x, y, displayed.width, displayed.height, ctrlKey, altKey, shiftKey);
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -698,7 +704,7 @@ export function VideoPlayer({
       return;
     }
     const isAltLike = e.altKey || e.getModifierState?.('AltGraph') === true;
-    placePromptAt(e.clientX, e.clientY, e.ctrlKey || e.metaKey, isAltLike);
+    placePromptAt(e.clientX, e.clientY, e.ctrlKey || e.metaKey, isAltLike, e.shiftKey);
   };
 
   // Touch: pointer events fire reliably on the canvas where a synthesized

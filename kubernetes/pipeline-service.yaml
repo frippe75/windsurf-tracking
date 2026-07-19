@@ -1,0 +1,96 @@
+# pipeline_service — FastAPI over pipeline_engine. Routes the SAM on/off + v2/v3 +
+# local/external model selection, so the app drives it WITHOUT rebuilding the pinned
+# annotation-api image. Exposed same-origin at labelbee.tclab.org/pipeline.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-service-models
+data:
+  models.yaml: |
+    # The AI model fleet. Consumers pick by capability; serving (local/external) = base_url.
+    models:
+      - name: qwen3-vl
+        type: openai-compat-http
+        capabilities: [vlm-extract]
+        model_name: Qwen/Qwen3-VL-8B-Instruct
+        base_url: https://api.runpod.ai/v2/tkygyjxjx1vgn9/openai/v1
+        auth_env: RUNPOD_API_KEY
+      - name: sam3
+        type: sam3-runpod
+        capabilities: [concept-segment, segment-click]
+        base_url: https://api.runpod.ai/v2/mr9jc82yc7jeo6
+        auth_env: RUNPOD_API_KEY
+        timeout_s: 290   # scale-to-zero cold start (model load) can take minutes
+      - name: sam2-local
+        type: sam2-http
+        capabilities: [segment-click]
+        base_url: http://windsurf-prod-backend:8000/api/ai/sam2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-pipeline-service
+  labels:
+    app: windsurf-pipeline-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: windsurf-pipeline-service
+  template:
+    metadata:
+      labels:
+        app: windsurf-pipeline-service
+    spec:
+      containers:
+      - name: pipeline-service
+        image: harbor.tclab.org/windsurf/pipeline-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVICE_PREFIX
+          value: /pipeline
+        - name: MODELS_YAML
+          value: /config/models.yaml
+        - name: RUNPOD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: runpod-secret
+              key: RUNPOD_API_KEY
+        volumeMounts:
+        - name: models
+          mountPath: /config
+        readinessProbe:
+          httpGet:
+            path: /pipeline/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /pipeline/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+      volumes:
+      - name: models
+        configMap:
+          name: pipeline-service-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: windsurf-prod-pipeline-service
+spec:
+  selector:
+    app: windsurf-pipeline-service
+  ports:
+  - port: 8080
+    targetPort: 8080
