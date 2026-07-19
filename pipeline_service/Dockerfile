@@ -4,6 +4,10 @@ FROM harbor.tclab.org/dockerhub/library/python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
+# ffmpeg for robust server-side frame extraction from presigned video URLs.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY pipeline_service/requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt

@@ -32,25 +32,28 @@ def _extract_frame_b64(video_url: str, time_sec: float | None) -> str:
     """Server-side frame grab from a (presigned, cross-origin) video URL -> base64 PNG.
 
     Done here rather than in the browser because the video is a cross-origin presigned URL,
-    which taints the client canvas. cv2/ffmpeg seeks via HTTP range requests (no full download).
+    which taints the client canvas. Uses ffmpeg (robust HTTPS + fast `-ss` seek via range
+    requests); opencv's VideoCapture over HTTP is unreliable.
     """
     import base64
+    import subprocess
 
-    import cv2  # opencv-python-headless
-
-    cap = cv2.VideoCapture(video_url)
+    t = f"{float(time_sec):.3f}" if time_sec else "0"
+    cmd = [
+        "ffmpeg", "-nostdin", "-loglevel", "error",
+        "-ss", t, "-i", video_url,
+        "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1",
+    ]
     try:
-        if time_sec:
-            cap.set(cv2.CAP_PROP_POS_MSEC, float(time_sec) * 1000.0)
-        ok, frame = cap.read()
-    finally:
-        cap.release()
-    if not ok or frame is None:
-        raise HTTPException(502, "could not read a frame from the video url")
-    ok2, buf = cv2.imencode(".png", frame)
-    if not ok2:
-        raise HTTPException(500, "frame encode failed")
-    return base64.b64encode(buf.tobytes()).decode()
+        proc = subprocess.run(cmd, capture_output=True, timeout=90)
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(504, "ffmpeg timed out reading the video url") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(500, "ffmpeg not installed in the service image") from exc
+    if proc.returncode != 0 or not proc.stdout:
+        detail = proc.stderr[-400:].decode(errors="replace") if proc.stderr else "no output"
+        raise HTTPException(502, f"could not read a frame from the video url: {detail}")
+    return base64.b64encode(proc.stdout).decode()
 
 
 def create_app() -> FastAPI:
