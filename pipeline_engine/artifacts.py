@@ -83,8 +83,26 @@ class Track(Artifact):
     frames: list[tuple[int, BBox]]
 
 
+class Detection(Artifact):
+    """One instance from an open-vocab/concept prompt: box (+ optional mask/label/track)."""
+
+    bbox: BBox
+    score: float = 1.0
+    label: str | None = None
+    mask_base64: str | None = None
+    track_id: int | None = None
+
+
+class Detections(Artifact):
+    """A set of instances (SAM3 concept prompt → all matching objects at once)."""
+
+    items: list[Detection] = Field(default_factory=list)
+    prompt: str | None = None
+
+
 #: Registry of artifact types by class name — used for YAML `inputs:` type validation.
 ARTIFACTS: dict[str, type[Artifact]] = {
     cls.__name__: cls
-    for cls in (Image, Point, BBox, Mask, Crop, Label, Metadata, Embedding, Track)
+    for cls in (Image, Point, BBox, Mask, Crop, Label, Metadata, Embedding, Track,
+                Detection, Detections)
 }

@@ -6,6 +6,6 @@ the engine core — that keeps the boundary clean.
 """
 from __future__ import annotations
 
-from . import openai_compat  # noqa: F401  (register on import)
+from . import openai_compat, sam3_runpod  # noqa: F401  (register on import)
 
-__all__ = ["openai_compat"]
+__all__ = ["openai_compat", "sam3_runpod"]
