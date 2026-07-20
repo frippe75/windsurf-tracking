@@ -74,10 +74,53 @@ def handler(job):
 
         boxes = _tolist(out["boxes"]) if out.get("boxes") is not None else []
         scores = _tolist(out["scores"]) if out.get("scores") is not None else []
+
+        # SAM3 also returns per-object masks (bool, shape [N,1,H,W] at original image size).
+        # Encode each as a full-frame 1-bit PNG so the annotation renders a real silhouette
+        # (the frontend tints white pixels with the class color; maskIsCropped=false → drawn
+        # over the whole frame). Guard the whole thing so a mask hiccup never drops detections.
+        masks_np = None
+        try:
+            m = out.get("masks")
+            if m is None:
+                m = out.get("masks_logits")
+            if m is not None:
+                import numpy as np
+
+                arr = m.detach().cpu().numpy() if hasattr(m, "detach") else np.asarray(m)
+                if arr.ndim == 4:      # [N,1,H,W] -> [N,H,W]
+                    arr = arr[:, 0]
+                elif arr.ndim == 2:    # [H,W] -> [1,H,W]
+                    arr = arr[None]
+                masks_np = arr
+        except Exception:
+            masks_np = None
+
+        def _mask_png_b64(i):
+            if masks_np is None or i >= len(masks_np):
+                return None
+            try:
+                import numpy as np
+
+                a = masks_np[i]
+                binary = (a > 0.5).astype("uint8") * 255  # bool or logits both ok
+                im = Image.fromarray(binary, mode="L")
+                if im.size != (img.width, img.height):
+                    im = im.resize((img.width, img.height), Image.NEAREST)
+                buf = io.BytesIO()
+                im.save(buf, format="PNG", optimize=True)
+                return base64.b64encode(buf.getvalue()).decode()
+            except Exception:
+                return None
+
         dets = []
         for i, b in enumerate(boxes):
             s = scores[i] if i < len(scores) else None
-            dets.append({"bbox": b, "score": s})
+            det = {"bbox": b, "score": s}
+            mb = _mask_png_b64(i)
+            if mb:
+                det["mask_base64"] = mb
+            dets.append(det)
         return {"detections": dets, "count": len(dets), "image_size": [img.width, img.height]}
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-1500:]}

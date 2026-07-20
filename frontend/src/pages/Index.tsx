@@ -291,7 +291,7 @@ const Index = () => {
   // selected class at the current frame, so they persist / list / track like any object
   // instead of floating as a fixed overlay that goes stale on the next frame.
   const handleAddSamDetections = useCallback(
-    (dets: Array<{ bbox: number[]; score?: number }>) => {
+    (dets: Array<{ bbox: number[]; score?: number; mask_base64?: string }>) => {
       const selectedClass = classes.find((c) => c.id === selectedClassId);
       if (!selectedClass) {
         toast({ title: "No class selected", description: "Select a class before adding detections." });
@@ -315,6 +315,10 @@ const Index = () => {
           metadata: {},
         };
         newInstances.push(inst);
+        // SAM3 returns a full-frame mask PNG (white=object). Store it so VideoPlayer draws
+        // the real silhouette instead of a filled bbox rectangle; maskIsCropped=false means
+        // the mask spans the whole frame (not a cropped tile).
+        const mask = d.mask_base64;
         newAnnotations.push({
           id: `ann-${Date.now()}-${i}`,
           instanceId: inst.id,
@@ -322,6 +326,15 @@ const Index = () => {
           bbox,
           frameCreated: currentFrame,
           isKeyframe: true,
+          ...(mask
+            ? {
+                maskBase64: mask,
+                maskBBox: bbox,
+                maskWidth: videoNativeWidth,
+                maskHeight: videoNativeHeight,
+                maskIsCropped: false,
+              }
+            : {}),
         });
       });
       setInstances((prev) => [...prev, ...newInstances]);
