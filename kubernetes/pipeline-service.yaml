@@ -21,6 +21,12 @@ data:
         base_url: https://api.runpod.ai/v2/mr9jc82yc7jeo6
         auth_env: RUNPOD_API_KEY
         timeout_s: 290   # scale-to-zero cold start (model load) can take minutes
+      - name: sam3-video
+        type: sam3-runpod-track
+        capabilities: [concept-track]
+        base_url: https://api.runpod.ai/v2/fol0gl0bk858ae
+        auth_env: RUNPOD_API_KEY
+        timeout_s: 290
       - name: sam2-local
         type: sam2-http
         capabilities: [segment-click]

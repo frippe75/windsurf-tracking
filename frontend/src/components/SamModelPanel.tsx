@@ -15,9 +15,12 @@ const PIPELINE = "/pipeline";
 type ModelInfo = { name: string; capabilities: string[] };
 type Box = { left: number; top: number; width: number; height: number; score?: number };
 type Detection = { bbox: number[]; score?: number; mask_base64?: string };
-type Props = { onAddDetections?: (dets: Detection[]) => number };
+type Props = {
+  onAddDetections?: (dets: Detection[]) => number;
+  onTrack?: (text: string, extentFrames: number) => Promise<number>;
+};
 
-export function SamModelPanel({ onAddDetections }: Props = {}) {
+export function SamModelPanel({ onAddDetections, onTrack }: Props = {}) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selected, setSelected] = useState<string>(() => localStorage.getItem("samModel") || "off");
   const [prompt, setPrompt] = useState("windsurf sail rig");
@@ -31,6 +34,8 @@ export function SamModelPanel({ onAddDetections }: Props = {}) {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [kept, setKept] = useState<Detection[]>([]);
   const [open, setOpen] = useState(true);
+  const [extentFrames, setExtentFrames] = useState(100);
+  const [tracking, setTracking] = useState(false);
 
   useEffect(() => {
     fetch(`${PIPELINE}/models`)
@@ -46,6 +51,22 @@ export function SamModelPanel({ onAddDetections }: Props = {}) {
     [models],
   );
   const isConcept = models.find((m) => m.name === selected)?.capabilities.includes("concept-segment");
+  const hasTrack = models.some((m) => m.capabilities.includes("concept-track"));
+
+  async function runTrack() {
+    if (!onTrack) return;
+    setTracking(true);
+    setErr("");
+    try {
+      await onTrack(prompt, extentFrames);
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error("[SamModelPanel] track", e);
+      setErr(String(e?.message ?? e));
+    } finally {
+      setTracking(false);
+    }
+  }
 
   function testFrameB64(): string {
     const c = document.createElement("canvas");
@@ -206,6 +227,33 @@ export function SamModelPanel({ onAddDetections }: Props = {}) {
             >
               Test (built-in image)
             </button>
+
+            {hasTrack && onTrack && (
+              <div className="mt-3 border-t border-slate-700 pt-2">
+                <label className="mb-1 flex items-center justify-between text-slate-400">
+                  <span>Track window (frames)</span>
+                  <span className="text-slate-300">{extentFrames}</span>
+                </label>
+                <input
+                  type="range"
+                  min={10}
+                  max={120}
+                  step={10}
+                  value={extentFrames}
+                  onChange={(e) => setExtentFrames(parseInt(e.target.value))}
+                  className="mb-2 w-full"
+                />
+                <button
+                  onClick={runTrack}
+                  disabled={tracking || busy}
+                  className="w-full rounded bg-indigo-600 px-2 py-1 font-medium hover:bg-indigo-500 disabled:opacity-50"
+                  title="SAM3 video predictor tracks the concept across the next N frames from the playhead"
+                >
+                  {tracking ? "Tracking… (cold start ~1–4 min)" : `Track across ${extentFrames} frames`}
+                </button>
+                <div className="mt-1 text-[10px] text-slate-500">SAM3-native · from the current frame</div>
+              </div>
+            )}
           </>
         )}
         {selected !== "off" && !isConcept && (

@@ -20,6 +20,14 @@ models:
     base_url: https://api.runpod.ai/v2/<SAM3_ENDPOINT_ID>
     auth_env: RUNPOD_API_KEY
 
+  # --- concept (text) VIDEO tracking: SAM3 video predictor, native masklets across frames ---
+  - name: sam3-video
+    type: sam3-runpod-track
+    capabilities: [concept-track]
+    base_url: https://api.runpod.ai/v2/<SAM3_VIDEO_ENDPOINT_ID>
+    auth_env: RUNPOD_API_KEY
+    timeout_s: 290
+
   # --- click segmentation on the lab backend (SAM2 stays local) ---
   - name: sam2-local
     type: sam2-http

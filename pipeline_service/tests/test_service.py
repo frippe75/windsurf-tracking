@@ -25,14 +25,27 @@ def client():
         def infer(self, **kw):
             raise ModelError("endpoint unreachable")
 
+    class FakeTrack:  # async video tracker: submit -> job id, poll -> per-frame masklets
+        def submit(self, *, frames_b64, start_frame, text):
+            assert frames_b64 and text
+            return "job-123"
+
+        def poll(self, *, job_id):
+            return {"status": "COMPLETED", "output": {
+                "image_size": [1000, 500],
+                "frames": [{"frame_number": 5, "objects": [
+                    {"object_id": 0, "bbox": [100, 50, 300, 250], "score": 0.9, "mask_base64": "m"}]}],
+            }}
+
     MODELS.register_instance("t-sam3", FakeSam3(), capabilities=["concept-segment", "segment-click"])
     MODELS.register_instance("t-sam2", FakeSam2(), capabilities=["segment-click"])
     MODELS.register_instance("t-vlm", FakeVlm(), capabilities=["vlm-extract"])
+    MODELS.register_instance("t-track", FakeTrack(), capabilities=["concept-track"])
     c = TestClient(create_app())
     try:
         yield c
     finally:
-        for n in ("t-sam3", "t-sam2", "t-vlm"):
+        for n in ("t-sam3", "t-sam2", "t-vlm", "t-track"):
             MODELS._instances.pop(n, None)
             MODELS._caps.pop(n, None)
 
@@ -101,6 +114,41 @@ def test_segment_video_id_resolves_and_extracts(client, monkeypatch):
     })
     assert r.status_code == 200
     assert r.json()["result"]["detections"][0]["label"] == "windsurf sail rig"
+
+
+def test_track_submit_and_status(client, monkeypatch):
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: f"https://s3/{vid}.mp4")
+    monkeypatch.setattr(appmod, "_extract_window_b64", lambda url, s, c, f: ["F1", "F2", "F3"])
+    r = client.post("/track", json={"capability": "concept-track", "inputs": {
+        "video_id": "abc", "start_frame": 5, "end_frame": 30, "fps": 30, "text": "windsurf sail rig"}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model"] == "t-track" and body["job_id"] == "job-123" and body["start_frame"] == 5
+
+    s = client.get("/track/job-123", params={"model": "t-track"})
+    assert s.status_code == 200
+    sb = s.json()
+    assert sb["status"] == "COMPLETED" and sb["count"] == 1
+    obj = sb["frames"][0]["objects"][0]
+    assert obj["object_id"] == 0 and obj["mask_base64"] == "m"
+    # bbox px [100,50,300,250] over image_size [1000,500] -> percent
+    assert obj["bbox_pct"] == [10.0, 10.0, 30.0, 50.0]
+
+
+def test_track_needs_text_and_video_id(client):
+    r = client.post("/track", json={"capability": "concept-track", "inputs": {"text": "x"}})
+    assert r.status_code == 400
+
+
+def test_track_on_non_track_model_400(client, monkeypatch):
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: "u")
+    monkeypatch.setattr(appmod, "_extract_window_b64", lambda url, s, c, f: ["F1"])
+    r = client.post("/track", json={"model": "t-sam3", "inputs": {"video_id": "a", "text": "x"}})
+    assert r.status_code == 400  # t-sam3 has no submit()
 
 
 def test_segment_video_url_extracts_frame(client, monkeypatch):
