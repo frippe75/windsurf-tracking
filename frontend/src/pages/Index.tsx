@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { VideoPlayer } from "@/components/VideoPlayer";
-import { SamModelPanel } from "@/components/SamModelPanel";
+import { SamTool } from "@/components/SamTool";
 import { ClassManager } from "@/components/ClassManager";
 import { KeyframeManager } from "@/components/KeyframeManager";
 import { HierarchicalTimeline } from "@/components/HierarchicalTimeline";
@@ -284,7 +284,7 @@ const Index = () => {
   // 🎬 DEBUG: Watch videoId changes
   useEffect(() => {
     console.log("🎬 videoId changed:", videoId ? `SET (${videoId})` : "CLEARED");
-    // expose for SamModelPanel: it needs the id to have the service resolve the stream URL
+    // expose for SamTool: it needs the id to have the service resolve the stream URL
     // (the <video> only has an unusable blob: src).
     (window as unknown as { __samVideoId?: string }).__samVideoId = videoId;
   }, [videoId]);
@@ -354,7 +354,7 @@ const Index = () => {
   // -> per-frame masklets ingested as annotations (one Instance per tracked object_id). Async:
   // submit to /pipeline/track, poll /pipeline/track/{id} until COMPLETED. No backend/SAM2 involved.
   const handleSamTrack = useCallback(
-    async (text: string, extentFrames: number): Promise<number> => {
+    async (text: string, extentFrames: number, onProgress?: (s: string) => void): Promise<number> => {
       const selectedClass = classes.find((c) => c.id === selectedClassId);
       if (!selectedClass) {
         toast({ title: "No class selected", description: "Select a class before tracking." });
@@ -364,6 +364,7 @@ const Index = () => {
       if (!vid) throw new Error("No video id — open a video in a project first.");
       const start = currentFrame;
       const end = currentFrame + Math.max(1, extentFrames) - 1;
+      onProgress?.("Submitting…");
       const sub = await fetch(`/pipeline/track`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -384,6 +385,8 @@ const Index = () => {
         const sd = await s.json().catch(() => ({}));
         if (!s.ok) throw new Error(sd.detail || `track status HTTP ${s.status}`);
         if (sd.error) throw new Error(String(sd.error));
+        if (sd.status === "IN_QUEUE") onProgress?.("Queued (cold start ~1–4 min)…");
+        else if (sd.status === "IN_PROGRESS") onProgress?.(`Tracking ${extentFrames} frames…`);
         if (sd.status === "COMPLETED") { out = sd; break; }
         if (sd.status === "FAILED") throw new Error("SAM3 tracking failed");
       }
@@ -632,6 +635,10 @@ const Index = () => {
         case "m":
           e.preventDefault();
           setSelectedTool("edit");
+          break;
+        case "d":
+          e.preventDefault();
+          setSelectedTool("detect");
           break;
         case "1":
         case "2":
@@ -2106,7 +2113,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      <SamModelPanel onAddDetections={handleAddSamDetections} onTrack={handleSamTrack} />
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-4 py-2">
@@ -2193,6 +2199,14 @@ const Index = () => {
                 useSAM2={useSAM2}
                 onUseSAM2Change={setUseSAM2}
               />
+              {selectedTool === "detect" && (
+                <SamTool
+                  onAddDetections={handleAddSamDetections}
+                  onTrack={handleSamTrack}
+                  selectedClassId={selectedClassId}
+                  videoReady={!!videoId}
+                />
+              )}
               <ClassManager
                 classes={classes}
                 instances={instances}
@@ -2522,11 +2536,29 @@ const Index = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Edit Tool</span>
-                  <kbd className="px-2 py-1 bg-muted rounded">P</kbd>
+                  <kbd className="px-2 py-1 bg-muted rounded">M</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Detect Tool (SAM3)</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">D</kbd>
                 </div>
               </div>
             </div>
-            
+
+            <div>
+              <h3 className="font-semibold mb-2">Overlays</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Toggle Segments / BBoxes / Points</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">1 / 2 / 3</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span>Toggle Labels</span>
+                  <kbd className="px-2 py-1 bg-muted rounded">4</kbd>
+                </div>
+              </div>
+            </div>
+
             <div>
               <h3 className="font-semibold mb-2">Annotation</h3>
               <div className="space-y-1 text-sm">
