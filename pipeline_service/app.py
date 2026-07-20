@@ -121,9 +121,9 @@ def create_app() -> FastAPI:
         except Exception as exc:  # ModelError for unknown name
             raise HTTPException(404, str(exc)) from exc
         inputs = dict(req.inputs)
-        # extract the frame server-side. Prefer video_id (resolve the presigned URL from the
-        # backend — the browser only has an unusable blob: URL); else a direct video_url.
-        if not inputs.get("image_png_base64"):
+        # Only CONCEPT (text-prompt) requests need a frame extracted. Click requests
+        # (points) pass video_id/frame_number straight through to the SAM2 handle.
+        if inputs.get("text") and not inputs.get("image_png_base64"):
             if inputs.get("video_id"):
                 stream = _resolve_stream_url(inputs.pop("video_id"))
                 inputs["image_png_base64"] = _extract_frame_b64(stream, inputs.pop("time_sec", None))
