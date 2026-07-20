@@ -63,10 +63,13 @@ export function SamModelPanel() {
         inputs = { image_png_base64: testFrameB64(), text: "white square" };
       } else {
         vidEl = document.querySelector("video") as HTMLVideoElement | null;
-        if (!vidEl || !vidEl.currentSrc || !vidEl.videoWidth) {
+        const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
+        if (!vidEl || !vidEl.videoWidth) {
           throw new Error("Load a video first (and make sure a frame is showing).");
         }
-        inputs = { video_url: vidEl.currentSrc, time_sec: vidEl.currentTime, text: prompt };
+        if (!vid) throw new Error("No video id yet — open a video in a project first.");
+        // send the id (the service resolves the real stream URL); the <video> only has a blob: src
+        inputs = { video_id: vid, time_sec: vidEl.currentTime, text: prompt };
       }
       const r = await fetch(`${PIPELINE}/segment`, {
         method: "POST",
