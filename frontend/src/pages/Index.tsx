@@ -287,6 +287,54 @@ const Index = () => {
     (window as unknown as { __samVideoId?: string }).__samVideoId = videoId;
   }, [videoId]);
 
+  // Commit SAM3 concept detections (native-pixel bboxes) as real annotations under the
+  // selected class at the current frame, so they persist / list / track like any object
+  // instead of floating as a fixed overlay that goes stale on the next frame.
+  const handleAddSamDetections = useCallback(
+    (dets: Array<{ bbox: number[]; score?: number }>) => {
+      const selectedClass = classes.find((c) => c.id === selectedClassId);
+      if (!selectedClass) {
+        toast({ title: "No class selected", description: "Select a class before adding detections." });
+        return 0;
+      }
+      const valid = dets.filter((d) => Array.isArray(d.bbox) && d.bbox.length === 4);
+      if (valid.length === 0) return 0;
+      const newInstances: Instance[] = [];
+      const newAnnotations: Annotation[] = [];
+      let n = instances.filter((inst) => inst.classId === selectedClass.id).length;
+      valid.forEach((d, i) => {
+        const bbox = nativeBBoxToPct(
+          d.bbox as [number, number, number, number],
+          videoNativeWidth,
+          videoNativeHeight,
+        );
+        const inst: Instance = {
+          id: `inst-${Date.now()}-${i}`,
+          classId: selectedClass.id,
+          instanceNumber: ++n,
+          metadata: {},
+        };
+        newInstances.push(inst);
+        newAnnotations.push({
+          id: `ann-${Date.now()}-${i}`,
+          instanceId: inst.id,
+          points: bboxToPolygon(bbox),
+          bbox,
+          frameCreated: currentFrame,
+          isKeyframe: true,
+        });
+      });
+      setInstances((prev) => [...prev, ...newInstances]);
+      setAnnotations((prev) => [...prev, ...newAnnotations]);
+      toast({
+        title: "Detections added",
+        description: `${newAnnotations.length} object(s) added to ${selectedClass.name} at frame ${currentFrame}`,
+      });
+      return newAnnotations.length;
+    },
+    [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoNativeWidth, videoNativeHeight, toast],
+  );
+
   // 🔍 DEBUG: Render-time state check
   useEffect(() => {
     if (!videoUrl && !videoId) {
@@ -1962,7 +2010,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      <SamModelPanel />
+      <SamModelPanel onAddDetections={handleAddSamDetections} />
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-4 py-2">
