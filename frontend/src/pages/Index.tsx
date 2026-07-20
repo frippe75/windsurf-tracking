@@ -282,6 +282,9 @@ const Index = () => {
   // 🎬 DEBUG: Watch videoId changes
   useEffect(() => {
     console.log("🎬 videoId changed:", videoId ? `SET (${videoId})` : "CLEARED");
+    // expose for SamModelPanel: it needs the id to have the service resolve the stream URL
+    // (the <video> only has an unusable blob: src).
+    (window as unknown as { __samVideoId?: string }).__samVideoId = videoId;
   }, [videoId]);
 
   // 🔍 DEBUG: Render-time state check

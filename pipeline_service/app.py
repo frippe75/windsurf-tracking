@@ -28,6 +28,30 @@ class SegmentRequest(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)  # passed to the handle's infer()
 
 
+def _resolve_stream_url(video_id: str) -> str:
+    """Resolve a video_id to its (presigned) stream URL via the backend, in-cluster.
+
+    The browser holds the video only as a blob: URL (unusable by ffmpeg and cross-origin
+    tainted), so we ask the backend for the real presigned S3 URL server-side. The
+    /api/videos/{id}/stream-url route is unauthenticated.
+    """
+    import json
+    import os
+    import urllib.request
+
+    base = os.environ.get("BACKEND_URL", "http://windsurf-prod-backend:8000").rstrip("/")
+    url = f"{base}/api/videos/{video_id}/stream-url"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception as exc:
+        raise HTTPException(502, f"could not resolve stream url for video {video_id}: {exc}") from exc
+    stream = data.get("url")
+    if not stream:
+        raise HTTPException(502, f"backend returned no stream url: {data}")
+    return stream
+
+
 def _extract_frame_b64(video_url: str, time_sec: float | None) -> str:
     """Server-side frame grab from a (presigned, cross-origin) video URL -> base64 PNG.
 
@@ -97,12 +121,19 @@ def create_app() -> FastAPI:
         except Exception as exc:  # ModelError for unknown name
             raise HTTPException(404, str(exc)) from exc
         inputs = dict(req.inputs)
-        # convenience: extract the frame server-side from a (cross-origin) video url
-        if inputs.get("video_url") and not inputs.get("image_png_base64"):
-            inputs["image_png_base64"] = _extract_frame_b64(
-                inputs.pop("video_url"), inputs.pop("time_sec", None)
-            )
-            inputs.pop("frame_number", None)
+        # Only CONCEPT (text-prompt) requests need a frame extracted. Click requests
+        # (points) pass video_id/frame_number straight through to the SAM2 handle.
+        if inputs.get("text") and not inputs.get("image_png_base64"):
+            if inputs.get("video_id"):
+                stream = _resolve_stream_url(inputs.pop("video_id"))
+                inputs["image_png_base64"] = _extract_frame_b64(stream, inputs.pop("time_sec", None))
+                inputs.pop("frame_number", None)
+                inputs.pop("video_url", None)
+            elif inputs.get("video_url"):
+                inputs["image_png_base64"] = _extract_frame_b64(
+                    inputs.pop("video_url"), inputs.pop("time_sec", None)
+                )
+                inputs.pop("frame_number", None)
         try:
             result = handle.infer(**inputs)
         except pe.ModelError as exc:

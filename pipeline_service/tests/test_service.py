@@ -89,6 +89,20 @@ def test_model_error_502(client):
     assert r.status_code == 502
 
 
+def test_segment_video_id_resolves_and_extracts(client, monkeypatch):
+    # video_id -> resolve stream url (backend) -> extract frame -> handle
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: f"https://s3/{vid}.mp4")
+    monkeypatch.setattr(appmod, "_extract_frame_b64", lambda url, t: "FRAMEB64")
+    r = client.post("/segment", json={
+        "model": "t-sam3",
+        "inputs": {"video_id": "abc", "time_sec": 1.0, "text": "windsurf sail rig"},
+    })
+    assert r.status_code == 200
+    assert r.json()["result"]["detections"][0]["label"] == "windsurf sail rig"
+
+
 def test_segment_video_url_extracts_frame(client, monkeypatch):
     # video_url in inputs -> server-side frame extraction fills image_png_base64
     import pipeline_service.app as appmod
