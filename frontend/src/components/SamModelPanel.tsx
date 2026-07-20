@@ -14,15 +14,22 @@ const PIPELINE = "/pipeline";
 
 type ModelInfo = { name: string; capabilities: string[] };
 type Box = { left: number; top: number; width: number; height: number; score?: number };
+type Detection = { bbox: number[]; score?: number };
+type Props = { onAddDetections?: (dets: Detection[]) => number };
 
-export function SamModelPanel() {
+export function SamModelPanel({ onAddDetections }: Props = {}) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selected, setSelected] = useState<string>(() => localStorage.getItem("samModel") || "off");
   const [prompt, setPrompt] = useState("windsurf sail rig");
+  const [minScore, setMinScore] = useState(() => {
+    const v = parseFloat(localStorage.getItem("samMinScore") || "0.5");
+    return Number.isFinite(v) ? v : 0.5;
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>("");
   const [dets, setDets] = useState<any[] | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [kept, setKept] = useState<Detection[]>([]);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -32,6 +39,7 @@ export function SamModelPanel() {
       .catch((e) => setErr(`GET /pipeline/models: ${e}`));
   }, []);
   useEffect(() => localStorage.setItem("samModel", selected), [selected]);
+  useEffect(() => localStorage.setItem("samMinScore", String(minScore)), [minScore]);
 
   const segModels = useMemo(
     () => models.filter((m) => m.capabilities.some((c) => c === "concept-segment" || c === "segment-click")),
@@ -56,6 +64,7 @@ export function SamModelPanel() {
     setErr("");
     setDets(null);
     setBoxes([]);
+    setKept([]);
     try {
       let inputs: Record<string, unknown>;
       let vidEl: HTMLVideoElement | null = null;
@@ -80,23 +89,25 @@ export function SamModelPanel() {
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}: ${JSON.stringify(d)}`);
       const detections: any[] = d.result?.detections ?? [];
       setDets(detections);
+      const keptDets: Detection[] = detections
+        .filter((x) => Array.isArray(x.bbox) && x.bbox.length === 4)
+        .filter((x) => (x.score ?? 0) >= minScore);
+      setKept(keptDets);
       if (vidEl && vidEl.videoWidth) {
         const rect = vidEl.getBoundingClientRect();
         const sx = rect.width / vidEl.videoWidth;
         const sy = rect.height / vidEl.videoHeight;
         setBoxes(
-          detections
-            .filter((x) => Array.isArray(x.bbox) && x.bbox.length === 4)
-            .map((x) => {
-              const [x1, y1, x2, y2] = x.bbox as number[];
-              return {
-                left: rect.left + x1 * sx,
-                top: rect.top + y1 * sy,
-                width: (x2 - x1) * sx,
-                height: (y2 - y1) * sy,
-                score: x.score,
-              };
-            }),
+          keptDets.map((x) => {
+            const [x1, y1, x2, y2] = x.bbox as number[];
+            return {
+              left: rect.left + x1 * sx,
+              top: rect.top + y1 * sy,
+              width: (x2 - x1) * sx,
+              height: (y2 - y1) * sy,
+              score: x.score,
+            };
+          }),
         );
       }
     } catch (e: any) {
@@ -167,6 +178,19 @@ export function SamModelPanel() {
               onChange={(e) => setPrompt(e.target.value)}
               className="mb-2 w-full rounded bg-slate-800 px-2 py-1"
             />
+            <label className="mb-1 flex items-center justify-between text-slate-400">
+              <span>Min score</span>
+              <span className="text-slate-300">{minScore.toFixed(2)}</span>
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={minScore}
+              onChange={(e) => setMinScore(parseFloat(e.target.value))}
+              className="mb-2 w-full"
+            />
             <button
               onClick={() => runConcept(false)}
               disabled={busy}
@@ -189,9 +213,28 @@ export function SamModelPanel() {
         )}
 
         {err && <div className="mt-2 break-words text-red-400">{err}</div>}
+        {onAddDetections && kept.length > 0 && (
+          <button
+            onClick={() => {
+              const n = onAddDetections(kept);
+              if (n > 0) {
+                // they're real canvas annotations now — drop the fixed preview overlay
+                setBoxes([]);
+                setKept([]);
+              }
+            }}
+            className="mb-1 w-full rounded bg-sky-600 px-2 py-1 font-medium hover:bg-sky-500"
+          >
+            Add {kept.length} as object{kept.length > 1 ? "s" : ""} (frame)
+          </button>
+        )}
+
         {dets && (
           <div className="mt-2">
-            <div className="text-emerald-400">{dets.length} detection(s) {boxes.length > 0 ? "· drawn over the video" : ""}</div>
+            <div className="text-emerald-400">
+              {dets.length} detection(s) · {boxes.length} ≥ {minScore.toFixed(2)}
+              {boxes.length > 0 ? " drawn" : ""}
+            </div>
             <pre className="mt-1 max-h-28 overflow-auto rounded bg-black/40 p-1">
               {JSON.stringify(dets.map((d) => ({ bbox: d.bbox?.map((v: number) => Math.round(v)), score: d.score?.toFixed?.(2) })), null, 1)}
             </pre>
