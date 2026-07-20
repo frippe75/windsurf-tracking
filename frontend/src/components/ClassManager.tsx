@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Check, X, ChevronDown, ChevronRight, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation } from "@/types/annotation";
 import { InstanceManager } from "./InstanceManager";
@@ -277,6 +277,13 @@ export function ClassManager({
                   )}
                   <div className="text-xs text-muted-foreground">
                     {classInstances.length} instance{classInstances.length !== 1 ? "s" : ""}
+                  </div>
+                  <div
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground/70 truncate"
+                    title={`SAM3 concept phrase (edit in the Detect tool): ${cls.conceptPrompt ?? cls.name}`}
+                  >
+                    <Wand2 className="h-2.5 w-2.5 flex-shrink-0" />
+                    <span className="truncate">{cls.conceptPrompt ?? cls.name}</span>
                   </div>
                 </div>
                 {editingClassId !== cls.id && (

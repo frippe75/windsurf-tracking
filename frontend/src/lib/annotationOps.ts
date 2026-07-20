@@ -30,6 +30,7 @@ export function createClass(
     name,
     color: color.hex,
     colorName: color.name,
+    conceptPrompt: name, // seed the SAM3 phrase from the class name; editable in the Detect tool
   };
 }
 

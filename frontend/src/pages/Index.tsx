@@ -87,6 +87,7 @@ const Index = () => {
     setColorIndex,
     handleCreateClass,
     handleRenameClass,
+    handleUpdateClassPrompt,
     handleDeleteClass,
     handleRenameInstance,
     handleDeleteInstance,
@@ -293,8 +294,8 @@ const Index = () => {
   // selected class at the current frame, so they persist / list / track like any object
   // instead of floating as a fixed overlay that goes stale on the next frame.
   const handleAddSamDetections = useCallback(
-    (dets: Array<{ bbox: number[]; score?: number; mask_base64?: string }>) => {
-      const selectedClass = classes.find((c) => c.id === selectedClassId);
+    (dets: Array<{ bbox: number[]; score?: number; mask_base64?: string }>, targetClassId?: string) => {
+      const selectedClass = classes.find((c) => c.id === (targetClassId ?? selectedClassId));
       if (!selectedClass) {
         toast({ title: "No class selected", description: "Select a class before adding detections." });
         return 0;
@@ -311,7 +312,7 @@ const Index = () => {
           videoNativeHeight,
         );
         const inst: Instance = {
-          id: `inst-${Date.now()}-${i}`,
+          id: `inst-${Date.now()}-${selectedClass.id}-${i}`,
           classId: selectedClass.id,
           instanceNumber: ++n,
           metadata: {},
@@ -322,7 +323,7 @@ const Index = () => {
         // the mask spans the whole frame (not a cropped tile).
         const mask = d.mask_base64;
         newAnnotations.push({
-          id: `ann-${Date.now()}-${i}`,
+          id: `ann-${Date.now()}-${selectedClass.id}-${i}`,
           instanceId: inst.id,
           points: bboxToPolygon(bbox),
           bbox,
@@ -348,6 +349,40 @@ const Index = () => {
       return newAnnotations.length;
     },
     [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoNativeWidth, videoNativeHeight, toast],
+  );
+
+  // Detect EVERY class in one pass: run each class's own concept prompt on the current frame and
+  // file the results into that class. This is the payoff of coupling the prompt to the class.
+  const handleDetectAllClasses = useCallback(
+    async (minScore: number, onProgress?: (s: string) => void): Promise<number> => {
+      const vidEl = document.querySelector("video") as HTMLVideoElement | null;
+      const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
+      if (!vidEl || !vidEl.videoWidth) throw new Error("Load a video first (make sure a frame is showing).");
+      if (!vid) throw new Error("No video id — open a video in a project first.");
+      const withPrompt = classes.filter((c) => (c.conceptPrompt ?? c.name).trim());
+      if (withPrompt.length === 0) throw new Error("No classes with a concept prompt.");
+      let total = 0;
+      for (const cls of withPrompt) {
+        onProgress?.(`Detecting ${cls.name}…`);
+        const r = await fetch(`/pipeline/segment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            capability: "concept-segment",
+            inputs: { video_id: vid, time_sec: vidEl.currentTime, text: (cls.conceptPrompt ?? cls.name).trim() },
+          }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status} detecting ${cls.name}`);
+        const dets = (d.result?.detections ?? [])
+          .filter((x: any) => Array.isArray(x.bbox) && x.bbox.length === 4)
+          .filter((x: any) => (x.score ?? 0) >= minScore);
+        total += handleAddSamDetections(dets, cls.id);
+      }
+      toast({ title: "Detect all complete", description: `${total} object(s) across ${withPrompt.length} class(es)` });
+      return total;
+    },
+    [classes, handleAddSamDetections, toast],
   );
 
   // SAM3-native VIDEO tracking: text prompt -> SAM3 video predictor propagates across a window
@@ -2201,9 +2236,12 @@ const Index = () => {
               />
               {selectedTool === "detect" && (
                 <SamTool
-                  onAddDetections={handleAddSamDetections}
-                  onTrack={handleSamTrack}
+                  classes={classes}
                   selectedClassId={selectedClassId}
+                  onUpdateClassPrompt={handleUpdateClassPrompt}
+                  onAddDetections={handleAddSamDetections}
+                  onDetectAll={handleDetectAllClasses}
+                  onTrack={handleSamTrack}
                   videoReady={!!videoId}
                 />
               )}
