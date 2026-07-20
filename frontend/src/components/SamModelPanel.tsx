@@ -14,7 +14,7 @@ const PIPELINE = "/pipeline";
 
 type ModelInfo = { name: string; capabilities: string[] };
 type Box = { left: number; top: number; width: number; height: number; score?: number };
-type Detection = { bbox: number[]; score?: number };
+type Detection = { bbox: number[]; score?: number; mask_base64?: string };
 type Props = { onAddDetections?: (dets: Detection[]) => number };
 
 export function SamModelPanel({ onAddDetections }: Props = {}) {
