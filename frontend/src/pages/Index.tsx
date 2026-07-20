@@ -55,6 +55,7 @@ const Index = () => {
   const [videoId, setVideoId] = useState<string>("");
   const [videoNativeWidth, setVideoNativeWidth] = useState<number>(1280);
   const [videoNativeHeight, setVideoNativeHeight] = useState<number>(720);
+  const [videoFps, setVideoFps] = useState<number>(30);
   const [blobUrlsRef] = useState<{ current: Set<string> }>({ current: new Set() });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -247,6 +248,7 @@ const Index = () => {
           setVideoNativeWidth(activeVideo.metadata.width);
           setVideoNativeHeight(activeVideo.metadata.height);
           setTotalFrames(activeVideo.metadata.totalFrames);
+          setVideoFps(activeVideo.metadata.fps || 30);
         }
       }
     };
@@ -346,6 +348,86 @@ const Index = () => {
       return newAnnotations.length;
     },
     [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoNativeWidth, videoNativeHeight, toast],
+  );
+
+  // SAM3-native VIDEO tracking: text prompt -> SAM3 video predictor propagates across a window
+  // -> per-frame masklets ingested as annotations (one Instance per tracked object_id). Async:
+  // submit to /pipeline/track, poll /pipeline/track/{id} until COMPLETED. No backend/SAM2 involved.
+  const handleSamTrack = useCallback(
+    async (text: string, extentFrames: number): Promise<number> => {
+      const selectedClass = classes.find((c) => c.id === selectedClassId);
+      if (!selectedClass) {
+        toast({ title: "No class selected", description: "Select a class before tracking." });
+        return 0;
+      }
+      const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
+      if (!vid) throw new Error("No video id — open a video in a project first.");
+      const start = currentFrame;
+      const end = currentFrame + Math.max(1, extentFrames) - 1;
+      const sub = await fetch(`/pipeline/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          capability: "concept-track",
+          inputs: { video_id: vid, start_frame: start, end_frame: end, fps: videoFps, text },
+        }),
+      });
+      const subd = await sub.json().catch(() => ({}));
+      if (!sub.ok) throw new Error(subd.detail || `track submit HTTP ${sub.status}`);
+      const { job_id, model } = subd;
+
+      // poll (cold start can take minutes)
+      let out: any = null;
+      for (let i = 0; i < 180; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const s = await fetch(`/pipeline/track/${job_id}?model=${encodeURIComponent(model)}`);
+        const sd = await s.json().catch(() => ({}));
+        if (!s.ok) throw new Error(sd.detail || `track status HTTP ${s.status}`);
+        if (sd.error) throw new Error(String(sd.error));
+        if (sd.status === "COMPLETED") { out = sd; break; }
+        if (sd.status === "FAILED") throw new Error("SAM3 tracking failed");
+      }
+      if (!out) throw new Error("SAM3 tracking timed out");
+
+      // one Instance per tracked object_id (persistent identity), per-frame Annotation with mask
+      const instByObj = new Map<number, string>();
+      const newInstances: Instance[] = [];
+      const newAnnotations: Annotation[] = [];
+      let n = instances.filter((inst) => inst.classId === selectedClass.id).length;
+      for (const fr of out.frames || []) {
+        for (const o of fr.objects || []) {
+          const oid = o.object_id ?? 0;
+          let instId = instByObj.get(oid);
+          if (!instId) {
+            instId = `inst-${Date.now()}-${oid}`;
+            instByObj.set(oid, instId);
+            newInstances.push({ id: instId, classId: selectedClass.id, instanceNumber: ++n, metadata: {} });
+          }
+          const p = o.bbox_pct as number[] | undefined;
+          if (!p || p.length !== 4) continue;
+          const bbox = { x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] };
+          newAnnotations.push({
+            id: `ann-${Date.now()}-${oid}-${fr.frame_number}`,
+            instanceId: instId,
+            points: bboxToPolygon(bbox),
+            bbox,
+            frameCreated: fr.frame_number,
+            isKeyframe: false,
+            ...(o.mask_base64
+              ? { maskBase64: o.mask_base64, maskBBox: bbox, maskWidth: videoNativeWidth, maskHeight: videoNativeHeight, maskIsCropped: false }
+              : {}),
+          });
+        }
+      }
+      setInstances((prev) => [...prev, ...newInstances]);
+      setAnnotations((prev) => [...prev, ...newAnnotations]);
+      toast({
+        title: "Tracking complete",
+        description: `${newInstances.length} object(s) tracked across ${(out.frames || []).length} frames`,
+      });
+      return newAnnotations.length;
+    },
+    [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoFps, videoNativeWidth, videoNativeHeight, toast],
   );
 
   // 🔍 DEBUG: Render-time state check
@@ -840,7 +922,8 @@ const Index = () => {
     setVideoNativeWidth(video.metadata.width);
     setVideoNativeHeight(video.metadata.height);
     setTotalFrames(video.metadata.totalFrames);
-    
+    setVideoFps(video.metadata.fps || 30);
+
     // Update last accessed time
     setManagedVideos(prev => prev.map(v =>
       v.id === videoId ? { ...v, isActive: true, lastAccessedAt: Date.now() } : { ...v, isActive: false }
@@ -2023,7 +2106,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      <SamModelPanel onAddDetections={handleAddSamDetections} />
+      <SamModelPanel onAddDetections={handleAddSamDetections} onTrack={handleSamTrack} />
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-4 py-2">
