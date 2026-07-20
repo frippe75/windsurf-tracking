@@ -5,6 +5,7 @@ export interface Class {
   name: string;
   color: string;
   colorName: string;
+  conceptPrompt?: string; // SAM3 open-vocab detection phrase for this class (defaults to name)
 }
 
 export interface Instance {

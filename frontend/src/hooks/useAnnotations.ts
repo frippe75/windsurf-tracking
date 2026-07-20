@@ -61,6 +61,10 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     setClasses((prev) => renameClassById(prev, classId, newName));
   };
 
+  const handleUpdateClassPrompt = (classId: string, conceptPrompt: string) => {
+    setClasses((prev) => prev.map((c) => (c.id === classId ? { ...c, conceptPrompt } : c)));
+  };
+
   const handleDeleteClass = (classId: string) => {
     const cascaded = deleteClassCascade(classes, instances, annotations, classId);
     setClasses(cascaded.classes);
@@ -143,6 +147,7 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     // handlers
     handleCreateClass,
     handleRenameClass,
+    handleUpdateClassPrompt,
     handleDeleteClass,
     handleRenameInstance,
     handleDeleteInstance,
