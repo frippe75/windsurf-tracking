@@ -2,9 +2,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { MousePointer, Target, Edit3 } from "lucide-react";
+import { MousePointer, Target, Edit3, Wand2 } from "lucide-react";
 
-export type ToolMode = "select" | "annotate" | "edit";
+export type ToolMode = "select" | "annotate" | "edit" | "detect";
 
 interface ToolboxProps {
   selectedTool: ToolMode;
@@ -32,12 +32,13 @@ export function Toolbox({
       <div className="space-y-3">
         <div>
           <h3 className="text-xs font-semibold mb-2 text-muted-foreground">Tools</h3>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-2 gap-1">
             <Button
               variant={selectedTool === "select" ? "default" : "outline"}
               size="sm"
               onClick={() => onToolChange("select")}
               className="flex flex-col gap-1 h-auto py-2"
+              title="Select (v)"
             >
               <MousePointer className="h-4 w-4" />
               <span className="text-xs">Select</span>
@@ -47,6 +48,7 @@ export function Toolbox({
               size="sm"
               onClick={() => onToolChange("annotate")}
               className="flex flex-col gap-1 h-auto py-2"
+              title="Annotate (a)"
             >
               <Target className="h-4 w-4" />
               <span className="text-xs">Annotate</span>
@@ -56,9 +58,20 @@ export function Toolbox({
               size="sm"
               onClick={() => onToolChange("edit")}
               className="flex flex-col gap-1 h-auto py-2"
+              title="Edit (m)"
             >
               <Edit3 className="h-4 w-4" />
               <span className="text-xs">Edit</span>
+            </Button>
+            <Button
+              variant={selectedTool === "detect" ? "default" : "outline"}
+              size="sm"
+              onClick={() => onToolChange("detect")}
+              className="flex flex-col gap-1 h-auto py-2"
+              title="AI detect & track — SAM3 (d)"
+            >
+              <Wand2 className="h-4 w-4" />
+              <span className="text-xs">Detect</span>
             </Button>
           </div>
         </div>
