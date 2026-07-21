@@ -1,10 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Instance, Scene, Class, MetaField } from "@/types/annotation";
+import { Instance, Scene, Class, MetaField, Annotation } from "@/types/annotation";
 import { countByField, countByClass } from "@/lib/balance";
+import { countDerived } from "@/lib/frameAttrs";
 
-/** Coverage/balance view: instances per class + counts per metadata value, so imbalance is visible. */
-type Props = { classes: Class[]; instances: Instance[]; scenes: Scene[]; schema: MetaField[] };
+/** Coverage/balance view: instances per class, derived frame coverage (scale/truncation), and
+ * counts per metadata value — so imbalance is visible. */
+type Props = { classes: Class[]; instances: Instance[]; scenes: Scene[]; annotations: Annotation[]; schema: MetaField[] };
 
 function Bar({ label, count, max, color }: { label: string; count: number; max: number; color?: string }) {
   return (
@@ -20,10 +22,13 @@ function Bar({ label, count, max, color }: { label: string; count: number; max: 
   );
 }
 
-export function BalancePanel({ classes, instances, scenes, schema }: Props) {
+export function BalancePanel({ classes, instances, scenes, annotations, schema }: Props) {
   const classCounts = countByClass(classes, instances);
   const fieldBalances = countByField(instances, scenes, schema);
+  const derived = countDerived(annotations);
   const maxClass = Math.max(1, ...classCounts.map((c) => c.count));
+  const scaleMax = Math.max(1, ...Object.values(derived.scale));
+  const truncMax = Math.max(1, ...Object.values(derived.truncation));
 
   return (
     <Card className="p-4 bg-card border-border space-y-3">
@@ -35,6 +40,22 @@ export function BalancePanel({ classes, instances, scenes, schema }: Props) {
           <Bar key={c.classId} label={c.name} count={c.count} max={maxClass} color={classes.find((k) => k.id === c.classId)?.color} />
         ))}
         {classCounts.length === 0 && <div className="text-[11px] text-muted-foreground">No classes yet.</div>}
+      </div>
+
+      <div className="space-y-1 border-t border-border pt-2">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Object scale <span className="opacity-60">(derived)</span></span>
+          <Badge variant="secondary" className="text-[10px]">{derived.total}</Badge>
+        </div>
+        {(["small", "medium", "large"] as const).map((k) => (
+          <Bar key={k} label={k} count={derived.scale[k] || 0} max={scaleMax} color="hsl(142, 71%, 45%)" />
+        ))}
+      </div>
+      <div className="space-y-1 border-t border-border pt-2">
+        <div className="text-[11px] text-muted-foreground">Truncation <span className="opacity-60">(derived)</span></div>
+        {(["full", "truncated"] as const).map((k) => (
+          <Bar key={k} label={k} count={derived.truncation[k] || 0} max={truncMax} color="hsl(25, 95%, 53%)" />
+        ))}
       </div>
 
       {fieldBalances.map((fb) => {

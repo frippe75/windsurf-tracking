@@ -2273,7 +2273,7 @@ const Index = () => {
                   />
                 </TabsContent>
                 <TabsContent value="balance" className="mt-4">
-                  <BalancePanel classes={classes} instances={instances} scenes={scenes} schema={metadataSchema} />
+                  <BalancePanel classes={classes} instances={instances} scenes={scenes} annotations={annotations} schema={metadataSchema} />
                 </TabsContent>
               </Tabs>
             </div>
