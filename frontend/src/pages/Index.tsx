@@ -1239,8 +1239,9 @@ const Index = () => {
   };
 
   // Real metadata extraction: for each scene, send a grid of DIVERSE frames to Claude with the
-  // project's scene-scoped schema and fill Scene.metadata; video-scoped fields get one grid across
-  // the whole video. Instance-scoped fields are Phase 2 (need per-object crops).
+  // project's scene- AND instance-scoped schema — scene values fill Scene.metadata, instance values
+  // fill the metadata of every object present in that scene (no crops). Video-scoped fields get one
+  // grid across the whole video.
   const handleGenerateMetadata = async () => {
     const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
     if (!vid) {
@@ -1248,8 +1249,9 @@ const Index = () => {
       return;
     }
     const sceneFields = metadataSchema.filter((f) => f.scope === "scene");
+    const instanceFields = metadataSchema.filter((f) => f.scope === "instance");
     const videoFields = metadataSchema.filter((f) => f.scope === "video");
-    if (sceneFields.length === 0 && videoFields.length === 0) {
+    if (sceneFields.length === 0 && instanceFields.length === 0 && videoFields.length === 0) {
       toast({ title: "No schema", description: "Define a metadata schema in Project Manager (Auto-draft) first." });
       return;
     }
@@ -1257,6 +1259,8 @@ const Index = () => {
       o && typeof o === "object"
         ? Object.fromEntries(Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
         : {};
+    const pick = (m: Record<string, string>, fields: typeof metadataSchema): Record<string, string> =>
+      Object.fromEntries(fields.map((f) => f.key).filter((k) => k in m).map((k) => [k, m[k]]));
     const evenFrames = (start: number, end: number, k: number): number[] => {
       if (end <= start) return [start];
       const n = Math.min(k, end - start + 1);
@@ -1278,9 +1282,14 @@ const Index = () => {
       }
 
       let filled = 0;
-      if (sceneFields.length && scenes.length) {
-        const schema = toJsonSchema(sceneFields);
-        const updates: Record<string, Record<string, string>> = {};
+      // One grid per scene fills BOTH scene- and instance-scoped fields (no per-object crops — the
+      // grid's instance attributes apply to the objects present in that scene; refine later if a scene
+      // holds multiple distinct objects).
+      const gridFields = [...sceneFields, ...instanceFields];
+      if (gridFields.length && scenes.length) {
+        const schema = toJsonSchema(gridFields);
+        const sceneUpdates: Record<string, Record<string, string>> = {};
+        const instUpdates: Record<string, Record<string, string>> = {};
         for (const sc of scenes) {
           const anns = annotations.filter((a) => a.frameCreated >= sc.startFrame && a.frameCreated <= sc.endFrame);
           let frames: number[];
@@ -1297,12 +1306,31 @@ const Index = () => {
             time_secs: times,
             prompt: "This grid shows frames from one scene of a video. Fill the fields.",
           });
-          updates[sc.id] = strMap(res);
+          const m = strMap(res);
+          sceneUpdates[sc.id] = pick(m, sceneFields);
+          const instVals = pick(m, instanceFields);
+          if (Object.keys(instVals).length) {
+            for (const id of new Set(anns.map((a) => a.instanceId))) {
+              instUpdates[id] = { ...(instUpdates[id] ?? {}), ...instVals };
+            }
+          }
           filled++;
         }
-        setScenes((prev) => prev.map((s) => (updates[s.id] ? { ...s, metadata: { ...s.metadata, ...updates[s.id] } } : s)));
+        if (sceneFields.length) {
+          setScenes((prev) =>
+            prev.map((s) =>
+              sceneUpdates[s.id] && Object.keys(sceneUpdates[s.id]).length ? { ...s, metadata: { ...s.metadata, ...sceneUpdates[s.id] } } : s,
+            ),
+          );
+        }
+        if (Object.keys(instUpdates).length) {
+          setInstances((prev) => prev.map((i) => (instUpdates[i.id] ? { ...i, metadata: { ...i.metadata, ...instUpdates[i.id] } } : i)));
+        }
       }
-      toast({ title: "Metadata generated", description: `Claude filled ${filled} scene(s)${videoFields.length ? " + video-level" : ""}` });
+      const parts = [`${filled} scene(s)`];
+      if (instanceFields.length) parts.push("object attrs");
+      if (videoFields.length) parts.push("video-level");
+      toast({ title: "Metadata generated", description: `Claude filled ${parts.join(" + ")}` });
     } catch (e: any) {
       toast({ title: "Metadata failed", description: String(e?.message ?? e), variant: "destructive" });
     } finally {
