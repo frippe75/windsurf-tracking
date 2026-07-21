@@ -392,6 +392,16 @@ export function useProjects(options: UseProjectsOptions) {
     });
   };
 
+  // The dataset's purpose in the user's own words — this is the real context the
+  // metadata auto-draft reads (name + description + classes), so it must be editable.
+  const handleProjectDescription = (projectId: string, description: string) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, description, lastModified: Date.now() } : p
+      )
+    );
+  };
+
   return {
     projects,
     setProjects,
@@ -404,5 +414,6 @@ export function useProjects(options: UseProjectsOptions) {
     handleProjectSelect,
     handleProjectDelete,
     handleProjectRename,
+    handleProjectDescription,
   };
 }

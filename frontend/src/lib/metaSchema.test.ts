@@ -35,6 +35,14 @@ describe("schemaDraftRequest", () => {
     expect(prompt).toContain("sail, board");
     expect((schema as any).properties.fields.type).toBe("array");
   });
+
+  it("is domain-neutral: no hardcoded example fields leak into the prompt", () => {
+    // A non-windsurf dataset must not be steered toward weather/sail examples.
+    const { prompt } = schemaDraftRequest("Tumor tiles", "histology slides", ["tumor", "stroma"]);
+    for (const leaked of ["weather", "wave", "sail"]) {
+      expect(prompt.toLowerCase()).not.toContain(leaked);
+    }
+  });
 });
 
 describe("normalizeField", () => {

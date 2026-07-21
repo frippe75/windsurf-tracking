@@ -30,6 +30,8 @@ interface ProjectManager_v2Props {
   onLoadVideo: (videoId: string) => void;
   onRemoveVideo: (videoId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
+  /** Persist the dataset description (the auto-draft's real context). */
+  onUpdateDescription?: (projectId: string, description: string) => void;
   /** Export the active project as a YOLO dataset (project-scoped action). */
   onExport?: () => void;
   /** The dataset's metadata schema + editor. */
@@ -49,6 +51,7 @@ export function ProjectManager_v2({
   onLoadVideo,
   onRemoveVideo,
   onRenameProject,
+  onUpdateDescription,
   onExport,
   metadataSchema = [],
   onUpdateSchema,
@@ -56,6 +59,13 @@ export function ProjectManager_v2({
 }: ProjectManager_v2Props) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
+  const [descDraft, setDescDraft] = useState<string | null>(null);
+  const saveDescription = () => {
+    if (activeProject && descDraft != null && descDraft !== (activeProject.description ?? "")) {
+      onUpdateDescription?.(activeProject.id, descDraft.trim());
+    }
+    setDescDraft(null);
+  };
   const startEditingName = () => {
     if (activeProject) {
       console.log('Starting edit with project name:', activeProject.name);
@@ -125,6 +135,14 @@ export function ProjectManager_v2({
                     <p className="text-sm text-muted-foreground">
                       Active Project
                     </p>
+                    <textarea
+                      value={descDraft ?? activeProject.description ?? ""}
+                      onChange={(e) => setDescDraft(e.target.value)}
+                      onBlur={saveDescription}
+                      rows={2}
+                      placeholder="Describe this dataset's purpose (domain, subjects, what it's for) — the auto-draft reads this to propose a relevant metadata schema."
+                      className="mt-1 w-full resize-none rounded border border-border bg-transparent px-2 py-1 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
