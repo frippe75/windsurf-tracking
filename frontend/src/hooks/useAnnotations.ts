@@ -16,6 +16,8 @@ import { useState } from "react";
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 import {
   createClass,
+  leastUsedColorIndex,
+  SAIL_COLORS,
   renameClassById,
   deleteClassCascade,
   renameInstanceById,
@@ -47,14 +49,19 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
   const [colorIndex, setColorIndex] = useState(0);
 
   const handleCreateClass = (name: string) => {
-    const newClass = createClass(name, colorIndex);
-    setClasses((prev) => [...prev, newClass]);
-    setColorIndex((prev) => prev + 1);
-    setSelectedClassId(newClass.id);
-    toast({
-      title: "Class created",
-      description: name,
+    // Pick the least-used palette color so classes don't collapse to one color.
+    setClasses((prev) => {
+      const newClass = createClass(name, leastUsedColorIndex(prev));
+      setSelectedClassId(newClass.id);
+      toast({ title: "Class created", description: name });
+      return [...prev, newClass];
     });
+    setColorIndex((prev) => prev + 1); // kept: consumed by an Index effect's deps
+  };
+
+  const handleUpdateClassColor = (classId: string, hex: string, colorName?: string) => {
+    const name = colorName ?? SAIL_COLORS.find((c) => c.hex === hex)?.name ?? "Custom";
+    setClasses((prev) => prev.map((c) => (c.id === classId ? { ...c, color: hex, colorName: name } : c)));
   };
 
   const handleRenameClass = (classId: string, newName: string) => {
@@ -148,6 +155,7 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     handleCreateClass,
     handleRenameClass,
     handleUpdateClassPrompt,
+    handleUpdateClassColor,
     handleDeleteClass,
     handleRenameInstance,
     handleDeleteInstance,

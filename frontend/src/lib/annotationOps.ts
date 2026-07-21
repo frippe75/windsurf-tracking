@@ -9,14 +9,31 @@
 
 import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
 
-/** Class color palette (cycled via colorIndex). */
+/** Class color palette (distinct hues; new classes pick the least-used one). */
 export const SAIL_COLORS = [
   { hex: "hsl(142, 71%, 45%)", name: "Green" },
   { hex: "hsl(217, 91%, 60%)", name: "Blue" },
   { hex: "hsl(25, 95%, 53%)", name: "Orange" },
   { hex: "hsl(271, 81%, 56%)", name: "Purple" },
   { hex: "hsl(48, 96%, 53%)", name: "Yellow" },
+  { hex: "hsl(334, 79%, 58%)", name: "Pink" },
+  { hex: "hsl(190, 90%, 45%)", name: "Cyan" },
+  { hex: "hsl(0, 84%, 60%)", name: "Red" },
+  { hex: "hsl(96, 60%, 45%)", name: "Lime" },
+  { hex: "hsl(255, 70%, 65%)", name: "Indigo" },
 ];
+
+/**
+ * Index of the palette color least used by the current classes, so new classes get a
+ * distinct color instead of all collapsing to the same one (the old monotonic colorIndex
+ * drifted out of sync with loaded/imported classes). Ties resolve to the earliest palette slot.
+ */
+export function leastUsedColorIndex(classes: Class[]): number {
+  const counts = SAIL_COLORS.map((c) => classes.filter((k) => k.color === c.hex).length);
+  let best = 0;
+  for (let i = 1; i < counts.length; i++) if (counts[i] < counts[best]) best = i;
+  return best;
+}
 
 /** Build a new class with the palette color for the given colorIndex. */
 export function createClass(
