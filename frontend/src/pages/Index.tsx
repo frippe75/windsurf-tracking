@@ -32,6 +32,7 @@ import { Project, createEmptyProject } from "@/types/project";
 import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, segmentWithSAM2, getVideoInfo, checkVideoExists, downloadFromYouTube, getYouTubeDownloadStatus, downloadVideoFile, getVideoStreamUrl, createProject, createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset } from "@/lib/api";
 import { exportProjectAsYolo } from "@/lib/datasetExport";
 import { pctToNative, nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
+import { useSamTool } from "@/hooks/useSamTool";
 import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { useAnnotations } from "@/hooks/useAnnotations";
@@ -291,171 +292,16 @@ const Index = () => {
     (window as unknown as { __samVideoId?: string }).__samVideoId = videoId;
   }, [videoId]);
 
-  // Commit SAM3 concept detections (native-pixel bboxes) as real annotations under the
-  // selected class at the current frame, so they persist / list / track like any object
-  // instead of floating as a fixed overlay that goes stale on the next frame.
-  const handleAddSamDetections = useCallback(
-    (dets: Array<{ bbox: number[]; score?: number; polygon?: Array<{ x: number; y: number }> }>, targetClassId?: string) => {
-      const selectedClass = classes.find((c) => c.id === (targetClassId ?? selectedClassId));
-      if (!selectedClass) {
-        toast({ title: "No class selected", description: "Select a class before adding detections." });
-        return 0;
-      }
-      const valid = dets.filter((d) => Array.isArray(d.bbox) && d.bbox.length === 4);
-      if (valid.length === 0) return 0;
-      const newInstances: Instance[] = [];
-      const newAnnotations: Annotation[] = [];
-      let n = instances.filter((inst) => inst.classId === selectedClass.id).length;
-      valid.forEach((d, i) => {
-        const bbox = nativeBBoxToPct(
-          d.bbox as [number, number, number, number],
-          videoNativeWidth,
-          videoNativeHeight,
-        );
-        const inst: Instance = {
-          id: `inst-${Date.now()}-${selectedClass.id}-${i}`,
-          classId: selectedClass.id,
-          instanceNumber: ++n,
-          metadata: {},
-        };
-        newInstances.push(inst);
-        // SAM3 returns the silhouette as a polygon contour (percent coords) — compact + it's the
-        // YOLO-seg format. Store it as points; fall back to the bbox rectangle if absent.
-        const poly = d.polygon && d.polygon.length >= 3 ? d.polygon : bboxToPolygon(bbox);
-        newAnnotations.push({
-          id: `ann-${Date.now()}-${selectedClass.id}-${i}`,
-          instanceId: inst.id,
-          points: poly,
-          bbox,
-          frameCreated: currentFrame,
-          isKeyframe: true,
-        });
-      });
-      setInstances((prev) => [...prev, ...newInstances]);
-      setAnnotations((prev) => [...prev, ...newAnnotations]);
-      toast({
-        title: "Detections added",
-        description: `${newAnnotations.length} object(s) added to ${selectedClass.name} at frame ${currentFrame}`,
-      });
-      return newAnnotations.length;
-    },
-    [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoNativeWidth, videoNativeHeight, toast],
-  );
-
-  // Detect EVERY class in one pass: run each class's own concept prompt on the current frame and
-  // file the results into that class. This is the payoff of coupling the prompt to the class.
-  const handleDetectAllClasses = useCallback(
-    async (minScore: number, onProgress?: (s: string) => void): Promise<number> => {
-      const vidEl = document.querySelector("video") as HTMLVideoElement | null;
-      const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
-      if (!vidEl || !vidEl.videoWidth) throw new Error("Load a video first (make sure a frame is showing).");
-      if (!vid) throw new Error("No video id — open a video in a project first.");
-      const withPrompt = classes.filter((c) => (c.conceptPrompt ?? c.name).trim());
-      if (withPrompt.length === 0) throw new Error("No classes with a concept prompt.");
-      let total = 0;
-      for (const cls of withPrompt) {
-        onProgress?.(`Detecting ${cls.name}…`);
-        const r = await fetch(`/pipeline/segment`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            capability: "concept-segment",
-            inputs: { video_id: vid, time_sec: vidEl.currentTime, text: (cls.conceptPrompt ?? cls.name).trim() },
-          }),
-        });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status} detecting ${cls.name}`);
-        const dets = (d.result?.detections ?? [])
-          .filter((x: any) => Array.isArray(x.bbox) && x.bbox.length === 4)
-          .filter((x: any) => (x.score ?? 0) >= minScore);
-        total += handleAddSamDetections(dets, cls.id);
-      }
-      toast({ title: "Detect all complete", description: `${total} object(s) across ${withPrompt.length} class(es)` });
-      return total;
-    },
-    [classes, handleAddSamDetections, toast],
-  );
-
-  // SAM3-native VIDEO tracking: text prompt -> SAM3 video predictor propagates across a window
-  // -> per-frame masklets ingested as annotations (one Instance per tracked object_id). Async:
-  // submit to /pipeline/track, poll /pipeline/track/{id} until COMPLETED. No backend/SAM2 involved.
-  const handleSamTrack = useCallback(
-    async (text: string, extentFrames: number, onProgress?: (s: string) => void): Promise<number> => {
-      const selectedClass = classes.find((c) => c.id === selectedClassId);
-      if (!selectedClass) {
-        toast({ title: "No class selected", description: "Select a class before tracking." });
-        return 0;
-      }
-      const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
-      if (!vid) throw new Error("No video id — open a video in a project first.");
-      const start = currentFrame;
-      const end = currentFrame + Math.max(1, extentFrames) - 1;
-      onProgress?.("Submitting…");
-      const sub = await fetch(`/pipeline/track`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          capability: "concept-track",
-          inputs: { video_id: vid, start_frame: start, end_frame: end, fps: videoFps, text },
-        }),
-      });
-      const subd = await sub.json().catch(() => ({}));
-      if (!sub.ok) throw new Error(subd.detail || `track submit HTTP ${sub.status}`);
-      const { job_id, model } = subd;
-
-      // poll (cold start can take minutes)
-      let out: any = null;
-      for (let i = 0; i < 180; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const s = await fetch(`/pipeline/track/${job_id}?model=${encodeURIComponent(model)}`);
-        const sd = await s.json().catch(() => ({}));
-        if (!s.ok) throw new Error(sd.detail || `track status HTTP ${s.status}`);
-        if (sd.error) throw new Error(String(sd.error));
-        if (sd.status === "IN_QUEUE") onProgress?.("Queued (cold start ~1–4 min)…");
-        else if (sd.status === "IN_PROGRESS") onProgress?.(`Tracking ${extentFrames} frames…`);
-        if (sd.status === "COMPLETED") { out = sd; break; }
-        if (sd.status === "FAILED") throw new Error("SAM3 tracking failed");
-      }
-      if (!out) throw new Error("SAM3 tracking timed out");
-
-      // one Instance per tracked object_id (persistent identity), per-frame Annotation with mask
-      const instByObj = new Map<number, string>();
-      const newInstances: Instance[] = [];
-      const newAnnotations: Annotation[] = [];
-      let n = instances.filter((inst) => inst.classId === selectedClass.id).length;
-      for (const fr of out.frames || []) {
-        for (const o of fr.objects || []) {
-          const oid = o.object_id ?? 0;
-          let instId = instByObj.get(oid);
-          if (!instId) {
-            instId = `inst-${Date.now()}-${oid}`;
-            instByObj.set(oid, instId);
-            newInstances.push({ id: instId, classId: selectedClass.id, instanceNumber: ++n, metadata: {} });
-          }
-          const p = o.bbox_pct as number[] | undefined;
-          if (!p || p.length !== 4) continue;
-          const bbox = { x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] };
-          const poly = o.polygon && o.polygon.length >= 3 ? o.polygon : bboxToPolygon(bbox);
-          newAnnotations.push({
-            id: `ann-${Date.now()}-${oid}-${fr.frame_number}`,
-            instanceId: instId,
-            points: poly,
-            bbox,
-            frameCreated: fr.frame_number,
-            isKeyframe: false,
-          });
-        }
-      }
-      setInstances((prev) => [...prev, ...newInstances]);
-      setAnnotations((prev) => [...prev, ...newAnnotations]);
-      toast({
-        title: "Tracking complete",
-        description: `${newInstances.length} object(s) tracked across ${(out.frames || []).length} frames`,
-      });
-      return newAnnotations.length;
-    },
-    [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoFps, videoNativeWidth, videoNativeHeight, toast],
-  );
+  // SAM3 detect/track orchestration lives in a hook (extracted from this component); guards,
+  // toasts, and state updates are inside it. See hooks/useSamTool.ts + docs/REFACTOR_DEBT.md.
+  const {
+    addDetections: handleAddSamDetections,
+    detectAllClasses: handleDetectAllClasses,
+    track: handleSamTrack,
+  } = useSamTool({
+    classes, selectedClassId, instances, setInstances, setAnnotations,
+    currentFrame, videoNativeWidth, videoNativeHeight, videoFps, toast,
+  });
 
   // 🔍 DEBUG: Render-time state check
   useEffect(() => {

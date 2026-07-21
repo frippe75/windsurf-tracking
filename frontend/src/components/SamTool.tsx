@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Wand2, Loader2, Plus, Layers } from "lucide-react";
 import { Class } from "@/types/annotation";
+import { getModels, getWarmth, segment } from "@/lib/pipelineApi";
 
 /**
  * SAM3 "Detect" tool — the active-tool options for the left rail (shown when the Detect tool is
@@ -19,7 +20,6 @@ import { Class } from "@/types/annotation";
  * Frame/window are extracted SERVER-SIDE (the app's <video> is a cross-origin blob: URL), so we
  * only send the video id + timestamp; the pipeline service resolves + extracts.
  */
-const PIPELINE = "/pipeline";
 
 type Detection = { bbox: number[]; score?: number; polygon?: Array<{ x: number; y: number }> };
 type Box = { left: number; top: number; width: number; height: number; score?: number };
@@ -57,14 +57,8 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    fetch(`${PIPELINE}/models`)
-      .then((r) => r.json())
-      .then((d) => setModels(d.models || []))
-      .catch((e) => setErr(`GET /pipeline/models: ${e}`));
-    fetch(`${PIPELINE}/warmth`)
-      .then((r) => r.json())
-      .then((d) => setWarmth(d.warmth || {}))
-      .catch(() => {});
+    getModels().then(setModels).catch((e) => setErr(`GET /pipeline/models: ${e}`));
+    getWarmth().then(setWarmth).catch(() => {});
   }, []);
   useEffect(() => localStorage.setItem("samMinScore", String(minScore)), [minScore]);
   useEffect(() => localStorage.setItem("samTrackWindow", String(trackWindow)), [trackWindow]);
@@ -98,17 +92,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
       const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
       if (!vidEl || !vidEl.videoWidth) throw new Error("Load a video first (make sure a frame is showing).");
       if (!vid) throw new Error("No video id yet — open a video in a project first.");
-      const r = await fetch(`${PIPELINE}/segment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          capability: "concept-segment",
-          inputs: { video_id: vid, time_sec: vidEl.currentTime, text: promptValue },
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-      const dets: Detection[] = d.result?.detections ?? [];
+      const dets = await segment({ video_id: vid, time_sec: vidEl.currentTime, text: promptValue });
       setFoundCount(dets.length);
       const keptDets = dets
         .filter((x) => Array.isArray(x.bbox) && x.bbox.length === 4)
