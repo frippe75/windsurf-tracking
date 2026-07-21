@@ -1,4 +1,4 @@
-import { Class, Instance, Annotation, Keyframe, Scene, Track } from "./annotation";
+import { Class, Instance, Annotation, Keyframe, Scene, Track, MetaField } from "./annotation";
 
 export interface Project {
   id: string;                    // local UUID (stable across the session)
@@ -11,7 +11,11 @@ export interface Project {
   // `id` for older projects that adopted the backend id on the video-select path.
   // Auto-save/hydrate use `backendProjectId ?? id`.
   backendProjectId?: string;
-  
+
+  // Dataset config
+  description?: string;            // dataset purpose (seeds the metadata-schema auto-draft)
+  metadataSchema?: MetaField[];    // the dataset's metadata taxonomy (persisted in the blob)
+
   // All annotation state
   classes: Class[];
   instances: Instance[];
@@ -47,6 +51,8 @@ export function createEmptyProject(name: string, videoIds: string[] = []): Proje
     videoIds,
     createdAt: Date.now(),
     lastModified: Date.now(),
+    description: "",
+    metadataSchema: [],
     classes: [],
     instances: [],
     annotations: [],

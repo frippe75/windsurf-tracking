@@ -70,3 +70,12 @@ export interface Track {
   createdAt: number;
   thinning: ThinOp[]; // ordered, stackable; empty = keep everything
 }
+
+// A dataset-level metadata field. Categorical (enum) fields are what make balance measurable.
+// `scope` decides where the extracted value lands: whole-clip (scene), the object (instance), or video.
+export interface MetaField {
+  key: string;
+  scope: "scene" | "instance" | "video";
+  type: "enum" | "text";
+  values?: string[]; // for type "enum"
+}

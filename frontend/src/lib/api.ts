@@ -1262,6 +1262,7 @@ export interface BackendAnnotation {
   annotation_type: string;
   geometry: { bbox: { x: number; y: number; w: number; h: number } };
   is_keyframe: boolean;
+  tracking_metadata?: Record<string, string>; // per-object metadata (brand/color/…) for the dataset
 }
 
 export const saveBackendAnnotations = async (projectId: string, annotations: BackendAnnotation[]): Promise<{ saved: number }> => {

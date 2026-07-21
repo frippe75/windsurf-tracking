@@ -62,6 +62,25 @@ export async function trackStatus(jobId: string, model: string): Promise<TrackSt
   return d;
 }
 
+export type MetadataInput = {
+  schema?: Record<string, unknown>;
+  prompt?: string;
+  video_id?: string;
+  time_secs?: number[]; // present -> a grid of those frames is sent; absent -> text-only (draft)
+};
+
+/** Metadata extraction / schema-draft via the frontier VLM (Claude). Returns the model's JSON. */
+export async function extractMetadata(input: MetadataInput): Promise<any> {
+  const r = await fetch(`${PIPELINE}/metadata`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ capability: "metadata-extract", inputs: input }),
+  });
+  const d = await jparse(r);
+  if (!r.ok) throw new Error(d.detail || `metadata HTTP ${r.status}`);
+  return d.result;
+}
+
 const defaultSleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
 
 export interface PollOpts {

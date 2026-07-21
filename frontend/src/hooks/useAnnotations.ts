@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { Class, Instance, Annotation, Keyframe, Scene, Track, ThinOp } from "@/types/annotation";
+import { Class, Instance, Annotation, Keyframe, Scene, Track, ThinOp, MetaField } from "@/types/annotation";
 import { recomputeExclusions } from "@/lib/applyThinning";
 import {
   createClass,
@@ -46,6 +46,7 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [metadataSchema, setMetadataSchema] = useState<MetaField[]>([]);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [selectedClassId, setSelectedClassId] = useState<string>();
   const [colorIndex, setColorIndex] = useState(0);
@@ -156,6 +157,8 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     setScenes,
     tracks,
     setTracks,
+    metadataSchema,
+    setMetadataSchema,
     handleUpdateTrackThinning,
     videoMetadata,
     setVideoMetadata,
