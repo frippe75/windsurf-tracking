@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Wand2, Loader2, Plus, Layers } from "lucide-react";
 import { Class } from "@/types/annotation";
 import { getModels, getWarmth, segment } from "@/lib/pipelineApi";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * SAM3 "Detect" tool — the active-tool options for the left rail (shown when the Detect tool is
@@ -37,6 +38,7 @@ type Props = {
 type Warm = { serverless?: boolean; status?: string; warm?: boolean };
 
 export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDetections, onDetectAll, onTrack, videoReady }: Props) {
+  const { toast } = useToast();
   const [models, setModels] = useState<{ name: string; capabilities: string[] }[]>([]);
   const [warmth, setWarmth] = useState<Record<string, Warm>>({});
   const [minScore, setMinScore] = useState(() => {
@@ -58,7 +60,10 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
 
   useEffect(() => {
     getModels().then(setModels).catch((e) => setErr(`GET /pipeline/models: ${e}`));
-    getWarmth().then(setWarmth).catch(() => {});
+    const load = () => getWarmth().then(setWarmth).catch(() => {});
+    load();
+    const id = window.setInterval(load, 20000); // keep the warmth dot fresh (endpoints scale to zero)
+    return () => window.clearInterval(id);
   }, []);
   useEffect(() => localStorage.setItem("samMinScore", String(minScore)), [minScore]);
   useEffect(() => localStorage.setItem("samTrackWindow", String(trackWindow)), [trackWindow]);
@@ -80,6 +85,18 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     return "";
   }, [videoReady, selectedClass]);
 
+  const refreshWarmth = () => getWarmth().then(setWarmth).catch(() => {});
+  // When the SAM3 endpoint is cold/warming, tell the user WHY the first run is slow (toast),
+  // rather than leaving them staring at a spinner.
+  function notifyIfCold() {
+    if (engine?.serverless && engine.status && engine.status !== "warm") {
+      toast({
+        title: engine.status === "warming" ? "SAM3 is warming up" : "SAM3 is cold",
+        description: "First run spins up a GPU worker (~1–4 min); it's fast once warm.",
+      });
+    }
+  }
+
   async function detect() {
     if (!selectedClass) return;
     setBusy(true);
@@ -87,6 +104,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     setKept([]);
     setFoundCount(null);
     setBoxes([]);
+    notifyIfCold();
     try {
       const vidEl = document.querySelector("video") as HTMLVideoElement | null;
       const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
@@ -112,6 +130,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
       setErr(String(e?.message ?? e));
     } finally {
       setBusy(false);
+      refreshWarmth();
     }
   }
 
@@ -130,6 +149,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     setFoundCount(null);
     setBoxes([]);
     setAllStatus("Detecting…");
+    notifyIfCold();
     try {
       await onDetectAll(minScore, setAllStatus);
     } catch (e: any) {
@@ -138,6 +158,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     } finally {
       setBusy(false);
       setAllStatus("");
+      refreshWarmth();
     }
   }
 
@@ -146,6 +167,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     setTracking(true);
     setErr("");
     setTrackStatus("Submitting…");
+    notifyIfCold();
     try {
       await onTrack(promptValue, trackWindow, setTrackStatus);
     } catch (e: any) {
@@ -154,6 +176,7 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
     } finally {
       setTracking(false);
       setTrackStatus("");
+      refreshWarmth();
     }
   }
 
@@ -177,9 +200,12 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
           <h3 className="text-xs font-semibold text-foreground">Detect &amp; Track</h3>
           {engine?.serverless && (
             <span
-              className={`ml-auto h-2 w-2 rounded-full ${dotClass}`}
-              title={`SAM3 endpoint: ${engine.status ?? "unknown"}${engine.status === "cold" ? " — first run cold-starts (~1–4 min)" : ""}`}
-            />
+              className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground"
+              title={`SAM3 endpoint: ${engine.status ?? "checking"}${engine.status === "cold" ? " — first run cold-starts (~1–4 min)" : ""}`}
+            >
+              <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+              {engine.status ?? "checking"}
+            </span>
           )}
           <Badge variant="secondary" className={`text-[10px] ${engine?.serverless ? "" : "ml-auto"}`}>SAM3</Badge>
         </div>
