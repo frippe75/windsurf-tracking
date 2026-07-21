@@ -83,10 +83,12 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 128Mi
+            memory: 256Mi
           limits:
             cpu: "1"
-            memory: 512Mi
+            # /track extracts up to 120 frames (base64) in-pod; with the opencv baseline that
+            # spikes past 512Mi and OOM-kills the pod (raw 502 on submit). 1Gi gives headroom.
+            memory: 1Gi
       volumes:
       - name: models
         configMap:
