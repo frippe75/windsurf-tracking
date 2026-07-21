@@ -18,7 +18,7 @@ resources:
   - ingress-labelbee.yaml
 images:
   - name: harbor.tclab.org/windsurf/frontend
-    newTag: "e5bf8232"
+    newTag: "b0c485ab"
   - name: harbor.tclab.org/windsurf/annotation-api
     newTag: "e8a39021"
   - name: harbor.tclab.org/windsurf/pipeline-service
