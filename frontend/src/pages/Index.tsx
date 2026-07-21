@@ -192,6 +192,7 @@ const Index = () => {
     handleProjectSelect,
     handleProjectDelete,
     handleProjectRename,
+    handleProjectDescription,
   } = useProjects({
     backendStatus,
     annotationState: { classes, instances, annotations, keyframes, scenes, tracks, metadataSchema, videoMetadata },
@@ -2377,6 +2378,7 @@ const Index = () => {
         onLoadVideo={handleLoadVideoInProject}
         onRemoveVideo={handleRemoveVideoFromProject}
         onRenameProject={handleProjectRename}
+        onUpdateDescription={handleProjectDescription}
         onExport={handleExportData}
         metadataSchema={metadataSchema}
         onUpdateSchema={setMetadataSchema}

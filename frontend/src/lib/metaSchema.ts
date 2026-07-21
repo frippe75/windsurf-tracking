@@ -28,9 +28,14 @@ export function schemaDraftRequest(name: string, description: string, classNames
     `Dataset name: "${name}".`,
     description ? `Purpose: ${description}.` : "",
     classNames.length ? `Object classes: ${classNames.join(", ")}.` : "",
-    "Propose 4-8 CATEGORICAL fields (prefer enum value-sets over free text) covering scene conditions and",
-    "object attributes — e.g. weather, wave conditions, sail color, sail brand. For each field give:",
-    "key (snake_case), scope (scene | instance | video), type (enum | text), and values (for enum).",
+    // Domain-neutral: derive the axes from THIS dataset's context above — never assume a domain.
+    "Infer the dataset's domain strictly from the name, purpose, and object classes given above.",
+    "Propose 4-8 CATEGORICAL fields (prefer enum value-sets over free text) that capture the real",
+    "sources of visual variation for THIS domain specifically — the scene conditions and object",
+    "attributes whose imbalance would most bias a model trained on this data. Do NOT assume any",
+    "particular subject matter; if the context is thin, propose only fields the classes clearly justify.",
+    "Use scope 'scene' for whole-image conditions, 'instance' for per-object attributes, 'video' for clip-level.",
+    "For each field give: key (snake_case), scope (scene | instance | video), type (enum | text), and values (for enum).",
   ]
     .filter(Boolean)
     .join(" ");
