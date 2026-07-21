@@ -23,6 +23,7 @@ function setup(overrides: Partial<UseSamToolDeps> = {}) {
     setInstances,
     setAnnotations,
     setTracks,
+    scenes: [],
     currentFrame: 3,
     videoNativeWidth: 1000,
     videoNativeHeight: 500,
@@ -137,5 +138,15 @@ describe("track", () => {
     const newTracks = (setTracks.mock.calls[0][0] as any)([]);
     expect(newTracks[0]).toMatchObject({ startFrame: 3, endFrame: 52, prompt: "sail", thinning: [] });
     expect(toast).toHaveBeenCalledWith({ title: "Tracking complete", description: "1 object(s) tracked across 1 frames" });
+  });
+
+  it("clamps the track to the current scene (never crosses a cut) and warns", async () => {
+    (submitTrack as any).mockResolvedValue({ job_id: "j1", model: "sam3-video" });
+    (pollTrack as any).mockResolvedValue({ frames: [] });
+    const { result, toast } = setup({ scenes: [{ id: "s1", startFrame: 0, endFrame: 20, quality: "unknown" }] });
+    // start=3, request +50 -> 52, but scene s1 ends at 20
+    await act(async () => { await result.current.track("sail", 50); });
+    expect(submitTrack).toHaveBeenCalledWith({ video_id: "vid", start_frame: 3, end_frame: 20, fps: 30, text: "sail" });
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Track limited to the current scene" }));
   });
 });

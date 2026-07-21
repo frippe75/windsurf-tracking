@@ -6,9 +6,10 @@
  * `document.querySelector("video")` DOM reads, stale instanceNumber snapshot, two error strings).
  */
 import { useCallback, Dispatch, SetStateAction } from "react";
-import { Annotation, Class, Instance, Track } from "@/types/annotation";
+import { Annotation, Class, Instance, Track, Scene } from "@/types/annotation";
 import { detectionsToAnnotations, trackFramesToAnnotations, SamDetection } from "@/lib/samMapping";
 import { segment, submitTrack, pollTrack } from "@/lib/pipelineApi";
+import { clampEndToScene } from "@/lib/trackBounds";
 
 type ToastFn = (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
 
@@ -19,6 +20,7 @@ export interface UseSamToolDeps {
   setInstances: Dispatch<SetStateAction<Instance[]>>;
   setAnnotations: Dispatch<SetStateAction<Annotation[]>>;
   setTracks: Dispatch<SetStateAction<Track[]>>;
+  scenes: Scene[];
   currentFrame: number;
   videoNativeWidth: number;
   videoNativeHeight: number;
@@ -32,7 +34,7 @@ function samVideoId(): string | undefined {
 
 export function useSamTool(deps: UseSamToolDeps) {
   const {
-    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks,
+    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks, scenes,
     currentFrame, videoNativeWidth, videoNativeHeight, videoFps, toast,
   } = deps;
 
@@ -103,10 +105,16 @@ export function useSamTool(deps: UseSamToolDeps) {
       const vid = samVideoId();
       if (!vid) throw new Error("No video id — open a video in a project first.");
       const start = currentFrame;
-      const end = currentFrame + Math.max(1, extentFrames) - 1;
+      const requestedEnd = currentFrame + Math.max(1, extentFrames) - 1;
+      // Never track across a scene cut — clamp to the end of the scene the playhead is in.
+      const end = clampEndToScene(start, requestedEnd, scenes);
+      const frames = end - start + 1;
+      if (end < requestedEnd) {
+        toast({ title: "Track limited to the current scene", description: `Kept within frames ${start}–${end} (a cut would corrupt the track).` });
+      }
       onProgress?.("Submitting…");
       const { job_id, model } = await submitTrack({ video_id: vid, start_frame: start, end_frame: end, fps: videoFps, text });
-      const out = await pollTrack(job_id, model, { onProgress, extentFrames });
+      const out = await pollTrack(job_id, model, { onProgress, extentFrames: frames });
 
       const trackId = `trk-${Date.now()}`;
       const { instances: newInstances, annotations: newAnnotations } = trackFramesToAnnotations(out.frames || [], {
@@ -126,7 +134,7 @@ export function useSamTool(deps: UseSamToolDeps) {
       });
       return newAnnotations.length;
     },
-    [classes, selectedClassId, instances, setInstances, setAnnotations, setTracks, currentFrame, videoFps, toast],
+    [classes, selectedClassId, instances, setInstances, setAnnotations, setTracks, scenes, currentFrame, videoFps, toast],
   );
 
   return { addDetections, detectAllClasses, track };
