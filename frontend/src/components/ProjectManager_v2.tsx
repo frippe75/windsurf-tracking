@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Project } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
+import { MetaField } from "@/types/annotation";
+import { MetadataSchemaCard } from "@/components/MetadataSchemaCard";
 import {
   FolderOpen,
   Plus,
@@ -30,6 +32,10 @@ interface ProjectManager_v2Props {
   onRenameProject: (projectId: string, newName: string) => void;
   /** Export the active project as a YOLO dataset (project-scoped action). */
   onExport?: () => void;
+  /** The dataset's metadata schema + editor. */
+  metadataSchema?: MetaField[];
+  onUpdateSchema?: (fields: MetaField[]) => void;
+  classNames?: string[];
 }
 
 export function ProjectManager_v2({
@@ -44,6 +50,9 @@ export function ProjectManager_v2({
   onRemoveVideo,
   onRenameProject,
   onExport,
+  metadataSchema = [],
+  onUpdateSchema,
+  classNames = [],
 }: ProjectManager_v2Props) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
@@ -184,6 +193,17 @@ export function ProjectManager_v2({
                     </div>
                     <span className="text-xs font-mono text-muted-foreground">{activeProject.id}</span>
                   </div>
+                  {onUpdateSchema && (
+                    <div className="pt-4 border-t border-border">
+                      <MetadataSchemaCard
+                        schema={metadataSchema}
+                        onUpdate={onUpdateSchema}
+                        projectName={activeProject.name}
+                        description={activeProject.description}
+                        classNames={classNames}
+                      />
+                    </div>
+                  )}
                   </div>
                 </ScrollArea>
               </div>

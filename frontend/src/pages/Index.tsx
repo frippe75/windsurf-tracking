@@ -10,6 +10,7 @@ import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs } from "@/components/TrackingJobs";
 import { TrackReview } from "@/components/TrackReview";
+import { BalancePanel } from "@/components/BalancePanel";
 
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
@@ -34,6 +35,9 @@ import { detectObjects, uploadVideo, detectScenes, checkBackendHealth, segmentWi
 import { exportProjectAsYolo } from "@/lib/datasetExport";
 import { pctToNative, nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
 import { useSamTool } from "@/hooks/useSamTool";
+import { keptIds } from "@/lib/applyThinning";
+import { toJsonSchema } from "@/lib/metaSchema";
+import { extractMetadata } from "@/lib/pipelineApi";
 import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { useAnnotations } from "@/hooks/useAnnotations";
@@ -83,6 +87,8 @@ const Index = () => {
     setScenes,
     tracks,
     setTracks,
+    metadataSchema,
+    setMetadataSchema,
     handleUpdateTrackThinning,
     videoMetadata,
     setVideoMetadata,
@@ -188,7 +194,7 @@ const Index = () => {
     handleProjectRename,
   } = useProjects({
     backendStatus,
-    annotationState: { classes, instances, annotations, keyframes, scenes, tracks, videoMetadata },
+    annotationState: { classes, instances, annotations, keyframes, scenes, tracks, metadataSchema, videoMetadata },
     toast,
     findVideo: (id) => managedVideos.find(v => v.id === id),
     openProjectWorkspace: async (project, targetVideoId) => {
@@ -200,6 +206,7 @@ const Index = () => {
       setKeyframes(project.keyframes);
       setScenes(project.scenes);
       setTracks(project.tracks ?? []);
+      setMetadataSchema(project.metadataSchema ?? []);
       setVideoMetadata(project.videoMetadata);
       await loadVideoIntoPlayer(targetVideoId);
     },
@@ -211,6 +218,7 @@ const Index = () => {
       setKeyframes([]);
       setScenes([]);
       setTracks([]);
+      setMetadataSchema([]);
       setClasses([]);
       setVideoMetadata({});
     },
@@ -250,6 +258,7 @@ const Index = () => {
           setKeyframes(activeProject.keyframes);
           setScenes(activeProject.scenes);
           setTracks(activeProject.tracks ?? []);
+          setMetadataSchema(activeProject.metadataSchema ?? []);
           setVideoMetadata(activeProject.videoMetadata);
           
           // Resolve video source (cache-first, presigned S3 + background cache on miss)
@@ -874,6 +883,7 @@ const Index = () => {
     setKeyframes(project.keyframes);
     setScenes(project.scenes);
     setTracks(project.tracks ?? []);
+    setMetadataSchema(project.metadataSchema ?? []);
     setVideoMetadata(project.videoMetadata);
     setSelectedClassId(undefined);
     setSelectedAnnotationId(undefined);
@@ -1228,71 +1238,76 @@ const Index = () => {
     }
   };
 
+  // Real metadata extraction: for each scene, send a grid of DIVERSE frames to Claude with the
+  // project's scene-scoped schema and fill Scene.metadata; video-scoped fields get one grid across
+  // the whole video. Instance-scoped fields are Phase 2 (need per-object crops).
   const handleGenerateMetadata = async () => {
-    setIsGeneratingMetadata(true);
-    toast({
-      title: "Generating metadata",
-      description: "AI is analyzing the entire video hierarchically...",
-    });
-
-    // Simulate AI processing delay (your local backend would do the actual processing)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Mock metadata generation - replace this with your local backend call
-    // Your backend should return: { videoMetadata, sceneMetadata, keyframeMetadata }
-    
-    // 1. Video-level metadata
-    const mockVideoMetadata: Record<string, string> = {
-      "Wind Conditions": "15-20 knots, gusty",
-      "Location": "Maui, Kanaha Beach",
-      "Time of Day": "Morning session",
-      "Water Conditions": "Choppy with 1-2m waves",
-      "Overall Quality": "Good sailing conditions",
+    const vid = (window as unknown as { __samVideoId?: string }).__samVideoId;
+    if (!vid) {
+      toast({ title: "No video", description: "Open a video before generating metadata.", variant: "destructive" });
+      return;
+    }
+    const sceneFields = metadataSchema.filter((f) => f.scope === "scene");
+    const videoFields = metadataSchema.filter((f) => f.scope === "video");
+    if (sceneFields.length === 0 && videoFields.length === 0) {
+      toast({ title: "No schema", description: "Define a metadata schema in Project Manager (Auto-draft) first." });
+      return;
+    }
+    const strMap = (o: any): Record<string, string> =>
+      o && typeof o === "object"
+        ? Object.fromEntries(Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
+        : {};
+    const evenFrames = (start: number, end: number, k: number): number[] => {
+      if (end <= start) return [start];
+      const n = Math.min(k, end - start + 1);
+      return Array.from(new Set(Array.from({ length: n }, (_, i) => Math.round(start + (i * (end - start)) / Math.max(1, n - 1)))));
     };
 
-    // 2. Scene-level metadata (for each scene)
-    const mockSceneMetadata: Record<string, Record<string, string>> = {};
-    scenes.forEach((scene, idx) => {
-      if (scene.quality !== "bad") {
-        mockSceneMetadata[scene.id] = {
-          "Action": ["Cruising", "Jump attempt", "Speed run", "Freestyle", "Wave riding"][idx % 5],
-          "Intensity": ["Low", "Medium", "High"][Math.floor(Math.random() * 3)],
-          "Notable Events": `Key moment at frame ${scene.startFrame + Math.floor((scene.endFrame - scene.startFrame) / 2)}`,
-        };
+    setIsGeneratingMetadata(true);
+    toast({ title: "Generating metadata", description: "Claude is reading frame grids…" });
+    try {
+      if (videoFields.length) {
+        const times = evenFrames(0, totalFrames, 9).map((f) => f / videoFps);
+        const res = await extractMetadata({
+          schema: toJsonSchema(videoFields),
+          video_id: vid,
+          time_secs: times,
+          prompt: "This grid shows frames sampled across one video clip. Fill the fields.",
+        });
+        setVideoMetadata((prev) => ({ ...prev, ...strMap(res) }));
       }
-    });
 
-    // 3. Frame-level metadata (for META keyframes only)
-    const mockKeyframeMetadata: Record<number, Record<string, string>> = {};
-    keyframes.forEach(kf => {
-      if (kf.type === "META") {
-        mockKeyframeMetadata[kf.frame] = {
-          "Trick": ["Forward Loop", "Backloop", "Vulcan", "Shaka", "Pushloop"][Math.floor(Math.random() * 5)],
-          "Height": `${Math.floor(Math.random() * 5) + 1}m`,
-          "Rotation": ["360°", "540°", "720°"][Math.floor(Math.random() * 3)],
-          "Landing": ["Clean", "Partial", "Crashed"][Math.floor(Math.random() * 3)],
-        };
+      let filled = 0;
+      if (sceneFields.length && scenes.length) {
+        const schema = toJsonSchema(sceneFields);
+        const updates: Record<string, Record<string, string>> = {};
+        for (const sc of scenes) {
+          const anns = annotations.filter((a) => a.frameCreated >= sc.startFrame && a.frameCreated <= sc.endFrame);
+          let frames: number[];
+          if (anns.length >= 2) {
+            const kept = keptIds(anns, [{ kind: "maxPerTrack", k: 9 }]);
+            frames = anns.filter((a) => kept.has(a.id)).map((a) => a.frameCreated);
+          } else {
+            frames = evenFrames(sc.startFrame, sc.endFrame, 9);
+          }
+          const times = [...frames].sort((a, b) => a - b).map((f) => f / videoFps);
+          const res = await extractMetadata({
+            schema,
+            video_id: vid,
+            time_secs: times,
+            prompt: "This grid shows frames from one scene of a video. Fill the fields.",
+          });
+          updates[sc.id] = strMap(res);
+          filled++;
+        }
+        setScenes((prev) => prev.map((s) => (updates[s.id] ? { ...s, metadata: { ...s.metadata, ...updates[s.id] } } : s)));
       }
-    });
-
-    // Update all metadata states
-    setVideoMetadata(mockVideoMetadata);
-    
-    setScenes(prev => prev.map(scene => ({
-      ...scene,
-      metadata: mockSceneMetadata[scene.id] || scene.metadata,
-    })));
-
-    setKeyframes(prev => prev.map(kf => ({
-      ...kf,
-      metadata: kf.type === "META" ? mockKeyframeMetadata[kf.frame] || kf.metadata : kf.metadata,
-    })));
-
-    setIsGeneratingMetadata(false);
-    toast({
-      title: "Metadata generated",
-      description: `Generated metadata for video, ${Object.keys(mockSceneMetadata).length} scenes, and ${Object.keys(mockKeyframeMetadata).length} META keyframes`,
-    });
+      toast({ title: "Metadata generated", description: `Claude filled ${filled} scene(s)${videoFields.length ? " + video-level" : ""}` });
+    } catch (e: any) {
+      toast({ title: "Metadata failed", description: String(e?.message ?? e), variant: "destructive" });
+    } finally {
+      setIsGeneratingMetadata(false);
+    }
   };
 
   const handleClearMetadata = (frame: number) => {
@@ -2208,9 +2223,10 @@ const Index = () => {
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "lg:col-span-2 min-w-0"}>
               <Tabs defaultValue="scenes" className="h-full w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
+                  <TabsTrigger value="balance">Balance</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -2255,6 +2271,9 @@ const Index = () => {
                     annotations={annotations}
                     onUpdateThinning={handleUpdateTrackThinning}
                   />
+                </TabsContent>
+                <TabsContent value="balance" className="mt-4">
+                  <BalancePanel classes={classes} instances={instances} scenes={scenes} schema={metadataSchema} />
                 </TabsContent>
               </Tabs>
             </div>
@@ -2331,6 +2350,9 @@ const Index = () => {
         onRemoveVideo={handleRemoveVideoFromProject}
         onRenameProject={handleProjectRename}
         onExport={handleExportData}
+        metadataSchema={metadataSchema}
+        onUpdateSchema={setMetadataSchema}
+        classNames={classes.map((c) => c.name)}
       />
 
       <AddResourcesDialog

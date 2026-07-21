@@ -66,6 +66,8 @@ export function buildAnnotationPayload(
       annotation_type: "bbox",
       geometry: { bbox: { x: bb.x / 100, y: bb.y / 100, w: bb.w / 100, h: bb.h / 100 } },
       is_keyframe: a.isKeyframe,
+      // carry the object's metadata (brand/color/…) into the exported dataset
+      ...(inst.metadata && Object.keys(inst.metadata).length ? { tracking_metadata: inst.metadata } : {}),
     });
   }
   return out;
