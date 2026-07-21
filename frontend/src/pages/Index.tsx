@@ -306,7 +306,7 @@ const Index = () => {
     detectAllClasses: handleDetectAllClasses,
     track: handleSamTrack,
   } = useSamTool({
-    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks,
+    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks, scenes,
     currentFrame, videoNativeWidth, videoNativeHeight, videoFps, toast,
   });
 
