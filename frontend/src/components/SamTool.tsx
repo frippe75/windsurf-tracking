@@ -21,7 +21,7 @@ import { Class } from "@/types/annotation";
  */
 const PIPELINE = "/pipeline";
 
-type Detection = { bbox: number[]; score?: number; mask_base64?: string };
+type Detection = { bbox: number[]; score?: number; polygon?: Array<{ x: number; y: number }> };
 type Box = { left: number; top: number; width: number; height: number; score?: number };
 
 type Props = {

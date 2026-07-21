@@ -4,8 +4,8 @@ FROM harbor.tclab.org/dockerhub/library/python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
-# ffmpeg for robust server-side frame extraction from presigned video URLs.
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# ffmpeg for frame extraction; libglib2.0-0 is opencv-python-headless's one runtime dep.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
