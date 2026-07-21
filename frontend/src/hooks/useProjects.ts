@@ -172,6 +172,7 @@ export async function mergeBackendProjects(
         id: bp.id,
         backendProjectId: bp.id,
         name: bp.name,
+        description: bp.description ?? "",
         videoIds: backendVideoIds,
         createdAt,
         lastModified,
@@ -190,6 +191,7 @@ export async function mergeBackendProjects(
       merged[existingIdx] = {
         ...local,
         name: bp.name,
+        description: bp.description ?? local.description ?? "",
         // Union so locally-added videos are never dropped by the single-video backend model
         videoIds: Array.from(new Set([...local.videoIds, ...backendVideoIds])),
         lastModified,
