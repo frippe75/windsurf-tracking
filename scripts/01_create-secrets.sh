@@ -46,6 +46,15 @@ kubectl create secret generic -n ${NS} windsurf-prod-postgres-secret \
     --from-literal=password="${WINDSURF_DB_PASSWORD}"
 echo "  windsurf-prod-postgres-secret updated"
 
+# anthropic-secret — Claude key for pipeline_service metadata extraction (referenced by
+# kubernetes/pipeline-service.yaml). Optional: only (re)created if ANTHROPIC_API_KEY is in .env.
+if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+    kubectl delete secret -n ${NS} anthropic-secret 2>/dev/null || true
+    kubectl create secret generic -n ${NS} anthropic-secret \
+        --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"
+    echo "  anthropic-secret updated"
+fi
+
 # ── One-time migration: switch backend env from inline values to secretKeyRef ─
 # (strategic merge can't replace `value` with `valueFrom`, so patch explicitly;
 #  once the live spec matches git, ArgoCD syncs cleanly)

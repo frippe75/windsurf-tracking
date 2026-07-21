@@ -55,15 +55,20 @@ def client():
                      "mask_base64": _square_mask_b64()}]}],
             }}
 
+    class FakeAnthropic:  # metadata extractor: echoes whether it got an image + the prompt
+        def infer(self, *, prompt=None, image_png_base64=None, json_schema=None, **kw):
+            return {"got_image": image_png_base64 is not None, "prompt": prompt}
+
     MODELS.register_instance("t-sam3", FakeSam3(), capabilities=["concept-segment", "segment-click"])
     MODELS.register_instance("t-sam2", FakeSam2(), capabilities=["segment-click"])
     MODELS.register_instance("t-vlm", FakeVlm(), capabilities=["vlm-extract"])
     MODELS.register_instance("t-track", FakeTrack(), capabilities=["concept-track"])
+    MODELS.register_instance("t-claude", FakeAnthropic(), capabilities=["metadata-extract"])
     c = TestClient(create_app())
     try:
         yield c
     finally:
-        for n in ("t-sam3", "t-sam2", "t-vlm", "t-track"):
+        for n in ("t-sam3", "t-sam2", "t-vlm", "t-track", "t-claude"):
             MODELS._instances.pop(n, None)
             MODELS._caps.pop(n, None)
 
@@ -173,6 +178,25 @@ def test_warmth_reports_non_serverless_for_local_models(client):
     # fake in-process handles have no RunPod base_url -> not serverless, no network hit
     assert w["t-sam3"]["serverless"] is False
     assert w["t-track"]["serverless"] is False
+
+
+def test_metadata_text_only_draft(client):
+    # no frames -> text-only call (schema auto-draft), no image
+    r = client.post("/metadata", json={"capability": "metadata-extract", "inputs": {"schema": {"type": "object"}, "prompt": "draft"}})
+    assert r.status_code == 200
+    assert r.json()["model"] == "t-claude"
+    assert r.json()["result"] == {"got_image": False, "prompt": "draft"}
+
+
+def test_metadata_grid_extract(client, monkeypatch):
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: "u")
+    monkeypatch.setattr(appmod, "_extract_frame_b64", lambda url, t: _square_mask_b64())  # a real PNG per frame
+    r = client.post("/metadata", json={"capability": "metadata-extract", "inputs": {
+        "schema": {"type": "object"}, "video_id": "v", "time_secs": [1, 2, 3, 4]}})
+    assert r.status_code == 200
+    assert r.json()["result"]["got_image"] is True  # frames -> grid image was built + passed
 
 
 def test_track_needs_text_and_video_id(client):
