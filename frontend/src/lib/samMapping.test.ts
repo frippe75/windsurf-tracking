@@ -80,6 +80,15 @@ describe("trackFramesToAnnotations", () => {
     expect(instances[0].id).toBe("inst-1-0");
   });
 
+  it("tags annotations with trackId and score (for thinning)", () => {
+    const { annotations } = trackFramesToAnnotations(
+      [{ frame_number: 0, objects: [{ object_id: 0, bbox_pct: [0, 0, 10, 10], score: 0.87 }] }],
+      { ...ctx, trackId: "trk-1" },
+    );
+    expect(annotations[0].trackId).toBe("trk-1");
+    expect(annotations[0].score).toBe(0.87);
+  });
+
   it("skips the annotation when bbox_pct is missing or not length 4 (instance still created)", () => {
     const { instances, annotations } = trackFramesToAnnotations(
       [{ frame_number: 0, objects: [{ object_id: 9, bbox_pct: [1, 2, 3] }] }],

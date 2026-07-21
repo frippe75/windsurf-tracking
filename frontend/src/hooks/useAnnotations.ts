@@ -13,7 +13,8 @@
  */
 
 import { useState } from "react";
-import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
+import { Class, Instance, Annotation, Keyframe, Scene, Track, ThinOp } from "@/types/annotation";
+import { recomputeExclusions } from "@/lib/applyThinning";
 import {
   createClass,
   leastUsedColorIndex,
@@ -44,6 +45,7 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [videoMetadata, setVideoMetadata] = useState<Record<string, string>>({});
   const [selectedClassId, setSelectedClassId] = useState<string>();
   const [colorIndex, setColorIndex] = useState(0);
@@ -129,6 +131,13 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     });
   };
 
+  // Update a track's thinning ops and recompute `excluded` on its annotations (non-destructive).
+  const handleUpdateTrackThinning = (trackId: string, thinning: ThinOp[]) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, thinning } : t)));
+    const t = tracks.find((x) => x.id === trackId);
+    if (t) setAnnotations((prev) => recomputeExclusions(prev, { ...t, thinning }));
+  };
+
   const handleSceneQualityChange = (sceneId: string, quality: Scene["quality"]) => {
     setScenes((prev) => setSceneQuality(prev, sceneId, quality));
   };
@@ -145,6 +154,9 @@ export function useAnnotations({ currentFrame, toast }: UseAnnotationsOptions) {
     setKeyframes,
     scenes,
     setScenes,
+    tracks,
+    setTracks,
+    handleUpdateTrackThinning,
     videoMetadata,
     setVideoMetadata,
     selectedClassId,

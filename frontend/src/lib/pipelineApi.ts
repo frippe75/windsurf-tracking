@@ -15,7 +15,7 @@ export type Detection = { bbox: number[]; score?: number; polygon?: Point[] };
 export type SegmentInput = { video_id: string; time_sec: number; text: string };
 export type TrackSubmitInput = { video_id: string; start_frame: number; end_frame: number; fps: number; text: string };
 export type TrackSubmit = { job_id: string; model: string };
-export type TrackObject = { object_id?: number; bbox_pct?: number[]; polygon?: Point[] };
+export type TrackObject = { object_id?: number; bbox_pct?: number[]; polygon?: Point[]; score?: number };
 export type TrackFrame = { frame_number: number; objects?: TrackObject[] };
 export type TrackStatus = { status?: string; error?: string; frames?: TrackFrame[]; count?: number };
 

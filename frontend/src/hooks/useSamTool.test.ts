@@ -15,12 +15,14 @@ function setup(overrides: Partial<UseSamToolDeps> = {}) {
   const toast = vi.fn();
   const setInstances = vi.fn();
   const setAnnotations = vi.fn();
+  const setTracks = vi.fn();
   const deps: UseSamToolDeps = {
     classes: [cls("cA", "Sail", "windsurf sail")],
     selectedClassId: "cA",
     instances: [],
     setInstances,
     setAnnotations,
+    setTracks,
     currentFrame: 3,
     videoNativeWidth: 1000,
     videoNativeHeight: 500,
@@ -29,7 +31,7 @@ function setup(overrides: Partial<UseSamToolDeps> = {}) {
     ...overrides,
   };
   const { result } = renderHook(() => useSamTool(deps));
-  return { result, toast, setInstances, setAnnotations };
+  return { result, toast, setInstances, setAnnotations, setTracks };
 }
 
 beforeEach(() => {
@@ -121,7 +123,7 @@ describe("track", () => {
     (pollTrack as any).mockResolvedValue({
       frames: [{ frame_number: 0, objects: [{ object_id: 0, bbox_pct: [10, 10, 30, 30] }] }],
     });
-    const { result, toast, setAnnotations } = setup();
+    const { result, toast, setAnnotations, setTracks } = setup();
     const progress: string[] = [];
     let n = -1;
     await act(async () => { n = await result.current.track("sail", 50, (s) => progress.push(s)); });
@@ -130,6 +132,10 @@ describe("track", () => {
     expect(progress).toContain("Submitting…");
     expect(n).toBe(1);
     expect(setAnnotations).toHaveBeenCalledTimes(1);
+    // a Track record is created (start/end/prompt) so it can be reviewed/thinned
+    expect(setTracks).toHaveBeenCalledTimes(1);
+    const newTracks = (setTracks.mock.calls[0][0] as any)([]);
+    expect(newTracks[0]).toMatchObject({ startFrame: 3, endFrame: 52, prompt: "sail", thinning: [] });
     expect(toast).toHaveBeenCalledWith({ title: "Tracking complete", description: "1 object(s) tracked across 1 frames" });
   });
 });

@@ -17,7 +17,7 @@ import { nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
 type Point = { x: number; y: number };
 
 export type SamDetection = { bbox: number[]; score?: number; polygon?: Point[] };
-export type TrackObject = { object_id?: number; bbox_pct?: number[]; polygon?: Point[] };
+export type TrackObject = { object_id?: number; bbox_pct?: number[]; polygon?: Point[]; score?: number };
 export type TrackFrame = { frame_number: number; objects?: TrackObject[] };
 
 export interface DetectCtx {
@@ -32,6 +32,7 @@ export interface DetectCtx {
 export interface TrackCtx {
   classId: string;
   existingInstances: Instance[];
+  trackId?: string; // tags produced annotations so track-thinning can target them
   now?: () => number;
 }
 
@@ -97,6 +98,8 @@ export function trackFramesToAnnotations(
         bbox,
         frameCreated: fr.frame_number,
         isKeyframe: false,
+        trackId: ctx.trackId,
+        score: o.score,
       });
     }
   }

@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Class, Instance, Annotation, Keyframe, Scene } from "@/types/annotation";
+import { Class, Instance, Annotation, Keyframe, Scene, Track } from "@/types/annotation";
 import { Project, createEmptyProject } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
 import { migrateStoredProjects } from "@/lib/projectMigration";
@@ -46,6 +46,7 @@ export interface ProjectAnnotationState {
   annotations: Annotation[];
   keyframes: Keyframe[];
   scenes: Scene[];
+  tracks: Track[];
   videoMetadata: Record<string, string>;
 }
 
@@ -99,6 +100,7 @@ function settingsToAnnotationState(settings: Record<string, unknown>): ProjectAn
     annotations: asArray<Annotation>(settings.annotations),
     keyframes: asArray<Keyframe>(settings.keyframes),
     scenes: asArray<Scene>(settings.scenes),
+    tracks: asArray<Track>(settings.tracks),
     videoMetadata: asRecord(settings.videoMetadata),
   };
 }
@@ -113,6 +115,7 @@ function settingsHasContent(settings: Record<string, unknown> | undefined | null
     state.annotations.length > 0 ||
     state.keyframes.length > 0 ||
     state.scenes.length > 0 ||
+    state.tracks.length > 0 ||
     Object.keys(state.videoMetadata).length > 0
   );
 }
@@ -175,6 +178,7 @@ export async function mergeBackendProjects(
           annotations: [],
           keyframes: [],
           scenes: [],
+          tracks: [],
           videoMetadata: {},
         }),
       });
@@ -196,7 +200,7 @@ export async function mergeBackendProjects(
 
 export function useProjects(options: UseProjectsOptions) {
   const { backendStatus, toast, findVideo, openProjectWorkspace, clearWorkspace } = options;
-  const { classes, instances, annotations, keyframes, scenes, videoMetadata } =
+  const { classes, instances, annotations, keyframes, scenes, tracks, videoMetadata } =
     options.annotationState;
   const api = options.api ?? defaultApi;
 
@@ -285,6 +289,7 @@ export function useProjects(options: UseProjectsOptions) {
       annotations,
       keyframes,
       scenes,
+      tracks,
       videoMetadata,
       lastModified: Date.now(),
     };
@@ -299,7 +304,7 @@ export function useProjects(options: UseProjectsOptions) {
         try {
           const { backendProjectId } = await saveProjectToBackend(
             updatedProject,
-            { classes, instances, annotations, keyframes, scenes, videoMetadata },
+            { classes, instances, annotations, keyframes, scenes, tracks, videoMetadata },
             api,
           );
           if (backendProjectId) {
@@ -316,7 +321,7 @@ export function useProjects(options: UseProjectsOptions) {
       return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, videoMetadata, backendStatus]);
+  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, tracks, videoMetadata, backendStatus]);
 
   const handleProjectCreate = (name: string) => {
     const newProject = createEmptyProject(name);
