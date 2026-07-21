@@ -206,7 +206,9 @@ export function VideoPlayer({
       const isSelected = selectedAnnotationId === annotation.id || 
         (selectedAnnotationId && annotations.find(a => a.id === selectedAnnotationId)?.instanceId === annotation.instanceId);
       const color = getAnnotationColor(annotation);
-      
+      // Thinned-out (excluded) annotations are dimmed, not hidden, so the reviewer sees kept vs cut.
+      ctx.globalAlpha = annotation.excluded ? 0.3 : 1;
+
       // Draw segment overlay (mask if available, else polygon)
       if (overlays.segments) {
         // Prefer high-fidelity mask overlay if available
@@ -274,8 +276,9 @@ export function VideoPlayer({
             
             tempCtx.putImageData(imageData, 0, 0);
             
-            // Draw colorized mask on main canvas
+            // Draw colorized mask on main canvas (async onload; force full alpha — masks aren't thinned)
             ctx.save();
+            ctx.globalAlpha = 1;
             ctx.drawImage(tempCanvas, 0, 0, img.width, img.height, x, y, w, h);
             ctx.restore();
           };

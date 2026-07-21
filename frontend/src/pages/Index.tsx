@@ -9,6 +9,7 @@ import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs } from "@/components/TrackingJobs";
+import { TrackReview } from "@/components/TrackReview";
 
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
@@ -80,6 +81,9 @@ const Index = () => {
     setKeyframes,
     scenes,
     setScenes,
+    tracks,
+    setTracks,
+    handleUpdateTrackThinning,
     videoMetadata,
     setVideoMetadata,
     selectedClassId,
@@ -184,7 +188,7 @@ const Index = () => {
     handleProjectRename,
   } = useProjects({
     backendStatus,
-    annotationState: { classes, instances, annotations, keyframes, scenes, videoMetadata },
+    annotationState: { classes, instances, annotations, keyframes, scenes, tracks, videoMetadata },
     toast,
     findVideo: (id) => managedVideos.find(v => v.id === id),
     openProjectWorkspace: async (project, targetVideoId) => {
@@ -195,6 +199,7 @@ const Index = () => {
       setAnnotations(project.annotations);
       setKeyframes(project.keyframes);
       setScenes(project.scenes);
+      setTracks(project.tracks ?? []);
       setVideoMetadata(project.videoMetadata);
       await loadVideoIntoPlayer(targetVideoId);
     },
@@ -205,6 +210,7 @@ const Index = () => {
       setInstances([]);
       setKeyframes([]);
       setScenes([]);
+      setTracks([]);
       setClasses([]);
       setVideoMetadata({});
     },
@@ -243,6 +249,7 @@ const Index = () => {
           setAnnotations(activeProject.annotations);
           setKeyframes(activeProject.keyframes);
           setScenes(activeProject.scenes);
+          setTracks(activeProject.tracks ?? []);
           setVideoMetadata(activeProject.videoMetadata);
           
           // Resolve video source (cache-first, presigned S3 + background cache on miss)
@@ -299,7 +306,7 @@ const Index = () => {
     detectAllClasses: handleDetectAllClasses,
     track: handleSamTrack,
   } = useSamTool({
-    classes, selectedClassId, instances, setInstances, setAnnotations,
+    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks,
     currentFrame, videoNativeWidth, videoNativeHeight, videoFps, toast,
   });
 
@@ -866,6 +873,7 @@ const Index = () => {
     setAnnotations(project.annotations);
     setKeyframes(project.keyframes);
     setScenes(project.scenes);
+    setTracks(project.tracks ?? []);
     setVideoMetadata(project.videoMetadata);
     setSelectedClassId(undefined);
     setSelectedAnnotationId(undefined);
@@ -2241,6 +2249,11 @@ const Index = () => {
                     onProcessJob={handleProcessJob}
                     onDeleteJob={handleDeleteJob}
                     onFrameChange={setCurrentFrame}
+                  />
+                  <TrackReview
+                    tracks={tracks}
+                    annotations={annotations}
+                    onUpdateThinning={handleUpdateTrackThinning}
                   />
                 </TabsContent>
               </Tabs>

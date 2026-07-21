@@ -1,4 +1,4 @@
-import { Class, Instance, Annotation, Keyframe, Scene } from "./annotation";
+import { Class, Instance, Annotation, Keyframe, Scene, Track } from "./annotation";
 
 export interface Project {
   id: string;                    // local UUID (stable across the session)
@@ -18,6 +18,7 @@ export interface Project {
   annotations: Annotation[];
   keyframes: Keyframe[];
   scenes: Scene[];               // Includes quality marks
+  tracks: Track[];               // SAM3 track records (frame range + thinning ops)
   videoMetadata: Record<string, string>;
 }
 
@@ -51,6 +52,7 @@ export function createEmptyProject(name: string, videoIds: string[] = []): Proje
     annotations: [],
     keyframes: [],
     scenes: [],
+    tracks: [],
     videoMetadata: {},
   };
 }

@@ -51,6 +51,7 @@ export function buildAnnotationPayload(
   const instById = new Map(instances.map((i) => [i.id, i]));
   const out: BackendAnnotation[] = [];
   for (const a of annotations) {
+    if (a.excluded) continue; // thinned out (non-destructive) -> omit from the dataset
     const inst = instById.get(a.instanceId);
     if (!inst) continue;
     const class_id = classIdMap[inst.classId];

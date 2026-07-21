@@ -42,6 +42,7 @@ export async function saveProjectToBackend(
     annotations: state.annotations,
     keyframes: state.keyframes,
     scenes: state.scenes,
+    tracks: state.tracks,
     videoMetadata: state.videoMetadata,
   };
   const targetId = project.backendProjectId ?? project.id;

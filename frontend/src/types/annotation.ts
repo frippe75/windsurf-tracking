@@ -31,6 +31,12 @@ export interface Annotation {
   maskHeight?: number;
   maskIsCropped?: boolean;
   isKeyframe: boolean; // True if manually created, false if from tracking
+  // Track thinning (SAM3 video tracks): which track produced this annotation, its per-frame score,
+  // and whether it's been thinned out. `excluded` is DERIVED from the track's thinning ops (see
+  // lib/applyThinning) — non-destructive: it's omitted from export but never deleted.
+  trackId?: string;
+  score?: number;
+  excluded?: boolean;
 }
 
 export interface Keyframe {
@@ -46,4 +52,21 @@ export interface Scene {
   endFrame: number;
   quality: "good" | "bad" | "unknown";
   metadata?: Record<string, string>; // Scene-level metadata from AI annotation
+}
+
+// A SAM3 video track's thinning recipe. Ops apply in order, each narrowing the surviving frames;
+// the union is extensible — add a `kind` here + a case in lib/applyThinning to support a new op.
+export type ThinOp =
+  | { kind: "everyN"; n: number }              // keep every Nth surviving frame
+  | { kind: "minScaleDeltaPct"; pct: number }  // keep frames whose bbox area changed >= pct% vs last kept
+  | { kind: "minScore"; v: number }            // keep frames with score >= v (missing score -> kept)
+  | { kind: "maxPerTrack"; k: number };        // evenly subsample survivors down to at most k
+
+export interface Track {
+  id: string;
+  startFrame: number;
+  endFrame: number;
+  prompt: string;
+  createdAt: number;
+  thinning: ThinOp[]; // ordered, stackable; empty = keep everything
 }

@@ -6,7 +6,7 @@
  * `document.querySelector("video")` DOM reads, stale instanceNumber snapshot, two error strings).
  */
 import { useCallback, Dispatch, SetStateAction } from "react";
-import { Annotation, Class, Instance } from "@/types/annotation";
+import { Annotation, Class, Instance, Track } from "@/types/annotation";
 import { detectionsToAnnotations, trackFramesToAnnotations, SamDetection } from "@/lib/samMapping";
 import { segment, submitTrack, pollTrack } from "@/lib/pipelineApi";
 
@@ -18,6 +18,7 @@ export interface UseSamToolDeps {
   instances: Instance[];
   setInstances: Dispatch<SetStateAction<Instance[]>>;
   setAnnotations: Dispatch<SetStateAction<Annotation[]>>;
+  setTracks: Dispatch<SetStateAction<Track[]>>;
   currentFrame: number;
   videoNativeWidth: number;
   videoNativeHeight: number;
@@ -31,7 +32,7 @@ function samVideoId(): string | undefined {
 
 export function useSamTool(deps: UseSamToolDeps) {
   const {
-    classes, selectedClassId, instances, setInstances, setAnnotations,
+    classes, selectedClassId, instances, setInstances, setAnnotations, setTracks,
     currentFrame, videoNativeWidth, videoNativeHeight, videoFps, toast,
   } = deps;
 
@@ -107,10 +108,16 @@ export function useSamTool(deps: UseSamToolDeps) {
       const { job_id, model } = await submitTrack({ video_id: vid, start_frame: start, end_frame: end, fps: videoFps, text });
       const out = await pollTrack(job_id, model, { onProgress, extentFrames });
 
+      const trackId = `trk-${Date.now()}`;
       const { instances: newInstances, annotations: newAnnotations } = trackFramesToAnnotations(out.frames || [], {
         classId: selectedClass.id,
         existingInstances: instances,
+        trackId,
       });
+      if (newAnnotations.length > 0) {
+        // record the track so it can be reviewed/thinned (start/end/prompt), thinning starts empty
+        setTracks((prev) => [...prev, { id: trackId, startFrame: start, endFrame: end, prompt: text, createdAt: Date.now(), thinning: [] }]);
+      }
       setInstances((prev) => [...prev, ...newInstances]);
       setAnnotations((prev) => [...prev, ...newAnnotations]);
       toast({
@@ -119,7 +126,7 @@ export function useSamTool(deps: UseSamToolDeps) {
       });
       return newAnnotations.length;
     },
-    [classes, selectedClassId, instances, setInstances, setAnnotations, currentFrame, videoFps, toast],
+    [classes, selectedClassId, instances, setInstances, setAnnotations, setTracks, currentFrame, videoFps, toast],
   );
 
   return { addDetections, detectAllClasses, track };

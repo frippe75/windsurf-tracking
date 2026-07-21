@@ -43,6 +43,14 @@ describe("buildAnnotationPayload", () => {
     expect(buildAnnotationPayload(anns, instances, classMap, instMap)).toEqual([]);
   });
 
+  it("skips thinned-out (excluded) annotations", () => {
+    const kept = ann("a1", "i1", 1, { x: 10, y: 10, w: 5, h: 5 });
+    const excluded = { ...ann("a2", "i1", 2, { x: 20, y: 20, w: 5, h: 5 }), excluded: true };
+    const out = buildAnnotationPayload([kept, excluded], instances, classMap, instMap);
+    expect(out).toHaveLength(1);
+    expect(out[0].frame_number).toBe(1);
+  });
+
   it("skips a class that wasn't mapped to a backend id", () => {
     const out = buildAnnotationPayload([ann("a1", "i1", 0, { x: 1, y: 1, w: 5, h: 5 })], instances, {}, instMap);
     expect(out).toEqual([]);
