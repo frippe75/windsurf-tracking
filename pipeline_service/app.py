@@ -34,6 +34,13 @@ class TrackRequest(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)  # {video_id, start_frame, end_frame, fps, text}
 
 
+class MetadataRequest(BaseModel):
+    model: str | None = None
+    capability: str | None = None  # e.g. "metadata-extract"
+    # {schema, prompt?, video_id?, time_secs?[]} — with frames -> grid image; without -> text-only (draft)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
+
 def _resolve_stream_url(video_id: str) -> str:
     """Resolve a video_id to its (presigned) stream URL via the backend, in-cluster.
 
@@ -215,6 +222,39 @@ def _warmth_all() -> dict[str, Any]:
     return data
 
 
+def _grid_png_b64(frames_b64: list[str], cols: int = 3, tile_w: int = 512) -> str:
+    """Tile frames into one grid PNG (base64). One image for a whole clip keeps the LLM call cheap;
+    tiles are downscaled to `tile_w` wide so the grid stays a reasonable size."""
+    import base64
+    import io
+    import math
+
+    from PIL import Image
+
+    imgs = []
+    for f in frames_b64:
+        if not f:
+            continue
+        im = Image.open(io.BytesIO(base64.b64decode(f))).convert("RGB")
+        if im.width > tile_w:
+            im = im.resize((tile_w, max(1, round(im.height * tile_w / im.width))))
+        imgs.append(im)
+    if not imgs:
+        raise HTTPException(502, "no frames to build the grid")
+    tw, th = imgs[0].size
+    n = len(imgs)
+    c = min(cols, n)
+    r = math.ceil(n / c)
+    grid = Image.new("RGB", (tw * c, th * r), (0, 0, 0))
+    for i, im in enumerate(imgs):
+        if im.size != (tw, th):
+            im = im.resize((tw, th))
+        grid.paste(im, ((i % c) * tw, (i // c) * th))
+    buf = io.BytesIO()
+    grid.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="pipeline-engine service")
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
@@ -360,6 +400,34 @@ def create_app() -> FastAPI:
                              "polygon": _mask_to_polygon_pct(o.get("mask_base64"))})
             frames.append({"frame_number": fr.get("frame_number"), "objects": objs})
         return {"status": res.get("status"), "frames": frames, "count": len(frames)}
+
+    # Metadata extraction via a frontier VLM (Claude): with `time_secs` -> extract those frames,
+    # tile a grid, and ask for schema-conformant JSON; without frames -> a text-only call (used to
+    # auto-draft the schema). The API key stays server-side.
+    @router.post("/metadata")
+    def metadata(req: MetadataRequest) -> dict[str, Any]:
+        name = _resolve(req.model, req.capability)
+        try:
+            handle = MODELS.get(name)
+        except Exception as exc:
+            raise HTTPException(404, str(exc)) from exc
+        inp = dict(req.inputs)
+        schema = inp.get("schema")
+        prompt = inp.get("prompt")
+        image = None
+        time_secs = inp.get("time_secs")
+        video_id = inp.get("video_id")
+        if time_secs and video_id:
+            stream = _resolve_stream_url(video_id)
+            frames = [_extract_frame_b64(stream, float(t)) for t in list(time_secs)[:9]]
+            image = _grid_png_b64(frames)
+        try:
+            result = handle.infer(prompt=prompt, image_png_base64=image, json_schema=schema)
+        except pe.ModelError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        except TypeError as exc:
+            raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
+        return {"model": name, "result": result}
 
     app.include_router(router)
     return app
