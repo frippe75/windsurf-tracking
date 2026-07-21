@@ -88,6 +88,7 @@ const Index = () => {
     handleCreateClass,
     handleRenameClass,
     handleUpdateClassPrompt,
+    handleUpdateClassColor,
     handleDeleteClass,
     handleRenameInstance,
     handleDeleteInstance,
@@ -2246,6 +2247,8 @@ const Index = () => {
                 onSelectClass={setSelectedClassId}
                 onCreateClass={handleCreateClass}
                 onRenameClass={handleRenameClass}
+                onUpdateClassPrompt={handleUpdateClassPrompt}
+                onUpdateClassColor={handleUpdateClassColor}
                 onDeleteClass={handleDeleteClass}
                 onRenameInstance={handleRenameInstance}
                 onDeleteInstance={handleDeleteInstance}

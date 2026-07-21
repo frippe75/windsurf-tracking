@@ -165,6 +165,56 @@ def _mask_to_polygon_pct(mask_b64: str | None) -> list[dict[str, float]] | None:
         return None
 
 
+_WARMTH_CACHE: dict[str, Any] = {"ts": 0.0, "data": {}}
+
+
+def _query_warmth(name: str) -> dict[str, Any]:
+    """Readiness of one model. Serverless (RunPod) models report warm/warming/cold from their
+    /health worker counts; everything else is serverless:false. Never raises."""
+    import json
+    import os
+    import re
+    import urllib.request
+
+    try:
+        cfg = getattr(MODELS.get(name), "config", None)
+    except Exception:
+        cfg = None
+    base = getattr(cfg, "base_url", "") or ""
+    if "api.runpod.ai" not in base:
+        return {"serverless": False}
+    m = re.search(r"/v2/([a-zA-Z0-9]+)", base)
+    if not m:
+        return {"serverless": True, "status": "unknown"}
+    key = os.environ.get(cfg.auth_env) if getattr(cfg, "auth_env", None) else None
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    try:
+        req = urllib.request.Request(f"https://api.runpod.ai/v2/{m.group(1)}/health", headers=headers)
+        w = (json.loads(urllib.request.urlopen(req, timeout=5).read()).get("workers") or {})
+        if (w.get("ready", 0) + w.get("idle", 0) + w.get("running", 0)) > 0:
+            status = "warm"
+        elif w.get("initializing", 0) > 0:
+            status = "warming"
+        else:
+            status = "cold"
+        return {"serverless": True, "status": status, "warm": status == "warm"}
+    except Exception:
+        return {"serverless": True, "status": "unknown"}
+
+
+def _warmth_all() -> dict[str, Any]:
+    """Per-model warmth, cached ~15s so /warmth stays cheap and never hammers RunPod."""
+    import time
+
+    now = time.time()
+    if now - _WARMTH_CACHE["ts"] < 15 and _WARMTH_CACHE["data"]:
+        return _WARMTH_CACHE["data"]
+    data = {n: _query_warmth(n) for n in MODELS.names()}
+    _WARMTH_CACHE["ts"] = now
+    _WARMTH_CACHE["data"] = data
+    return data
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="pipeline-engine service")
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
@@ -190,6 +240,11 @@ def create_app() -> FastAPI:
         return {"models": [
             {"name": n, "capabilities": MODELS.capabilities_of(n)} for n in names
         ]}
+
+    @router.get("/warmth")
+    def warmth() -> dict[str, Any]:
+        # per-model readiness for serverless (RunPod) endpoints; cached ~15s
+        return {"warmth": _warmth_all()}
 
     @router.post("/segment")
     def segment(req: SegmentRequest) -> dict[str, Any]:

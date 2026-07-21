@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Check, X, ChevronDown, ChevronRight, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { Class, Instance, Annotation } from "@/types/annotation";
+import { SAIL_COLORS } from "@/lib/annotationOps";
 import { InstanceManager } from "./InstanceManager";
 
 interface ClassManagerProps {
@@ -25,6 +26,8 @@ interface ClassManagerProps {
   onSelectClass: (classId: string) => void;
   onCreateClass: (name: string) => void;
   onRenameClass: (classId: string, newName: string) => void;
+  onUpdateClassPrompt: (classId: string, prompt: string) => void;
+  onUpdateClassColor: (classId: string, hex: string, colorName?: string) => void;
   onDeleteClass: (classId: string) => void;
   onRenameInstance: (instanceId: string, newName: string) => void;
   onDeleteInstance: (instanceId: string) => void;
@@ -44,6 +47,8 @@ export function ClassManager({
   onSelectClass,
   onCreateClass,
   onRenameClass,
+  onUpdateClassPrompt,
+  onUpdateClassColor,
   onDeleteClass,
   onRenameInstance,
   onDeleteInstance,
@@ -53,6 +58,9 @@ export function ClassManager({
   const [editingClassId, setEditingClassId] = useState<string>();
   const [editValue, setEditValue] = useState("");
   const [newClassName, setNewClassName] = useState("");
+  const [editingPromptId, setEditingPromptId] = useState<string>();
+  const [promptValue, setPromptValue] = useState("");
+  const [colorPickerId, setColorPickerId] = useState<string>();
 
   const toggleClassExpanded = (classId: string) => {
     const newExpanded = new Set(expandedClasses);
@@ -219,9 +227,14 @@ export function ClassManager({
                     <ChevronRight className="h-3 w-3" />
                   )}
                 </Button>
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
+                <button
+                  className="w-3 h-3 rounded-full flex-shrink-0 ring-offset-1 hover:ring-2 ring-ring"
                   style={{ backgroundColor: cls.color }}
+                  title="Change color"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setColorPickerId((id) => (id === cls.id ? undefined : cls.id));
+                  }}
                 />
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
@@ -278,13 +291,31 @@ export function ClassManager({
                   <div className="text-xs text-muted-foreground">
                     {classInstances.length} instance{classInstances.length !== 1 ? "s" : ""}
                   </div>
-                  <div
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground/70 truncate"
-                    title={`SAM3 concept phrase (edit in the Detect tool): ${cls.conceptPrompt ?? cls.name}`}
-                  >
-                    <Wand2 className="h-2.5 w-2.5 flex-shrink-0" />
-                    <span className="truncate">{cls.conceptPrompt ?? cls.name}</span>
-                  </div>
+                  {editingPromptId === cls.id ? (
+                    <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Wand2 className="h-2.5 w-2.5 flex-shrink-0 text-muted-foreground/70" />
+                      <Input
+                        value={promptValue}
+                        onChange={(e) => setPromptValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { onUpdateClassPrompt(cls.id, promptValue.trim() || cls.name); setEditingPromptId(undefined); }
+                          if (e.key === "Escape") setEditingPromptId(undefined);
+                        }}
+                        onBlur={() => { onUpdateClassPrompt(cls.id, promptValue.trim() || cls.name); setEditingPromptId(undefined); }}
+                        className="h-5 py-0 px-1 text-[10px] border-0 bg-transparent focus-visible:ring-1"
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground/70 truncate cursor-text hover:text-foreground"
+                      title="SAM3 concept phrase — click to edit"
+                      onClick={(e) => { e.stopPropagation(); setEditingPromptId(cls.id); setPromptValue(cls.conceptPrompt ?? cls.name); }}
+                    >
+                      <Wand2 className="h-2.5 w-2.5 flex-shrink-0" />
+                      <span className="truncate">{cls.conceptPrompt ?? cls.name}</span>
+                    </div>
+                  )}
                 </div>
                 {editingClassId !== cls.id && (
                   <Button
@@ -300,6 +331,25 @@ export function ClassManager({
                   </Button>
                 )}
               </div>
+
+              {/* Color swatches (when the color dot is clicked) */}
+              {colorPickerId === cls.id && (
+                <div className="ml-8 flex flex-wrap gap-1.5 py-1">
+                  {SAIL_COLORS.map((sw) => (
+                    <button
+                      key={sw.hex}
+                      title={sw.name}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateClassColor(cls.id, sw.hex, sw.name);
+                        setColorPickerId(undefined);
+                      }}
+                      className={`w-4 h-4 rounded-full ring-offset-1 hover:scale-110 transition-transform ${cls.color === sw.hex ? "ring-2 ring-ring" : ""}`}
+                      style={{ backgroundColor: sw.hex }}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Instances (when expanded) */}
               {isExpanded && (

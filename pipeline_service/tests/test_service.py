@@ -163,6 +163,18 @@ def test_track_submit_and_status(client, monkeypatch):
     assert all(0 <= p["x"] <= 100 and 0 <= p["y"] <= 100 for p in obj["polygon"])
 
 
+def test_warmth_reports_non_serverless_for_local_models(client):
+    import pipeline_service.app as appmod
+
+    appmod._WARMTH_CACHE["ts"] = 0.0  # bypass the 15s cache
+    r = client.get("/warmth")
+    assert r.status_code == 200
+    w = r.json()["warmth"]
+    # fake in-process handles have no RunPod base_url -> not serverless, no network hit
+    assert w["t-sam3"]["serverless"] is False
+    assert w["t-track"]["serverless"] is False
+
+
 def test_track_needs_text_and_video_id(client):
     r = client.post("/track", json={"capability": "concept-track", "inputs": {"text": "x"}})
     assert r.status_code == 400

@@ -34,8 +34,11 @@ type Props = {
   videoReady: boolean;
 };
 
+type Warm = { serverless?: boolean; status?: string; warm?: boolean };
+
 export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDetections, onDetectAll, onTrack, videoReady }: Props) {
-  const [caps, setCaps] = useState<string[]>([]);
+  const [models, setModels] = useState<{ name: string; capabilities: string[] }[]>([]);
+  const [warmth, setWarmth] = useState<Record<string, Warm>>({});
   const [minScore, setMinScore] = useState(() => {
     const v = parseFloat(localStorage.getItem("samMinScore") || "0.5");
     return Number.isFinite(v) ? v : 0.5;
@@ -56,14 +59,24 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
   useEffect(() => {
     fetch(`${PIPELINE}/models`)
       .then((r) => r.json())
-      .then((d) => setCaps(Array.from(new Set((d.models || []).flatMap((m: any) => m.capabilities || [])))))
+      .then((d) => setModels(d.models || []))
       .catch((e) => setErr(`GET /pipeline/models: ${e}`));
+    fetch(`${PIPELINE}/warmth`)
+      .then((r) => r.json())
+      .then((d) => setWarmth(d.warmth || {}))
+      .catch(() => {});
   }, []);
   useEffect(() => localStorage.setItem("samMinScore", String(minScore)), [minScore]);
   useEffect(() => localStorage.setItem("samTrackWindow", String(trackWindow)), [trackWindow]);
 
-  const hasConcept = caps.includes("concept-segment");
-  const hasTrack = caps.includes("concept-track");
+  const caps = useMemo(() => new Set(models.flatMap((m) => m.capabilities)), [models]);
+  const hasConcept = caps.has("concept-segment");
+  const hasTrack = caps.has("concept-track");
+  const engineName = models.find((m) => m.capabilities.includes("concept-segment"))?.name;
+  const engine = engineName ? warmth[engineName] : undefined;
+  const dotClass = engine?.status === "warm" ? "bg-emerald-500"
+    : engine?.status === "warming" ? "bg-amber-500"
+    : engine?.status === "cold" ? "bg-slate-400" : "bg-slate-300";
   const selectedClass = classes.find((c) => c.id === selectedClassId);
   const promptValue = selectedClass ? (selectedClass.conceptPrompt ?? selectedClass.name) : "";
   const ready = videoReady && !!selectedClass;
@@ -178,7 +191,13 @@ export function SamTool({ classes, selectedClassId, onUpdateClassPrompt, onAddDe
         <div className="flex items-center gap-2">
           <Wand2 className="h-4 w-4 text-primary" />
           <h3 className="text-xs font-semibold text-foreground">Detect &amp; Track</h3>
-          <Badge variant="secondary" className="ml-auto text-[10px]">SAM3</Badge>
+          {engine?.serverless && (
+            <span
+              className={`ml-auto h-2 w-2 rounded-full ${dotClass}`}
+              title={`SAM3 endpoint: ${engine.status ?? "unknown"}${engine.status === "cold" ? " — first run cold-starts (~1–4 min)" : ""}`}
+            />
+          )}
+          <Badge variant="secondary" className={`text-[10px] ${engine?.serverless ? "" : "ml-auto"}`}>SAM3</Badge>
         </div>
 
         {gate && <div className="text-[11px] text-muted-foreground">{gate}</div>}

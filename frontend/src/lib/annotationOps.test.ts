@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   SAIL_COLORS,
   createClass,
+  leastUsedColorIndex,
   renameClassById,
   deleteClassCascade,
   renameInstanceById,
@@ -171,3 +172,22 @@ describe("scene ops", () => {
     expect(updated[1].quality).toBe("unknown");
   });
 });
+
+describe("leastUsedColorIndex", () => {
+  const mk = (color: string) => ({ id: `c-${Math.random()}`, name: "x", color, colorName: "" });
+
+  it("returns 0 for no classes", () => {
+    expect(leastUsedColorIndex([])).toBe(0);
+  });
+
+  it("picks the first unused palette color", () => {
+    const classes = [mk(SAIL_COLORS[0].hex), mk(SAIL_COLORS[1].hex)];
+    expect(leastUsedColorIndex(classes)).toBe(2); // 0,1 used -> 2 is first free
+  });
+
+  it("spreads: two creates in a row get distinct colors", () => {
+    const first = createClass("A", leastUsedColorIndex([]));
+    const second = createClass("B", leastUsedColorIndex([first]));
+    expect(first.color).not.toBe(second.color);
+  });
+})
