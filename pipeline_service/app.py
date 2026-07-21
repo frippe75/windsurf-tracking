@@ -128,6 +128,43 @@ def _extract_window_b64(video_url: str, start_frame: int, count: int, fps: float
         shutil.rmtree(d, ignore_errors=True)
 
 
+def _mask_to_polygon_pct(mask_b64: str | None) -> list[dict[str, float]] | None:
+    """Full-frame mask PNG -> simplified outer contour as percent-of-frame points.
+
+    Silhouettes are stored as polygons (percent coords), not full-frame PNGs: ~10x smaller,
+    they render via the frontend's points-fill path, and they ARE the YOLO-seg label format.
+    W/H come from the PNG itself, so this is correct whether the mask was extracted at native
+    or downscaled resolution. Returns None on any failure -> caller falls back to the bbox.
+    """
+    if not mask_b64:
+        return None
+    try:
+        import base64
+        import io
+
+        import cv2
+        import numpy as np
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(base64.b64decode(mask_b64))).convert("L")
+        W, H = im.size
+        if not W or not H:
+            return None
+        _, binm = cv2.threshold(np.array(im), 127, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(binm, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None
+        c = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(c) <= 0:
+            return None
+        approx = cv2.approxPolyDP(c, 0.01 * cv2.arcLength(c, True), True).reshape(-1, 2)
+        if len(approx) < 3:
+            return None
+        return [{"x": float(x) / W * 100.0, "y": float(y) / H * 100.0} for x, y in approx]
+    except Exception:
+        return None
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="pipeline-engine service")
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
@@ -188,6 +225,12 @@ def create_app() -> FastAPI:
             raise HTTPException(502, str(exc)) from exc
         except TypeError as exc:  # inputs don't match the handle contract
             raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
+        # Concept detections carry a full-frame mask PNG -> convert to a compact polygon and drop
+        # the PNG (SAM2 click results have no "detections" list, so they keep their mask).
+        if isinstance(result, dict) and isinstance(result.get("detections"), list):
+            for d in result["detections"]:
+                if isinstance(d, dict):
+                    d["polygon"] = _mask_to_polygon_pct(d.pop("mask_base64", None))
         return {"model": name, "capabilities": MODELS.capabilities_of(name), "result": result}
 
     def _resolve(model: str | None, capability: str | None) -> str:
@@ -258,7 +301,8 @@ def create_app() -> FastAPI:
                 bbox_pct = ([b[0] / W * 100, b[1] / H * 100, b[2] / W * 100, b[3] / H * 100]
                             if W and H else b)
                 objs.append({"object_id": o.get("object_id"), "bbox_pct": bbox_pct,
-                             "score": o.get("score"), "mask_base64": o.get("mask_base64")})
+                             "score": o.get("score"),
+                             "polygon": _mask_to_polygon_pct(o.get("mask_base64"))})
             frames.append({"frame_number": fr.get("frame_number"), "objects": objs})
         return {"status": res.get("status"), "frames": frames, "count": len(frames)}
 
