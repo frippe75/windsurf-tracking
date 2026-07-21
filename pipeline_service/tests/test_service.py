@@ -9,11 +9,28 @@ from pipeline_engine.models import MODELS
 from pipeline_service.app import create_app
 
 
+def _square_mask_b64() -> str:
+    """A white square on black -> a clean 4-point contour for polygon-conversion tests."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    im = Image.new("L", (100, 100), 0)
+    for y in range(30, 70):
+        for x in range(30, 70):
+            im.putpixel((x, y), 255)
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
 @pytest.fixture
 def client():
     class FakeSam3:  # concept + click
         def infer(self, *, image_png_base64=None, text=None, **kw):
-            return {"detections": [{"bbox": [1, 2, 3, 4], "score": 0.9, "label": text}]}
+            return {"detections": [{"bbox": [1, 2, 3, 4], "score": 0.9, "label": text,
+                                    "mask_base64": _square_mask_b64()}]}
 
     class FakeSam2:  # click only
         def infer(self, *, video_id=None, frame_number=None, points=None, **kw):
@@ -34,7 +51,8 @@ def client():
             return {"status": "COMPLETED", "output": {
                 "image_size": [1000, 500],
                 "frames": [{"frame_number": 5, "objects": [
-                    {"object_id": 0, "bbox": [100, 50, 300, 250], "score": 0.9, "mask_base64": "m"}]}],
+                    {"object_id": 0, "bbox": [100, 50, 300, 250], "score": 0.9,
+                     "mask_base64": _square_mask_b64()}]}],
             }}
 
     MODELS.register_instance("t-sam3", FakeSam3(), capabilities=["concept-segment", "segment-click"])
@@ -68,7 +86,11 @@ def test_segment_concept_by_name(client):
     assert r.status_code == 200
     body = r.json()
     assert body["model"] == "t-sam3"
-    assert body["result"]["detections"][0]["label"] == "windsurf sail rig"
+    det = body["result"]["detections"][0]
+    assert det["label"] == "windsurf sail rig"
+    # mask PNG -> polygon (pct), PNG dropped
+    assert "mask_base64" not in det
+    assert isinstance(det["polygon"], list) and len(det["polygon"]) >= 3
 
 
 def test_segment_by_capability_picks_first(client):
@@ -132,9 +154,13 @@ def test_track_submit_and_status(client, monkeypatch):
     sb = s.json()
     assert sb["status"] == "COMPLETED" and sb["count"] == 1
     obj = sb["frames"][0]["objects"][0]
-    assert obj["object_id"] == 0 and obj["mask_base64"] == "m"
+    assert obj["object_id"] == 0
     # bbox px [100,50,300,250] over image_size [1000,500] -> percent
     assert obj["bbox_pct"] == [10.0, 10.0, 30.0, 50.0]
+    # mask PNG is converted to a compact polygon (pct) and the PNG is dropped
+    assert "mask_base64" not in obj
+    assert isinstance(obj["polygon"], list) and len(obj["polygon"]) >= 3
+    assert all(0 <= p["x"] <= 100 and 0 <= p["y"] <= 100 for p in obj["polygon"])
 
 
 def test_track_needs_text_and_video_id(client):

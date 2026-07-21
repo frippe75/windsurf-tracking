@@ -294,7 +294,7 @@ const Index = () => {
   // selected class at the current frame, so they persist / list / track like any object
   // instead of floating as a fixed overlay that goes stale on the next frame.
   const handleAddSamDetections = useCallback(
-    (dets: Array<{ bbox: number[]; score?: number; mask_base64?: string }>, targetClassId?: string) => {
+    (dets: Array<{ bbox: number[]; score?: number; polygon?: Array<{ x: number; y: number }> }>, targetClassId?: string) => {
       const selectedClass = classes.find((c) => c.id === (targetClassId ?? selectedClassId));
       if (!selectedClass) {
         toast({ title: "No class selected", description: "Select a class before adding detections." });
@@ -318,26 +318,16 @@ const Index = () => {
           metadata: {},
         };
         newInstances.push(inst);
-        // SAM3 returns a full-frame mask PNG (white=object). Store it so VideoPlayer draws
-        // the real silhouette instead of a filled bbox rectangle; maskIsCropped=false means
-        // the mask spans the whole frame (not a cropped tile).
-        const mask = d.mask_base64;
+        // SAM3 returns the silhouette as a polygon contour (percent coords) — compact + it's the
+        // YOLO-seg format. Store it as points; fall back to the bbox rectangle if absent.
+        const poly = d.polygon && d.polygon.length >= 3 ? d.polygon : bboxToPolygon(bbox);
         newAnnotations.push({
           id: `ann-${Date.now()}-${selectedClass.id}-${i}`,
           instanceId: inst.id,
-          points: bboxToPolygon(bbox),
+          points: poly,
           bbox,
           frameCreated: currentFrame,
           isKeyframe: true,
-          ...(mask
-            ? {
-                maskBase64: mask,
-                maskBBox: bbox,
-                maskWidth: videoNativeWidth,
-                maskHeight: videoNativeHeight,
-                maskIsCropped: false,
-              }
-            : {}),
         });
       });
       setInstances((prev) => [...prev, ...newInstances]);
@@ -444,16 +434,14 @@ const Index = () => {
           const p = o.bbox_pct as number[] | undefined;
           if (!p || p.length !== 4) continue;
           const bbox = { x: p[0], y: p[1], w: p[2] - p[0], h: p[3] - p[1] };
+          const poly = o.polygon && o.polygon.length >= 3 ? o.polygon : bboxToPolygon(bbox);
           newAnnotations.push({
             id: `ann-${Date.now()}-${oid}-${fr.frame_number}`,
             instanceId: instId,
-            points: bboxToPolygon(bbox),
+            points: poly,
             bbox,
             frameCreated: fr.frame_number,
             isKeyframe: false,
-            ...(o.mask_base64
-              ? { maskBase64: o.mask_base64, maskBBox: bbox, maskWidth: videoNativeWidth, maskHeight: videoNativeHeight, maskIsCropped: false }
-              : {}),
           });
         }
       }

@@ -280,7 +280,8 @@ export function VideoPlayer({
             ctx.restore();
           };
         } else if (annotation.points.length > 0) {
-          ctx.fillStyle = color + "40"; // 25% opacity
+          // Polygon silhouette (SAM3 contour). color is an hsl() string, so tint via globalAlpha
+          // (string+"40" was invalid CSS → black); a solid outline makes the contour read clearly.
           ctx.beginPath();
           annotation.points.forEach((point, i) => {
             const x = (point.x / 100) * canvas.width;
@@ -289,7 +290,14 @@ export function VideoPlayer({
             else ctx.lineTo(x, y);
           });
           ctx.closePath();
+          ctx.save();
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = color;
           ctx.fill();
+          ctx.restore();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
         }
       }
 
