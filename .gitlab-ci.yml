@@ -75,7 +75,9 @@ test-pipeline:
     PIP_DISABLE_PIP_VERSION_CHECK: "1"
     PIP_NO_CACHE_DIR: "1"
   script:
-    - pip install --quiet pydantic pyyaml networkx pillow fastapi httpx pytest
+    # libglib2.0-0 is opencv-python-headless's one runtime dep (used by the mask->polygon tests)
+    - apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+    - pip install --quiet pydantic pyyaml networkx pillow numpy opencv-python-headless fastapi httpx pytest
     - python -m pytest pipeline_engine/tests pipeline_service/tests -q -p no:cacheprovider
   only:
     - main
