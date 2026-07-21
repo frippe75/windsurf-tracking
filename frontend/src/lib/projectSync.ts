@@ -47,9 +47,10 @@ export async function saveProjectToBackend(
     videoMetadata: state.videoMetadata,
   };
   const targetId = project.backendProjectId ?? project.id;
+  const description = project.description ?? "";
 
   try {
-    await api.updateProject(targetId, { name: project.name, settings });
+    await api.updateProject(targetId, { name: project.name, description, settings });
     return {};
   } catch (err) {
     // Not yet backed (and has a video the backend requires) → create it once.
@@ -57,9 +58,9 @@ export async function saveProjectToBackend(
       const created = await api.createProject({
         name: project.name,
         video_id: project.videoIds[0],
-        description: `Annotation project for ${project.name}`,
+        description: description || `Annotation project for ${project.name}`,
       });
-      await api.updateProject(created.id, { name: project.name, settings });
+      await api.updateProject(created.id, { name: project.name, description, settings });
       return { backendProjectId: created.id };
     }
     throw err;

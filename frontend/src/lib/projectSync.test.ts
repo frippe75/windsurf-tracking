@@ -46,6 +46,12 @@ describe("saveProjectToBackend", () => {
     expect(api.createProject).not.toHaveBeenCalled();
   });
 
+  it("persists the project description to the backend on update", async () => {
+    const api = makeApi();
+    await saveProjectToBackend(makeProject({ backendProjectId: "backend-1", description: "windsurf sail dataset" }), state, api);
+    expect(api.updateProject).toHaveBeenCalledWith("backend-1", expect.objectContaining({ description: "windsurf sail dataset" }));
+  });
+
   it("updates by local id when that id already exists on the backend (adopted-id projects)", async () => {
     const api = makeApi();
     const res = await saveProjectToBackend(makeProject({ id: "adopted-uuid" }), state, api);
