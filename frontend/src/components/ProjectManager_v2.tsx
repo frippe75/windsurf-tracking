@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Project } from "@/types/project";
@@ -105,9 +106,9 @@ export function ProjectManager_v2({
         {activeProject ? (
           <>
             <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="h-10 w-10 shrink-0 rounded-lg bg-green-500/20 flex items-center justify-center">
                     <FolderOpen className="h-5 w-5 text-green-500" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -135,13 +136,12 @@ export function ProjectManager_v2({
                     <p className="text-sm text-muted-foreground">
                       Active Project
                     </p>
-                    <textarea
+                    <Textarea
                       value={descDraft ?? activeProject.description ?? ""}
                       onChange={(e) => setDescDraft(e.target.value)}
                       onBlur={saveDescription}
-                      rows={2}
                       placeholder="Describe this dataset's purpose (domain, subjects, what it's for) — the auto-draft reads this to propose a relevant metadata schema."
-                      className="mt-1 w-full resize-none rounded border border-border bg-transparent px-2 py-1 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="mt-2 resize-none min-h-[3rem] text-xs md:min-h-[7rem] md:text-sm"
                     />
                   </div>
                 </div>
