@@ -51,10 +51,10 @@ class AnthropicHandle:
                 }
             )
 
+        # NB: no `temperature` — deprecated on newer Claude models (400). Set it via `extra` if ever needed.
         body: dict[str, Any] = {
             "model": cfg.model_name,
             "max_tokens": cfg.max_tokens,
-            "temperature": cfg.temperature,
             "messages": [{"role": "user", "content": content}],
         }
         if json_schema is not None:
