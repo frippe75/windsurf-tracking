@@ -22,4 +22,4 @@ images:
   - name: harbor.tclab.org/windsurf/annotation-api
     newTag: "e8a39021"
   - name: harbor.tclab.org/windsurf/pipeline-service
-    newTag: "v11"
+    newTag: "v12"

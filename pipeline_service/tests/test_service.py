@@ -250,6 +250,46 @@ def test_metadata_all_frames_unreadable_502(client, monkeypatch):
     assert "no readable frames" in r.json()["detail"]
 
 
+def test_build_train_job_manifest():
+    import pipeline_service.app as appmod
+
+    spec = {"dataset_url": "https://s3/ds.zip", "project_id": "abc12345-xyz", "epochs": 10, "imgsz": 512, "model": "yolov8s.pt"}
+    m = appmod.build_train_job(
+        spec, image="harbor/train:v1", namespace="windsurf-prod", s3_secret="windsurf-s3-secret",
+        s3_endpoint="http://s3", s3_bucket="windsurf-videos",
+    )
+    assert m["kind"] == "Job"
+    assert m["metadata"]["name"] == appmod.train_job_name(spec)
+    assert m["metadata"]["annotations"][appmod.RESULTS_ANNOTATION] == appmod.train_results_prefix(spec)
+    c = m["spec"]["template"]["spec"]["containers"][0]
+    assert c["image"] == "harbor/train:v1"
+    assert c["resources"]["limits"]["nvidia.com/gpu"] == 1
+    env = {e["name"]: e for e in c["env"]}
+    assert env["DATASET_URL"]["value"] == "https://s3/ds.zip"
+    assert env["TRAIN_EPOCHS"]["value"] == "10"
+    assert env["S3_ACCESS_KEY"]["valueFrom"]["secretKeyRef"]["name"] == "windsurf-s3-secret"
+
+
+def test_train_job_name_is_idempotent_per_dataset():
+    import pipeline_service.app as appmod
+
+    a = appmod.train_job_name({"project_id": "p", "dataset_url": "u"})
+    b = appmod.train_job_name({"project_id": "p", "dataset_url": "u"})
+    c = appmod.train_job_name({"project_id": "p", "dataset_url": "u2"})
+    assert a == b and a != c and a.startswith("train-")
+
+
+def test_train_route_submits_and_polls(client, monkeypatch):
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "train_submit", lambda spec: "train-deadbeef")
+    monkeypatch.setattr(appmod, "train_status", lambda jid: {"job_id": jid, "status": "succeeded", "metrics": {"mAP50": 0.9}})
+    r = client.post("/train", json={"dataset_url": "https://s3/ds.zip", "project_id": "p1"})
+    assert r.status_code == 200 and r.json()["job_id"] == "train-deadbeef"
+    s = client.get("/train/train-deadbeef")
+    assert s.status_code == 200 and s.json()["metrics"]["mAP50"] == 0.9
+
+
 def test_track_needs_text_and_video_id(client):
     r = client.post("/track", json={"capability": "concept-track", "inputs": {"text": "x"}})
     assert r.status_code == 400
