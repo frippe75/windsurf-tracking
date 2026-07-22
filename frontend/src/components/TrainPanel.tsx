@@ -1,0 +1,151 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Play } from "lucide-react";
+import { startTraining, getTrainingStatus, type TrainStatus } from "@/lib/pipelineApi";
+
+/**
+ * Train tab: train a YOLO on the current dataset and show eval metrics (mAP). It reuses the
+ * existing export flow (which saves annotations to the backend + builds the train/val zip) to get
+ * a dataset URL, then kicks off a k8s GPU Job via pipeline-service and polls for metrics.
+ * The north-star signal of the dataset flywheel — "is the data good?" = downstream mAP.
+ */
+type Props = {
+  projectId: string;
+  canTrain: boolean; // classes + annotations present
+  getDatasetUrl: () => Promise<string>; // exports + returns the dataset zip URL
+};
+
+const TERMINAL = new Set(["succeeded", "failed"]);
+
+function Bar({ label, value, color }: { label: string; value: number; color?: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[11px]">
+        <span className="truncate">{label}</span>
+        <span className="text-foreground tabular-nums">{value.toFixed(3)}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded bg-muted">
+        <div className="h-full rounded" style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%`, backgroundColor: color || "hsl(217, 91%, 60%)" }} />
+      </div>
+    </div>
+  );
+}
+
+export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
+  const storeKey = `train:${projectId}`;
+  const [jobId, setJobId] = useState<string | null>(() => localStorage.getItem(`train:${projectId}`));
+  const [epochs, setEpochs] = useState(50);
+  const [status, setStatus] = useState<TrainStatus | null>(null);
+  const [phase, setPhase] = useState<"idle" | "exporting" | "polling">("idle");
+  const [error, setError] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persist = useCallback(
+    (id: string | null) => {
+      setJobId(id);
+      if (id) localStorage.setItem(storeKey, id);
+      else localStorage.removeItem(storeKey);
+    },
+    [storeKey],
+  );
+
+  // Poll while a job is active.
+  useEffect(() => {
+    if (!jobId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const s = await getTrainingStatus(jobId);
+        if (cancelled) return;
+        setStatus(s);
+        if (!TERMINAL.has(s.status)) {
+          timer.current = setTimeout(tick, 5000);
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(String(e?.message ?? e));
+      }
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [jobId]);
+
+  const train = async () => {
+    setError("");
+    setStatus(null);
+    setPhase("exporting");
+    try {
+      const dataset_url = await getDatasetUrl();
+      setPhase("polling");
+      const { job_id } = await startTraining({ dataset_url, project_id: projectId, epochs });
+      persist(job_id);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+      setPhase("idle");
+    }
+  };
+
+  const busy = phase === "exporting" || (!!status && !TERMINAL.has(status.status)) || (!!jobId && !status);
+  const m = status?.metrics;
+
+  return (
+    <Card className="p-4 bg-card border-border space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Train YOLO</h3>
+        {status && (
+          <Badge variant={status.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">
+            {status.status}
+          </Badge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-muted-foreground">epochs</label>
+        <input
+          type="number"
+          min={1}
+          max={300}
+          value={epochs}
+          disabled={busy}
+          onChange={(e) => setEpochs(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
+          className="h-7 w-16 rounded border border-input bg-background px-2 text-xs"
+        />
+        <Button size="sm" className="ml-auto h-7" disabled={!canTrain || busy} onClick={train}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+          <span className="ml-1">{busy ? (phase === "exporting" ? "Exporting…" : "Training…") : "Train"}</span>
+        </Button>
+      </div>
+
+      {!canTrain && <div className="text-[11px] text-muted-foreground">Add classes + annotations before training.</div>}
+      {error && <div className="text-[11px] text-destructive break-words">{error}</div>}
+
+      {busy && !m && (
+        <div className="text-[11px] text-muted-foreground">
+          {phase === "exporting" ? "Building dataset…" : "Training on a GPU node — this takes a few minutes. Metrics appear when it finishes."}
+        </div>
+      )}
+
+      {m && (
+        <div className="space-y-2 border-t border-border pt-2">
+          <div className="text-[11px] text-muted-foreground">
+            Eval ({m.epochs} epochs{m.num_images ? ` · ${m.num_images} images` : ""})
+          </div>
+          <Bar label="mAP@50" value={m.mAP50} color="hsl(142, 71%, 45%)" />
+          <Bar label="mAP@50-95" value={m.mAP50_95} color="hsl(160, 71%, 42%)" />
+          <div className="text-[11px] text-muted-foreground pt-1">Per class (AP@50-95)</div>
+          {m.per_class.map((c) => (
+            <Bar key={c.class} label={c.class} value={c.ap50_95} />
+          ))}
+        </div>
+      )}
+
+      {status?.status === "succeeded" && (
+        <div className="text-[10px] text-muted-foreground">best.pt saved to the dataset store — servable as a detector next.</div>
+      )}
+    </Card>
+  );
+}

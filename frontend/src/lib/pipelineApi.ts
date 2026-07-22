@@ -81,6 +81,48 @@ export async function extractMetadata(input: MetadataInput): Promise<any> {
   return d.result;
 }
 
+// --- training ---------------------------------------------------------------------
+
+export interface TrainMetrics {
+  mAP50: number;
+  mAP50_95: number;
+  per_class: { class: string; ap50_95: number }[];
+  epochs: number;
+  num_images?: number | null;
+}
+
+export interface TrainStatus {
+  job_id: string;
+  status: "submitted" | "running" | "succeeded" | "failed";
+  metrics?: TrainMetrics | null;
+}
+
+export interface TrainInput {
+  dataset_url: string;
+  project_id: string;
+  epochs?: number;
+  model?: string;
+  imgsz?: number;
+}
+
+export async function startTraining(input: TrainInput): Promise<{ job_id: string; status: string }> {
+  const r = await fetch(`${PIPELINE}/train`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const d = await jparse(r);
+  if (!r.ok) throw new Error(d.detail || `train HTTP ${r.status}`);
+  return d;
+}
+
+export async function getTrainingStatus(jobId: string): Promise<TrainStatus> {
+  const r = await fetch(`${PIPELINE}/train/${encodeURIComponent(jobId)}`);
+  const d = await jparse(r);
+  if (!r.ok) throw new Error(d.detail || `train status HTTP ${r.status}`);
+  return d;
+}
+
 const defaultSleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
 
 export interface PollOpts {

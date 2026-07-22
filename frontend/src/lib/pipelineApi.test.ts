@@ -49,6 +49,24 @@ describe("pipelineApi request shapes", () => {
     );
   });
 
+  it("startTraining posts the spec and returns job_id; getTrainingStatus unwraps metrics", async () => {
+    const calls = mockFetch([{ body: { job_id: "train-abc", status: "submitted" } }]);
+    expect(await api.startTraining({ dataset_url: "https://s3/ds.zip", project_id: "p1", epochs: 10 })).toEqual({
+      job_id: "train-abc",
+      status: "submitted",
+    });
+    expect(calls[0].url).toBe("/pipeline/train");
+    expect(JSON.parse(calls[0].init!.body as string)).toEqual({ dataset_url: "https://s3/ds.zip", project_id: "p1", epochs: 10 });
+
+    mockFetch([{ body: { job_id: "train-abc", status: "succeeded", metrics: { mAP50: 0.9, mAP50_95: 0.6, per_class: [], epochs: 10 } } }]);
+    const s = await api.getTrainingStatus("train-abc");
+    expect(s.status).toBe("succeeded");
+    expect(s.metrics?.mAP50).toBe(0.9);
+
+    mockFetch([{ ok: false, status: 404, body: { detail: "no training job" } }]);
+    await expect(api.getTrainingStatus("gone")).rejects.toThrow("no training job");
+  });
+
   it("submitTrack returns {job_id, model}; throws on !ok", async () => {
     const calls = mockFetch([{ body: { job_id: "j1", model: "sam3-video" } }]);
     expect(await api.submitTrack({ video_id: "v", start_frame: 0, end_frame: 9, fps: 30, text: "sail" })).toEqual({
