@@ -2154,7 +2154,7 @@ const Index = () => {
               <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
                 <Upload className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-semibold">Load a video to begin</h2>
+              <h2 className="text-lg font-semibold">Load a video to begin</h2>
               <p className="text-muted-foreground max-w-md">
                 Upload a video file or provide a YouTube link to start annotating with multi-AI analysis support
               </p>
@@ -2312,11 +2312,11 @@ const Index = () => {
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "lg:col-span-2 min-w-0"}>
               <Tabs defaultValue="scenes" className="h-full w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="scenes">Scenes</TabsTrigger>
-                  <TabsTrigger value="tracking">Tracking</TabsTrigger>
-                  <TabsTrigger value="balance">Balance</TabsTrigger>
-                  <TabsTrigger value="train">Train</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-4 h-9">
+                  <TabsTrigger value="scenes" className="text-xs px-1">Scenes</TabsTrigger>
+                  <TabsTrigger value="tracking" className="text-xs px-1">Tracking</TabsTrigger>
+                  <TabsTrigger value="balance" className="text-xs px-1">Balance</TabsTrigger>
+                  <TabsTrigger value="train" className="text-xs px-1">Train</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
