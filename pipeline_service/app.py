@@ -256,10 +256,16 @@ def _grid_png_b64(frames_b64: list[str], cols: int = 3, tile_w: int = 512) -> st
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="pipeline-engine service")
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
-    # so routes carry that prefix in prod; tests use "" (default).
+    # so routes carry that prefix in prod; tests use "" (default). The OpenAPI spec + docs must
+    # live under the same prefix or the ingress won't route them (default /openapi.json is unreachable).
     prefix = os.environ.get("SERVICE_PREFIX", "").rstrip("/")
+    app = FastAPI(
+        title="pipeline-engine service",
+        openapi_url=f"{prefix}/openapi.json",
+        docs_url=f"{prefix}/docs",
+        redoc_url=f"{prefix}/redoc",
+    )
     router = APIRouter(prefix=prefix)
     app.add_middleware(
         CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
