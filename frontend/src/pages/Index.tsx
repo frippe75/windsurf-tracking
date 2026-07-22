@@ -37,6 +37,7 @@ import { pctToNative, nativeBBoxToPct, bboxToPolygon } from "@/lib/coordinates";
 import { useSamTool } from "@/hooks/useSamTool";
 import { keptIds } from "@/lib/applyThinning";
 import { toJsonSchema } from "@/lib/metaSchema";
+import { pruneMeta, hasAllKeys } from "@/lib/metaRuns";
 import { extractMetadata } from "@/lib/pipelineApi";
 import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
@@ -1280,28 +1281,53 @@ const Index = () => {
     setIsGeneratingMetadata(true);
     toast({ title: "Generating metadata", description: "Claude is reading frame grids…" });
     try {
+      // Field-key sets per scope — used to PRUNE stored metadata down to the current schema
+      // (drops stale/mock keys) and to decide what's already filled (incremental skip).
+      const sceneKeyArr = sceneFields.map((f) => f.key);
+      const instKeyArr = instanceFields.map((f) => f.key);
+      const videoKeyArr = videoFields.map((f) => f.key);
+      const sceneKeys = new Set(sceneKeyArr);
+      const instKeys = new Set(instKeyArr);
+      const videoKeys = new Set(videoKeyArr);
+
+      // video-scope: one grid across the whole clip; skip the call if already complete, but still prune.
       if (videoFields.length) {
-        const times = evenFrames(0, totalFrames, 9).map((f) => f / videoFps);
-        const res = await extractMetadata({
-          schema: toJsonSchema(videoFields),
-          video_id: vid,
-          time_secs: times,
-          prompt: "This grid shows frames sampled across one video clip. Fill the fields.",
-        });
-        setVideoMetadata((prev) => ({ ...prev, ...strMap(res) }));
+        if (!hasAllKeys(videoMetadata, videoKeyArr)) {
+          const times = evenFrames(0, totalFrames, 9).map((f) => f / videoFps);
+          const res = await extractMetadata({
+            schema: toJsonSchema(videoFields),
+            video_id: vid,
+            time_secs: times,
+            prompt: "This grid shows frames sampled across one video clip. Fill the fields.",
+          });
+          setVideoMetadata((prev) => ({ ...pruneMeta(prev, videoKeys), ...pick(strMap(res), videoFields) }));
+        } else {
+          setVideoMetadata((prev) => pruneMeta(prev, videoKeys));
+        }
       }
 
       let filled = 0;
+      let skipped = 0;
+      let failed = 0;
       // One grid per scene fills BOTH scene- and instance-scoped fields (no per-object crops — the
-      // grid's instance attributes apply to the objects present in that scene; refine later if a scene
-      // holds multiple distinct objects).
+      // grid's instance attributes apply to the objects present in that scene).
       const gridFields = [...sceneFields, ...instanceFields];
+      const sceneUpdates: Record<string, Record<string, string>> = {};
+      const instUpdates: Record<string, Record<string, string>> = {};
       if (gridFields.length && scenes.length) {
         const schema = toJsonSchema(gridFields);
-        const sceneUpdates: Record<string, Record<string, string>> = {};
-        const instUpdates: Record<string, Record<string, string>> = {};
         for (const sc of scenes) {
           const anns = annotations.filter((a) => a.frameCreated >= sc.startFrame && a.frameCreated <= sc.endFrame);
+          const sceneInstIds = [...new Set(anns.map((a) => a.instanceId))];
+          // Incremental: skip the Claude call if this scene AND its objects already have every field.
+          const sceneDone = hasAllKeys(sc.metadata, sceneKeyArr);
+          const instDone =
+            instanceFields.length === 0 ||
+            sceneInstIds.every((id) => hasAllKeys(instances.find((i) => i.id === id)?.metadata, instKeyArr));
+          if (sceneDone && instDone) {
+            skipped++;
+            continue; // still pruned in the write step below
+          }
           let frames: number[];
           if (anns.length >= 2) {
             const kept = keptIds(anns, [{ kind: "maxPerTrack", k: 9 }]);
@@ -1310,37 +1336,43 @@ const Index = () => {
             frames = evenFrames(sc.startFrame, sc.endFrame, 9);
           }
           const times = [...frames].sort((a, b) => a - b).map((f) => f / videoFps);
-          const res = await extractMetadata({
-            schema,
-            video_id: vid,
-            time_secs: times,
-            prompt: "This grid shows frames from one scene of a video. Fill the fields.",
-          });
-          const m = strMap(res);
-          sceneUpdates[sc.id] = pick(m, sceneFields);
-          const instVals = pick(m, instanceFields);
-          if (Object.keys(instVals).length) {
-            for (const id of new Set(anns.map((a) => a.instanceId))) {
-              instUpdates[id] = { ...(instUpdates[id] ?? {}), ...instVals };
+          try {
+            const res = await extractMetadata({
+              schema,
+              video_id: vid,
+              time_secs: times,
+              prompt: "This grid shows frames from one scene of a video. Fill the fields.",
+            });
+            const m = strMap(res);
+            sceneUpdates[sc.id] = pick(m, sceneFields);
+            const instVals = pick(m, instanceFields);
+            if (Object.keys(instVals).length) {
+              for (const id of sceneInstIds) instUpdates[id] = { ...(instUpdates[id] ?? {}), ...instVals };
             }
+            filled++;
+          } catch {
+            failed++; // one bad scene shouldn't abort the run
           }
-          filled++;
-        }
-        if (sceneFields.length) {
-          setScenes((prev) =>
-            prev.map((s) =>
-              sceneUpdates[s.id] && Object.keys(sceneUpdates[s.id]).length ? { ...s, metadata: { ...s.metadata, ...sceneUpdates[s.id] } } : s,
-            ),
-          );
-        }
-        if (Object.keys(instUpdates).length) {
-          setInstances((prev) => prev.map((i) => (instUpdates[i.id] ? { ...i, metadata: { ...i.metadata, ...instUpdates[i.id] } } : i)));
         }
       }
-      const parts = [`${filled} scene(s)`];
-      if (instanceFields.length) parts.push("object attrs");
-      if (videoFields.length) parts.push("video-level");
-      toast({ title: "Metadata generated", description: `Claude filled ${parts.join(" + ")}` });
+      // Write: prune every scene/instance down to the current schema (cleans stale/mock keys), then
+      // merge in the freshly extracted values.
+      if (sceneFields.length) {
+        setScenes((prev) => prev.map((s) => ({ ...s, metadata: { ...pruneMeta(s.metadata, sceneKeys), ...(sceneUpdates[s.id] ?? {}) } })));
+      }
+      if (instanceFields.length) {
+        setInstances((prev) => prev.map((i) => ({ ...i, metadata: { ...pruneMeta(i.metadata, instKeys), ...(instUpdates[i.id] ?? {}) } })));
+      }
+      const sceneSummary =
+        gridFields.length && scenes.length
+          ? `${filled} filled · ${skipped} already done${failed ? ` · ${failed} failed` : ""} of ${scenes.length} scenes`
+          : "";
+      const bits = [sceneSummary, videoFields.length ? "video-level" : ""].filter(Boolean);
+      toast({
+        title: failed ? "Metadata generated (with errors)" : "Metadata generated",
+        description: bits.join(" + ") || "Done",
+        variant: failed ? "destructive" : undefined,
+      });
     } catch (e: any) {
       toast({ title: "Metadata failed", description: String(e?.message ?? e), variant: "destructive" });
     } finally {
