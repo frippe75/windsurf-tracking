@@ -2,8 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play } from "lucide-react";
+import { Loader2, Play, ChevronDown, ChevronRight } from "lucide-react";
 import { startTraining, getTrainingStatus, type TrainStatus } from "@/lib/pipelineApi";
+
+// Weights the ultralytics image can pull by name. nano = fast default for a single-class detector.
+const MODELS = [
+  { value: "yolov8n.pt", label: "YOLOv8-n (fast)" },
+  { value: "yolov8s.pt", label: "YOLOv8-s" },
+  { value: "yolov8m.pt", label: "YOLOv8-m (slow)" },
+  { value: "yolo11n.pt", label: "YOLO11-n" },
+  { value: "yolo11s.pt", label: "YOLO11-s" },
+];
 
 /**
  * Train tab: train a YOLO on the current dataset and show eval metrics (mAP). It reuses the
@@ -37,6 +46,9 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   const storeKey = `train:${projectId}`;
   const [jobId, setJobId] = useState<string | null>(() => localStorage.getItem(`train:${projectId}`));
   const [epochs, setEpochs] = useState(50);
+  const [model, setModel] = useState(MODELS[0].value);
+  const [imgsz, setImgsz] = useState(640);
+  const [showTuning, setShowTuning] = useState(false);
   const [status, setStatus] = useState<TrainStatus | null>(null);
   const [phase, setPhase] = useState<"idle" | "exporting" | "polling">("idle");
   const [error, setError] = useState("");
@@ -81,7 +93,7 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
     try {
       const dataset_url = await getDatasetUrl();
       setPhase("polling");
-      const { job_id } = await startTraining({ dataset_url, project_id: projectId, epochs });
+      const { job_id } = await startTraining({ dataset_url, project_id: projectId, epochs, model, imgsz });
       persist(job_id);
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -104,21 +116,53 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="text-[11px] text-muted-foreground">epochs</label>
-        <input
-          type="number"
-          min={1}
-          max={300}
-          value={epochs}
-          disabled={busy}
-          onChange={(e) => setEpochs(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
-          className="h-7 w-16 rounded border border-input bg-background px-2 text-xs"
-        />
+        <button
+          type="button"
+          onClick={() => setShowTuning((v) => !v)}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          {showTuning ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          Tuning
+        </button>
+        <span className="text-[10px] text-muted-foreground/70">{MODELS.find((m) => m.value === model)?.label} · {epochs}ep · {imgsz}px</span>
         <Button size="sm" className="ml-auto h-7" disabled={!canTrain || busy} onClick={train}>
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
           <span className="ml-1">{busy ? (phase === "exporting" ? "Exporting…" : "Training…") : "Train"}</span>
         </Button>
       </div>
+
+      {showTuning && (
+        <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1.5 rounded-md border border-border p-2">
+          <label className="text-[11px] text-muted-foreground">model</label>
+          <select
+            value={model}
+            disabled={busy}
+            onChange={(e) => setModel(e.target.value)}
+            className="h-7 rounded border border-input bg-background px-1 text-xs"
+          >
+            {MODELS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+          <label className="text-[11px] text-muted-foreground">epochs</label>
+          <input
+            type="number" min={1} max={300} value={epochs} disabled={busy}
+            onChange={(e) => setEpochs(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
+            className="h-7 w-20 rounded border border-input bg-background px-2 text-xs"
+          />
+          <label className="text-[11px] text-muted-foreground">image size</label>
+          <select
+            value={imgsz}
+            disabled={busy}
+            onChange={(e) => setImgsz(Number(e.target.value))}
+            className="h-7 w-24 rounded border border-input bg-background px-1 text-xs"
+          >
+            {[416, 512, 640, 768, 960, 1280].map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {!canTrain && <div className="text-[11px] text-muted-foreground">Add classes + annotations before training.</div>}
       {error && <div className="text-[11px] text-destructive break-words">{error}</div>}
