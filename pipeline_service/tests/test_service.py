@@ -199,6 +199,41 @@ def test_metadata_grid_extract(client, monkeypatch):
     assert r.json()["result"]["got_image"] is True  # frames -> grid image was built + passed
 
 
+def test_metadata_skips_unreadable_frames(client, monkeypatch):
+    # one timestamp past end-of-clip must not fail the whole grid — skip it, use the rest
+    import pipeline_service.app as appmod
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: "u")
+
+    def flaky(url, t):
+        if t >= 100:
+            raise HTTPException(502, "could not read a frame from the video url: no output")
+        return _square_mask_b64()
+
+    monkeypatch.setattr(appmod, "_extract_frame_b64", flaky)
+    r = client.post("/metadata", json={"capability": "metadata-extract", "inputs": {
+        "schema": {"type": "object"}, "video_id": "v", "time_secs": [1, 2, 99999]}})
+    assert r.status_code == 200
+    assert r.json()["result"]["got_image"] is True  # built from the 2 good frames
+
+
+def test_metadata_all_frames_unreadable_502(client, monkeypatch):
+    import pipeline_service.app as appmod
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: "u")
+
+    def dead(url, t):
+        raise HTTPException(502, "no output")
+
+    monkeypatch.setattr(appmod, "_extract_frame_b64", dead)
+    r = client.post("/metadata", json={"capability": "metadata-extract", "inputs": {
+        "schema": {"type": "object"}, "video_id": "v", "time_secs": [99999]}})
+    assert r.status_code == 502
+    assert "no readable frames" in r.json()["detail"]
+
+
 def test_track_needs_text_and_video_id(client):
     r = client.post("/track", json={"capability": "concept-track", "inputs": {"text": "x"}})
     assert r.status_code == 400
