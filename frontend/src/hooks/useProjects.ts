@@ -280,7 +280,10 @@ export function useProjects(options: UseProjectsOptions) {
     }
   }, [activeProjectId]);
 
-  // Auto-save current project annotations (local immediately, backend debounced)
+  // Auto-save current project annotations (local immediately, backend debounced).
+  // NB: activeProjectDescription is a dep so a description-only edit (which lives on the
+  // Project, not in the annotation-state vars below) actually triggers a backend save.
+  const activeProjectDescription = projects.find((p) => p.id === activeProjectId)?.description;
   useEffect(() => {
     if (!activeProjectId) return;
 
@@ -328,7 +331,7 @@ export function useProjects(options: UseProjectsOptions) {
       return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId, classes, instances, annotations, keyframes, scenes, tracks, metadataSchema, videoMetadata, backendStatus]);
+  }, [activeProjectId, activeProjectDescription, classes, instances, annotations, keyframes, scenes, tracks, metadataSchema, videoMetadata, backendStatus]);
 
   const handleProjectCreate = (name: string) => {
     const newProject = createEmptyProject(name);
