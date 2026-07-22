@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,22 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ManagedVideo } from "@/types/video";
-import { 
-  Check, 
-  Upload, 
-  Youtube, 
-  Database, 
-  Clock, 
+import {
+  Check,
+  Upload,
+  Youtube,
+  Database,
+  Clock,
   PlayCircle,
   CheckCircle2,
   FileVideo,
   AlertCircle,
-  Trash2
+  Trash2,
+  CheckSquare,
+  Square
 } from "lucide-react";
+import { ListKeyboardHint } from "@/components/ListKeyboardHint";
+import { useListKeyboardNav, type UseListKeyboardNav } from "@/hooks/useListKeyboardNav";
 
 interface AddResourcesDialogProps {
   open: boolean;
@@ -44,8 +48,42 @@ export function AddResourcesDialog({
   onYoutubeUrl,
   isUploading,
 }: AddResourcesDialogProps) {
-  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [tab, setTab] = useState("cache");
+
+  // navRef breaks the hook<->onActivate circular reference so Enter can act on
+  // the current selection without the hook depending on itself.
+  const navRef = useRef<UseListKeyboardNav | null>(null);
+
+  const isReadyAndAddable = (id: string) =>
+    availableVideos.find((v) => v.id === id)?.status === "ready" &&
+    !projectVideoIds.includes(id);
+
+  // Keyboard navigation + multi-select over the cache list. Selectable items
+  // are anything not already in the project (incl. stuck downloads, so they
+  // can be deleted). Only active on the cache tab.
+  const nav = useListKeyboardNav({
+    itemIds: availableVideos.map((v) => v.id),
+    enabled: open && tab === "cache",
+    isSelectable: (id) => !projectVideoIds.includes(id),
+    onActivate: (id) => {
+      // Primary action: add the current selection if any, else the focused item.
+      const ready = (navRef.current?.selectedIds ?? []).filter(isReadyAndAddable);
+      if (ready.length > 0) {
+        onAddToProject(ready);
+        navRef.current?.clearSelection();
+        onOpenChange(false);
+        return;
+      }
+      if (isReadyAndAddable(id)) {
+        onAddToProject([id]);
+        onOpenChange(false);
+      }
+    },
+  });
+  navRef.current = nav;
+
+  const selectedVideoIds = nav.selectedIds;
 
   // Only 'ready' videos can be added to a project; any selected (incl. stuck
   // downloads) can be deleted from the cache.
@@ -56,7 +94,7 @@ export function AddResourcesDialog({
   const handleAddSelected = () => {
     if (readySelectedIds.length > 0) {
       onAddToProject(readySelectedIds);
-      setSelectedVideoIds([]);
+      nav.clearSelection();
       onOpenChange(false);
     }
   };
@@ -64,7 +102,7 @@ export function AddResourcesDialog({
   const handleDeleteSelected = () => {
     if (selectedVideoIds.length > 0 && onDeleteVideos) {
       onDeleteVideos(selectedVideoIds);
-      setSelectedVideoIds([]);
+      nav.clearSelection();
     }
   };
 
@@ -85,11 +123,7 @@ export function AddResourcesDialog({
   };
 
   const toggleVideoSelection = (videoId: string) => {
-    setSelectedVideoIds(prev =>
-      prev.includes(videoId)
-        ? prev.filter(id => id !== videoId)
-        : [...prev, videoId]
-    );
+    nav.toggle(videoId);
   };
 
   const getStatusIcon = (video: ManagedVideo) => {
@@ -128,12 +162,15 @@ export function AddResourcesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex min-h-0 flex-col">
+      <DialogContent
+        className="max-w-4xl h-[80vh] flex min-h-0 flex-col"
+        onKeyDown={nav.onKeyDown}
+      >
         <DialogHeader>
           <DialogTitle>Add Resources to Project</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="cache" className="flex-1 min-h-0 flex flex-col">
+        <Tabs value={tab} onValueChange={setTab} className="flex-1 min-h-0 flex flex-col">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="cache">
               <Database className="h-4 w-4 mr-2" />
@@ -152,32 +189,55 @@ export function AddResourcesDialog({
           {/* Cache Tab */}
           <TabsContent value="cache" asChild>
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-0">
-              <div className="flex items-center justify-between pb-4">
-                <p className="text-sm text-muted-foreground">
+              <div className="flex items-center justify-between gap-2 pb-4">
+                <p className="text-sm text-muted-foreground shrink-0">
                   {availableVideos.length} videos in cache
                 </p>
-                {selectedVideoIds.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    {onDeleteVideos && (
-                      <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete {selectedVideoIds.length}
+                <div className="flex items-center gap-2">
+                  {selectedVideoIds.length > 0 && onDeleteVideos && (
+                    <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete {selectedVideoIds.length}
+                    </Button>
+                  )}
+                  {readySelectedIds.length > 0 && (
+                    <Button size="sm" onClick={handleAddSelected}>
+                      Add {readySelectedIds.length} to Project
+                    </Button>
+                  )}
+                  {availableVideos.length > 0 && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={nav.selectAll}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-1" />
+                        Select all
                       </Button>
-                    )}
-                    {readySelectedIds.length > 0 && (
-                      <Button size="sm" onClick={handleAddSelected}>
-                        Add {readySelectedIds.length} to Project
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={nav.clearSelection}
+                        disabled={selectedVideoIds.length === 0}
+                      >
+                        <Square className="h-4 w-4 mr-1" />
+                        Deselect all
                       </Button>
-                    )}
-                  </div>
-                )}
+                      <ListKeyboardHint enterLabel="Add focused video to project" />
+                    </>
+                  )}
+                </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-auto">
+              <div className="flex-1 min-h-0 overflow-auto" ref={nav.containerRef}>
                 <div className="space-y-2">
-                  {availableVideos.map((video) => {
+                  {availableVideos.map((video, i) => {
                     const isInProject = projectVideoIds.includes(video.id);
-                    const isSelected = selectedVideoIds.includes(video.id);
+                    const isSelected = nav.isSelected(video.id);
+                    const isFocused = nav.isFocused(i);
                     // Selectable if not already in a project — includes stuck
                     // downloading/syncing/error items so they can be deleted.
                     const canSelect = !isInProject;
@@ -185,12 +245,15 @@ export function AddResourcesDialog({
                     return (
                       <Card
                         key={video.id}
+                        data-nav-index={i}
                         className={`p-4 cursor-pointer transition-colors ${
-                          isInProject 
-                            ? 'bg-muted/50 cursor-not-allowed' 
-                            : isSelected 
-                            ? 'border-primary bg-primary/5' 
+                          isInProject
+                            ? 'bg-muted/50 cursor-not-allowed'
+                            : isSelected
+                            ? 'border-primary bg-primary/5'
                             : 'hover:bg-muted/50'
+                        } ${
+                          isFocused ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''
                         }`}
                         onClick={() => canSelect && toggleVideoSelection(video.id)}
                       >
