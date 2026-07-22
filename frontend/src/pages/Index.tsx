@@ -1256,6 +1256,15 @@ const Index = () => {
       toast({ title: "No schema", description: "Define a metadata schema in Project Manager (Auto-draft) first." });
       return;
     }
+    // Scene- and instance-scoped fields fill per scene; with no scenes they'd be silently skipped.
+    if ((sceneFields.length > 0 || instanceFields.length > 0) && scenes.length === 0) {
+      toast({
+        title: "No scenes detected",
+        description: "Scene- and object-level metadata need scenes. Run Detect Scenes first, then Generate Metadata again.",
+        variant: "destructive",
+      });
+      if (videoFields.length === 0) return; // nothing else would fill
+    }
     const strMap = (o: any): Record<string, string> =>
       o && typeof o === "object"
         ? Object.fromEntries(Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
