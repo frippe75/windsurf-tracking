@@ -15,10 +15,15 @@ import {
   Video,
   Layers,
   Calendar,
-  Download
+  Download,
+  CheckSquare,
+  Square,
+  Trash2
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { VideoListItem } from "@/components/VideoListItem";
+import { ListKeyboardHint } from "@/components/ListKeyboardHint";
+import { useListKeyboardNav } from "@/hooks/useListKeyboardNav";
 
 interface ProjectManager_v2Props {
   open: boolean;
@@ -90,9 +95,26 @@ export function ProjectManager_v2({
   };
 
 
-  const projectVideos = activeProject 
+  const projectVideos = activeProject
     ? videos.filter(v => activeProject.videoIds?.includes(v.id))
     : [];
+
+  // Keyboard navigation + multi-select for the project's video list. Enter
+  // loads the focused (ready) video — the list's primary per-item action.
+  const nav = useListKeyboardNav({
+    itemIds: projectVideos.map((v) => v.id),
+    enabled: open,
+    onActivate: (id) => {
+      if (projectVideos.find((v) => v.id === id)?.status === "ready") {
+        onLoadVideo(id);
+      }
+    },
+  });
+
+  const removeSelected = () => {
+    nav.selectedIds.forEach((id) => onRemoveVideo(id));
+    nav.clearSelection();
+  };
 
   const videoCount = projectVideos.length;
   const annotationCount = activeProject?.annotations?.length || 0;
@@ -101,7 +123,7 @@ export function ProjectManager_v2({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[85vh] p-0">
+      <DialogContent className="max-w-6xl h-[85vh] p-0" onKeyDown={nav.onKeyDown}>
         <DialogTitle className="sr-only">Project Manager</DialogTitle>
         {activeProject ? (
           <>
@@ -228,24 +250,62 @@ export function ProjectManager_v2({
 
               {/* Right: Videos */}
               <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
-                <div className="p-3">
+                <div className="flex items-center justify-between gap-2 p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">Videos</h3>
+                  {projectVideos.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {nav.selectedCount > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8"
+                          onClick={removeSelected}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove {nav.selectedCount}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={nav.selectAll}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-1" />
+                        Select all
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={nav.clearSelection}
+                        disabled={nav.selectedCount === 0}
+                      >
+                        <Square className="h-4 w-4 mr-1" />
+                        Deselect all
+                      </Button>
+                      <ListKeyboardHint enterLabel="Load focused video" />
+                    </div>
+                  )}
                 </div>
 
                 <ScrollArea className="flex-1">
-                  <div className="p-4 space-y-2">
-                    {projectVideos.map((video) => (
-                      <VideoListItem
-                        key={video.id}
-                        video={video}
-                        isActive={video.id === currentVideoId}
-                        showThumbnail
-                        showProgress
-                        showYoutubeIcon={false}
-                        onLoad={onLoadVideo}
-                        onDelete={onRemoveVideo}
-                        deleteButtonTitle="Remove from project"
-                      />
+                  <div className="p-4 space-y-2" ref={nav.containerRef}>
+                    {projectVideos.map((video, i) => (
+                      <div key={video.id} data-nav-index={i}>
+                        <VideoListItem
+                          video={video}
+                          isActive={video.id === currentVideoId}
+                          isSelected={nav.isSelected(video.id)}
+                          isFocused={nav.isFocused(i)}
+                          showThumbnail
+                          showProgress
+                          showYoutubeIcon={false}
+                          onLoad={onLoadVideo}
+                          onDelete={onRemoveVideo}
+                          deleteButtonTitle="Remove from project"
+                        />
+                      </div>
                     ))}
 
                     {projectVideos.length === 0 && (

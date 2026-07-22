@@ -21,6 +21,7 @@ interface VideoListItemProps {
   // State flags
   isSelected?: boolean;
   isActive?: boolean;
+  isFocused?: boolean;
   
   // Display options
   showThumbnail?: boolean;
@@ -44,6 +45,7 @@ export function VideoListItem({
   video,
   isSelected = false,
   isActive = false,
+  isFocused = false,
   showThumbnail = true,
   showProgress = true,
   showYoutubeIcon = true,
@@ -141,10 +143,11 @@ export function VideoListItem({
     <div
       className={`
         rounded-lg p-3 transition-all border relative
-        ${isSelected 
-          ? 'bg-primary/10 border-2 border-primary' 
+        ${isSelected
+          ? 'bg-primary/10 border-2 border-primary'
           : 'bg-card border-border hover:border-primary/50'
         }
+        ${isFocused ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''}
         ${onClick ? 'cursor-pointer' : ''}
         ${className}
       `}
