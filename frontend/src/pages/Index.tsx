@@ -11,6 +11,7 @@ import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs } from "@/components/TrackingJobs";
 import { TrackReview } from "@/components/TrackReview";
 import { BalancePanel } from "@/components/BalancePanel";
+import { TrainPanel } from "@/components/TrainPanel";
 
 import { MetadataEditor } from "@/components/MetadataEditor";
 import { MetadataModal } from "@/components/MetadataModal";
@@ -1960,6 +1961,24 @@ const Index = () => {
     });
   };
 
+  // Export the dataset and return just the zip URL — the Train tab feeds this straight to the GPU
+  // training Job. Reuses the export flow (which saves annotations to the backend + builds the split).
+  const exportForTraining = async (): Promise<string> => {
+    if (!videoId) throw new Error("Open a video before training.");
+    const activeProject = projects.find((p) => p.id === activeProjectId);
+    const res = await exportProjectAsYolo({
+      projectName: activeProject?.name ?? "windsurf-project",
+      videoId,
+      classes,
+      instances,
+      annotations,
+      api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
+    });
+    const url = res.result?.url;
+    if (!url) throw new Error("export produced no dataset URL");
+    return url;
+  };
+
   const handleExportData = async () => {
     if (!videoId) {
       toast({ title: "No video", description: "Open a video before exporting.", variant: "destructive" });
@@ -2293,10 +2312,11 @@ const Index = () => {
             {/* Right sidebar - Scenes & Tracking tabs */}
             <div className={maximizeVideo ? "hidden" : "lg:col-span-2 min-w-0"}>
               <Tabs defaultValue="scenes" className="h-full w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="scenes">Scenes</TabsTrigger>
                   <TabsTrigger value="tracking">Tracking</TabsTrigger>
                   <TabsTrigger value="balance">Balance</TabsTrigger>
+                  <TabsTrigger value="train">Train</TabsTrigger>
                 </TabsList>
                 <TabsContent value="scenes" className="mt-4">
                   <ScenesManager
@@ -2344,6 +2364,13 @@ const Index = () => {
                 </TabsContent>
                 <TabsContent value="balance" className="mt-4">
                   <BalancePanel classes={classes} instances={instances} scenes={scenes} annotations={annotations} schema={metadataSchema} />
+                </TabsContent>
+                <TabsContent value="train" className="mt-4">
+                  <TrainPanel
+                    projectId={activeProjectId ?? "project"}
+                    canTrain={classes.length > 0 && annotations.length > 0}
+                    getDatasetUrl={exportForTraining}
+                  />
                 </TabsContent>
               </Tabs>
             </div>
