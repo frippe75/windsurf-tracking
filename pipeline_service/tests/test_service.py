@@ -78,6 +78,22 @@ def test_health(client):
     assert r.status_code == 200 and "t-sam3" in r.json()["models"]
 
 
+def test_openapi_spec_served(client):
+    r = client.get("/openapi.json")
+    assert r.status_code == 200
+    assert "/metadata" in r.json()["paths"]
+
+
+def test_openapi_follows_service_prefix(monkeypatch):
+    # behind the /pipeline ingress the spec must live under the prefix, not app-root
+    import pipeline_service.app as appmod
+
+    monkeypatch.setenv("SERVICE_PREFIX", "/pipeline")
+    c = TestClient(appmod.create_app())
+    assert c.get("/pipeline/openapi.json").status_code == 200
+    assert c.get("/openapi.json").status_code == 404
+
+
 def test_models_filtered_by_capability(client):
     names = [m["name"] for m in client.get("/models", params={"capability": "concept-segment"}).json()["models"]]
     assert names == ["t-sam3"]  # sam2 (click-only) excluded
