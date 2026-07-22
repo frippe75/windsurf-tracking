@@ -419,7 +419,16 @@ def create_app() -> FastAPI:
         video_id = inp.get("video_id")
         if time_secs and video_id:
             stream = _resolve_stream_url(video_id)
-            frames = [_extract_frame_b64(stream, float(t)) for t in list(time_secs)[:9]]
+            # Tolerate individual unreadable timestamps (e.g. sampled past end-of-clip): skip them
+            # and build the grid from whatever frames we got. One bad frame must not fail the run.
+            frames: list[str] = []
+            for t in list(time_secs)[:9]:
+                try:
+                    frames.append(_extract_frame_b64(stream, float(t)))
+                except HTTPException:
+                    continue
+            if not frames:
+                raise HTTPException(502, f"no readable frames at the requested times (clip may be shorter than {max(time_secs):.1f}s)")
             image = _grid_png_b64(frames)
         try:
             result = handle.infer(prompt=prompt, image_png_base64=image, json_schema=schema)
