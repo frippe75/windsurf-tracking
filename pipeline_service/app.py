@@ -41,6 +41,15 @@ class MetadataRequest(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
 
 
+class TrainRequest(BaseModel):
+    """Train a YOLO on a dataset the app already exported (train/val-split zip in S3)."""
+    dataset_url: str            # presigned GET for the export zip
+    project_id: str
+    model: str = "yolov8n.pt"
+    epochs: int = 50
+    imgsz: int = 640
+
+
 def _resolve_stream_url(video_id: str) -> str:
     """Resolve a video_id to its (presigned) stream URL via the backend, in-cluster.
 
@@ -255,6 +264,157 @@ def _grid_png_b64(frames_b64: list[str], cols: int = 3, tile_w: int = 512) -> st
     return base64.b64encode(buf.getvalue()).decode()
 
 
+# --- training (k8s GPU Job) ---------------------------------------------------------
+# The Train tab trains a YOLO on the dataset the app already exports (a train/val-split zip
+# in S3). We create a k8s Job on a GPU node; it uploads metrics.json + best.pt back to S3,
+# and train_status reads metrics.json. build_train_job is pure so the manifest is testable.
+
+RESULTS_ANNOTATION = "windsurf/results-prefix"
+
+
+def _hash8(s: str) -> str:
+    import hashlib
+
+    return hashlib.sha1(s.encode()).hexdigest()[:8]
+
+
+def train_job_name(spec: dict[str, Any]) -> str:
+    # Deterministic per (project, dataset) so re-submitting the same dataset is idempotent.
+    return f"train-{_hash8(spec['project_id'] + '|' + spec['dataset_url'])}"
+
+
+def train_results_prefix(spec: dict[str, Any]) -> str:
+    return f"exports/{spec['project_id']}/{train_job_name(spec)}/"
+
+
+def build_train_job(
+    spec: dict[str, Any], *, image: str, namespace: str, s3_secret: str, s3_endpoint: str, s3_bucket: str
+) -> dict[str, Any]:
+    """Pure: the k8s Job manifest that trains YOLO on the dataset. No cluster calls."""
+    name = train_job_name(spec)
+    results = train_results_prefix(spec)
+    env = [
+        {"name": "DATASET_URL", "value": spec["dataset_url"]},
+        {"name": "RESULTS_PREFIX", "value": results},
+        {"name": "TRAIN_MODEL", "value": str(spec.get("model", "yolov8n.pt"))},
+        {"name": "TRAIN_EPOCHS", "value": str(spec.get("epochs", 50))},
+        {"name": "TRAIN_IMGSZ", "value": str(spec.get("imgsz", 640))},
+        {"name": "S3_ENDPOINT", "value": s3_endpoint},
+        {"name": "S3_BUCKET", "value": s3_bucket},
+        {"name": "S3_ACCESS_KEY", "valueFrom": {"secretKeyRef": {"name": s3_secret, "key": "access-key"}}},
+        {"name": "S3_SECRET_KEY", "valueFrom": {"secretKeyRef": {"name": s3_secret, "key": "secret-key"}}},
+    ]
+    return {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+            "name": name,
+            "namespace": namespace,
+            "labels": {"app": "windsurf-train"},
+            "annotations": {RESULTS_ANNOTATION: results},
+        },
+        "spec": {
+            "backoffLimit": 1,
+            "ttlSecondsAfterFinished": 86400,
+            "template": {
+                "metadata": {"labels": {"app": "windsurf-train"}},
+                "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                        {
+                            "name": "train",
+                            "image": image,
+                            "env": env,
+                            "resources": {"limits": {"nvidia.com/gpu": 1}},
+                        }
+                    ],
+                },
+            },
+        },
+    }
+
+
+def _train_env() -> dict[str, str]:
+    return {
+        "image": os.environ.get("TRAIN_IMAGE", "harbor.tclab.org/windsurf/train:latest"),
+        "namespace": os.environ.get("TRAIN_NAMESPACE", "windsurf-prod"),
+        "s3_secret": os.environ.get("S3_SECRET_NAME", "windsurf-s3-secret"),
+        "s3_endpoint": os.environ.get("S3_ENDPOINT", "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"),
+        "s3_bucket": os.environ.get("S3_BUCKET", "windsurf-videos"),
+    }
+
+
+def train_submit(spec: dict[str, Any]) -> str:
+    """Create the training Job (idempotent per dataset); return the job name. Lazy k8s import."""
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+
+    try:
+        config.load_incluster_config()
+    except Exception:
+        config.load_kube_config()
+    cfg = _train_env()
+    manifest = build_train_job(spec, **cfg)
+    api = client.BatchV1Api()
+    try:
+        api.create_namespaced_job(cfg["namespace"], manifest)
+    except ApiException as exc:
+        if exc.status != 409:  # already exists -> idempotent re-submit
+            raise HTTPException(502, f"could not create training job: {exc.reason}") from exc
+    return manifest["metadata"]["name"]
+
+
+def _s3_get_json(key: str) -> dict[str, Any] | None:
+    import json
+
+    import boto3
+    from botocore.exceptions import ClientError
+
+    cfg = _train_env()
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=cfg["s3_endpoint"],
+        aws_access_key_id=os.environ.get("S3_ACCESS_KEY"),
+        aws_secret_access_key=os.environ.get("S3_SECRET_KEY"),
+    )
+    try:
+        obj = s3.get_object(Bucket=cfg["s3_bucket"], Key=key)
+    except ClientError:
+        return None
+    return json.loads(obj["Body"].read())
+
+
+def train_status(job_id: str) -> dict[str, Any]:
+    """Return {status, metrics?}. Reads the Job phase; on success reads metrics.json from S3."""
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+
+    try:
+        config.load_incluster_config()
+    except Exception:
+        config.load_kube_config()
+    cfg = _train_env()
+    api = client.BatchV1Api()
+    try:
+        job = api.read_namespaced_job(job_id, cfg["namespace"])
+    except ApiException as exc:
+        if exc.status == 404:
+            raise HTTPException(404, f"no training job {job_id!r}") from exc
+        raise HTTPException(502, f"could not read training job: {exc.reason}") from exc
+    st = job.status
+    if st and st.succeeded:
+        status = "succeeded"
+    elif st and st.failed:
+        status = "failed"
+    else:
+        status = "running"
+    out: dict[str, Any] = {"job_id": job_id, "status": status}
+    if status == "succeeded":
+        results = (job.metadata.annotations or {}).get(RESULTS_ANNOTATION, "")
+        out["metrics"] = _s3_get_json(results + "metrics.json") if results else None
+    return out
+
+
 def create_app() -> FastAPI:
     # Behind the labelbee ingress the app is mounted at /pipeline (same origin, no rewrite),
     # so routes carry that prefix in prod; tests use "" (default). The OpenAPI spec + docs must
@@ -443,6 +603,16 @@ def create_app() -> FastAPI:
         except TypeError as exc:
             raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
         return {"model": name, "result": result}
+
+    @router.post("/train")
+    def train(req: TrainRequest) -> dict[str, Any]:
+        # Kick off a YOLO training Job on a GPU node; poll /train/{job_id} for status + metrics.
+        job_id = train_submit(req.model_dump())
+        return {"job_id": job_id, "status": "submitted"}
+
+    @router.get("/train/{job_id}")
+    def train_get(job_id: str) -> dict[str, Any]:
+        return train_status(job_id)
 
     app.include_router(router)
     return app

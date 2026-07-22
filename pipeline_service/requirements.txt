@@ -6,3 +6,5 @@ numpy>=1.26
 opencv-python-headless>=4.9
 fastapi>=0.110
 uvicorn[standard]>=0.30
+kubernetes>=29
+boto3>=1.34
