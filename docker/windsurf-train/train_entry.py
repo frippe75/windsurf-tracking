@@ -62,19 +62,39 @@ def main() -> int:
     if not os.path.exists(data_yaml):
         raise SystemExit(f"[train] no data.yaml in dataset zip ({os.listdir(work)})")
 
-    print(f"[train] training {model_name} for {epochs} epochs @ {imgsz}", flush=True)
-    model = YOLO(model_name)
-    model.train(data=data_yaml, epochs=epochs, imgsz=imgsz, project=work, name="run", exist_ok=True)
-    res = model.val()
-    names = list(res.names.values()) if hasattr(res, "names") else []
-    payload = build_metrics(names, res.box.map50, res.box.map, list(res.box.maps), epochs)
-
     s3 = boto3.client(
         "s3",
         endpoint_url=os.environ["S3_ENDPOINT"],
         aws_access_key_id=os.environ["S3_ACCESS_KEY"],
         aws_secret_access_key=os.environ["S3_SECRET_KEY"],
     )
+
+    def _put_json(key: str, obj: dict) -> None:
+        s3.put_object(Bucket=bucket, Key=results_prefix + key, Body=json.dumps(obj).encode(), ContentType="application/json")
+
+    # Live progress: after each epoch's validation, publish epoch + running mAP to S3 so the
+    # Train tab can show the curve climbing without waiting for the whole run.
+    def on_epoch(trainer):
+        try:
+            m = getattr(trainer, "metrics", {}) or {}
+            _put_json("progress.json", {
+                "epoch": int(getattr(trainer, "epoch", 0)) + 1,
+                "total_epochs": epochs,
+                "mAP50": round(float(m.get("metrics/mAP50(B)", 0.0)), 4),
+                "mAP50_95": round(float(m.get("metrics/mAP50-95(B)", 0.0)), 4),
+            })
+        except Exception as ex:  # progress is best-effort, never fail the run
+            print(f"[train] progress publish failed: {ex}", flush=True)
+
+    print(f"[train] training {model_name} for {epochs} epochs @ {imgsz}", flush=True)
+    _put_json("progress.json", {"epoch": 0, "total_epochs": epochs, "mAP50": 0.0, "mAP50_95": 0.0})
+    model = YOLO(model_name)
+    model.add_callback("on_fit_epoch_end", on_epoch)
+    model.train(data=data_yaml, epochs=epochs, imgsz=imgsz, project=work, name="run", exist_ok=True)
+    res = model.val()
+    names = list(res.names.values()) if hasattr(res, "names") else []
+    payload = build_metrics(names, res.box.map50, res.box.map, list(res.box.maps), epochs)
+
     s3.put_object(
         Bucket=bucket, Key=results_prefix + "metrics.json",
         Body=json.dumps(payload).encode(), ContentType="application/json",

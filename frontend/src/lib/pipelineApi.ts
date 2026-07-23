@@ -91,9 +91,17 @@ export interface TrainMetrics {
   num_images?: number | null;
 }
 
+export interface TrainProgress {
+  epoch: number;
+  total_epochs: number;
+  mAP50: number;
+  mAP50_95: number;
+}
+
 export interface TrainStatus {
   job_id: string;
   status: "submitted" | "running" | "succeeded" | "failed";
+  progress?: TrainProgress | null;
   metrics?: TrainMetrics | null;
 }
 

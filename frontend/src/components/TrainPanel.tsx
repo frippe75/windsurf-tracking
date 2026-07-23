@@ -167,9 +167,24 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
       {!canTrain && <div className="text-[11px] text-muted-foreground">Add classes + annotations before training.</div>}
       {error && <div className="text-[11px] text-destructive break-words">{error}</div>}
 
-      {busy && !m && (
+      {busy && !m && !status?.progress && (
         <div className="text-[11px] text-muted-foreground">
-          {phase === "exporting" ? "Building dataset…" : "Training on a GPU node — this takes a few minutes. Metrics appear when it finishes."}
+          {phase === "exporting" ? "Building dataset…" : "Starting on a GPU node (cold start + model load)…"}
+        </div>
+      )}
+
+      {status?.status === "running" && status.progress && (
+        <div className="space-y-1 border-t border-border pt-2">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted-foreground">epoch {status.progress.epoch}/{status.progress.total_epochs}</span>
+            <span className="tabular-nums">mAP@50 {status.progress.mAP50.toFixed(3)}</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded bg-muted">
+            <div
+              className="h-full rounded bg-primary transition-all"
+              style={{ width: `${(status.progress.epoch / Math.max(1, status.progress.total_epochs)) * 100}%` }}
+            />
+          </div>
         </div>
       )}
 

@@ -409,9 +409,13 @@ def train_status(job_id: str) -> dict[str, Any]:
     else:
         status = "running"
     out: dict[str, Any] = {"job_id": job_id, "status": status}
-    if status == "succeeded":
-        results = (job.metadata.annotations or {}).get(RESULTS_ANNOTATION, "")
-        out["metrics"] = _s3_get_json(results + "metrics.json") if results else None
+    results = (job.metadata.annotations or {}).get(RESULTS_ANNOTATION, "")
+    if status == "running" and results:
+        prog = _s3_get_json(results + "progress.json")
+        if prog:
+            out["progress"] = prog
+    if status == "succeeded" and results:
+        out["metrics"] = _s3_get_json(results + "metrics.json")
     return out
 
 
