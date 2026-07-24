@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   SAIL_COLORS,
   annotationsForVideo,
+  instancesForVideo,
   createClass,
   leastUsedColorIndex,
   renameClassById,
@@ -217,5 +218,34 @@ describe("annotationsForVideo", () => {
     const anns = [mk("a", "vA")];
     annotationsForVideo(anns, "vB");
     expect(anns).toHaveLength(1);
+  });
+})
+
+describe("instancesForVideo", () => {
+  const ann = (id: string, instanceId: string, videoId?: string) =>
+    ({ id, instanceId, frameCreated: 0, points: [], isKeyframe: true, videoId } as any);
+  const inst = (id: string) => ({ id, classId: "c", instanceNumber: 1, metadata: {} } as any);
+
+  it("keeps only instances that have an annotation in the given clip", () => {
+    const instances = [inst("i1"), inst("i2"), inst("i3")];
+    const anns = [ann("a", "i1", "vA"), ann("b", "i2", "vB"), ann("c", "i3", "vA")];
+    expect(instancesForVideo(instances, anns, "vA").map((i) => i.id)).toEqual(["i1", "i3"]);
+    expect(instancesForVideo(instances, anns, "vB").map((i) => i.id)).toEqual(["i2"]);
+  });
+
+  it("excludes instances whose only annotations belong to other clips (no export bleed)", () => {
+    const instances = [inst("i1")];
+    const anns = [ann("a", "i1", "vB")];
+    expect(instancesForVideo(instances, anns, "vA")).toEqual([]);
+  });
+
+  it("legacy annotations (no videoId) attach their instance to the current clip", () => {
+    const instances = [inst("i1")];
+    const anns = [ann("a", "i1", undefined)];
+    expect(instancesForVideo(instances, anns, "vAnything").map((i) => i.id)).toEqual(["i1"]);
+  });
+
+  it("drops instances that have no annotations at all", () => {
+    expect(instancesForVideo([inst("orphan")], [], "vA")).toEqual([]);
   });
 })
