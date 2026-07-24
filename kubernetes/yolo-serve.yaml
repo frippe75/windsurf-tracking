@@ -51,6 +51,7 @@ spec:
           limits:
             cpu: "2"
             memory: 4Gi
+            nvidia.com/gpu: 1   # serve on a T4 (cluster has 20; yolov8n uses <2GB VRAM)
 ---
 apiVersion: v1
 kind: Service
