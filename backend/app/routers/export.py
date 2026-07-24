@@ -110,3 +110,23 @@ async def get_dataset_version(
         "fingerprint": v.fingerprint, "stats": v.stats, "created_at": v.created_at,
         "source_video_id": v.source_video_id, "manifest_key": v.manifest_key, "artifact_url": url,
     }
+
+
+@router.get("/dataset-versions/{version_id}/lineage")
+async def get_dataset_version_lineage(
+    version_id: str,
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """Full provenance for a version: its sources + every model trained on it."""
+    from ..datasets.lineage.repository import S3LineageRepository
+    from ..datasets.versioning.repository import S3DatasetVersionRepository
+
+    v = S3DatasetVersionRepository().get(version_id)
+    if v is None:
+        raise HTTPException(status_code=404, detail=f"dataset version {version_id!r} not found")
+    runs = S3LineageRepository().runs_for_version(version_id)
+    return {
+        "version_id": v.id, "status": v.status, "stats": v.stats, "created_at": v.created_at,
+        "sources": {"videos": [v.source_video_id] if v.source_video_id else []},
+        "models": [r.to_dict() for r in runs],
+    }

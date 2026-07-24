@@ -1963,7 +1963,9 @@ const Index = () => {
 
   // Export the dataset and return just the zip URL — the Train tab feeds this straight to the GPU
   // training Job. Reuses the export flow (which saves annotations to the backend + builds the split).
-  const exportForTraining = async (onProgress?: (done: number, total: number) => void): Promise<string> => {
+  const exportForTraining = async (
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<{ url: string; version_id?: string }> => {
     if (!videoId) throw new Error("Open a video before training.");
     const activeProject = projects.find((p) => p.id === activeProjectId);
     // Progress lives in a persistent (duration: Infinity), closable toast — not just the Train tab —
@@ -1998,7 +2000,7 @@ const Index = () => {
       if (!url) throw new Error("export produced no dataset URL");
       t.dismiss();
       toast({ title: "Dataset exported", description: `${res.stats.images} images ready — training is starting.` });
-      return url;
+      return { url, version_id: res.version_id };
     } catch (e) {
       t.dismiss();
       throw e;

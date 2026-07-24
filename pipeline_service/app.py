@@ -48,6 +48,7 @@ class TrainRequest(BaseModel):
     model: str = "yolov8n.pt"
     epochs: int = 50
     imgsz: int = 640
+    dataset_version_id: str | None = None  # lineage: which immutable version this run trains on
 
 
 def _resolve_stream_url(video_id: str) -> str:
@@ -270,6 +271,9 @@ def _grid_png_b64(frames_b64: list[str], cols: int = 3, tile_w: int = 512) -> st
 # and train_status reads metrics.json. build_train_job is pure so the manifest is testable.
 
 RESULTS_ANNOTATION = "windsurf/results-prefix"
+DATASET_VERSION_ANNOTATION = "windsurf/dataset-version"
+MODEL_ANNOTATION = "windsurf/model"
+EPOCHS_ANNOTATION = "windsurf/epochs"
 
 
 def _hash8(s: str) -> str:
@@ -311,7 +315,12 @@ def build_train_job(
             "name": name,
             "namespace": namespace,
             "labels": {"app": "windsurf-train"},
-            "annotations": {RESULTS_ANNOTATION: results},
+            "annotations": {
+                RESULTS_ANNOTATION: results,
+                DATASET_VERSION_ANNOTATION: str(spec.get("dataset_version_id") or ""),
+                MODEL_ANNOTATION: str(spec.get("model", "yolov8n.pt")),
+                EPOCHS_ANNOTATION: str(spec.get("epochs", 50)),
+            },
         },
         "spec": {
             "backoffLimit": 1,
@@ -368,24 +377,71 @@ def train_submit(spec: dict[str, Any]) -> str:
     return manifest["metadata"]["name"]
 
 
-def _s3_get_json(key: str) -> dict[str, Any] | None:
-    import json
-
+def _s3_client():
     import boto3
-    from botocore.exceptions import ClientError
 
     cfg = _train_env()
-    s3 = boto3.client(
+    return boto3.client(
         "s3",
         endpoint_url=cfg["s3_endpoint"],
         aws_access_key_id=os.environ.get("S3_ACCESS_KEY"),
         aws_secret_access_key=os.environ.get("S3_SECRET_KEY"),
-    )
+    ), cfg["s3_bucket"]
+
+
+def _s3_get_json(key: str) -> dict[str, Any] | None:
+    import json
+
+    from botocore.exceptions import ClientError
+
+    s3, bucket = _s3_client()
     try:
-        obj = s3.get_object(Bucket=cfg["s3_bucket"], Key=key)
+        obj = s3.get_object(Bucket=bucket, Key=key)
     except ClientError:
         return None
     return json.loads(obj["Body"].read())
+
+
+def _s3_put_json(key: str, obj: dict[str, Any]) -> None:
+    import json
+
+    s3, bucket = _s3_client()
+    s3.put_object(Bucket=bucket, Key=key, Body=json.dumps(obj).encode(), ContentType="application/json")
+
+
+def build_model_run(*, run_id: str, dataset_version_id: str, model: str, epochs: int,
+                    metrics: dict | None, results_prefix: str, created_at: str | None) -> dict[str, Any]:
+    """Pure: the lineage record linking this run to the dataset version it trained on."""
+    return {
+        "run_id": run_id,
+        "dataset_version_id": dataset_version_id,
+        "model": model,
+        "epochs": int(epochs) if str(epochs).isdigit() else 0,
+        "metrics": metrics,
+        "weights_key": results_prefix + "best.pt",
+        "created_at": created_at,
+    }
+
+
+def _record_lineage(job, job_id: str, results: str, metrics: dict | None) -> str | None:
+    """On a successful run, write the ModelRun next to its dataset version (idempotent). Returns the
+    version id if recorded. Best-effort — never fails the status call."""
+    ann = job.metadata.annotations or {}
+    dvid = ann.get(DATASET_VERSION_ANNOTATION) or None
+    if not dvid:
+        return None
+    completed = getattr(job.status, "completion_time", None)
+    run = build_model_run(
+        run_id=job_id, dataset_version_id=dvid,
+        model=ann.get(MODEL_ANNOTATION, ""), epochs=ann.get(EPOCHS_ANNOTATION, "0"),
+        metrics=metrics, results_prefix=results,
+        created_at=completed.isoformat() if completed else None,
+    )
+    try:
+        _s3_put_json(f"datasets/versions/{dvid}/models/{job_id}.json", run)
+    except Exception:
+        pass
+    return dvid
 
 
 def train_status(job_id: str) -> dict[str, Any]:
@@ -419,7 +475,10 @@ def train_status(job_id: str) -> dict[str, Any]:
         if prog:
             out["progress"] = prog
     if status == "succeeded" and results:
-        out["metrics"] = _s3_get_json(results + "metrics.json")
+        metrics = _s3_get_json(results + "metrics.json")
+        out["metrics"] = metrics
+        # Lineage: record this model run against its dataset version (server-side, idempotent).
+        out["dataset_version_id"] = _record_lineage(job, job_id, results, metrics)
     return out
 
 
