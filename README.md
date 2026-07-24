@@ -19,6 +19,16 @@ This project implements a semi-automated approach to curate windsurfing sail dat
 - Visualization tools for quality checking
 - Supports multiple annotation strategies (early, uniform, middle)
 
+## Documentation
+
+- [Dataset Lifecycle Architecture](docs/DATASET_ARCHITECTURE.md) — the dataset flywheel: content-addressed frame store, immutable versioned datasets, model lineage, on-prem serving (phases P1–P5).
+- [Pipeline Architecture](docs/PIPELINE_ARCHITECTURE.md) — the `pipeline_engine` capability registry + model fleet (SAM2/SAM3/DINO/Claude/trained-YOLO), served local or external by config.
+- [Deployment](docs/DEPLOYMENT.md) — GitOps/ArgoCD production deployment of `windsurf-prod`.
+- [UX Architecture](docs/UX_ARCHITECTURE.md) — durable placement + progressive-disclosure framework every UI change follows.
+- [Testing Requirements](docs/TESTING.md) — tests required on every change; coverage ratchets up, never down.
+- [Refactor Debt](docs/REFACTOR_DEBT.md) — known technical debt.
+- [Sprint Plan — Surfer Dataset](docs/SPRINT-PLAN-SURFER-DATASET.md) — parked planning notes.
+
 ## Installation
 
 ### Prerequisites
