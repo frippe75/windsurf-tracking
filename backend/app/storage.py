@@ -157,6 +157,12 @@ def put_bytes(key: str, data: bytes, content_type: str = "application/octet-stre
     internal().put_object(Bucket=S3_BUCKET, Key=key, Body=data, ContentType=content_type)
 
 
+def put_file(key: str, path: str, content_type: str = "application/octet-stream") -> None:
+    """Upload a file to a bucket key by streaming from disk (never reads it fully into RAM).
+    Used by dataset export so a large zip doesn't balloon the process memory."""
+    internal().upload_file(str(path), S3_BUCKET, key, ExtraArgs={"ContentType": content_type})
+
+
 def presigned_get(key: str, filename: str = "") -> str:
     """Presign a browser-fetchable GET URL for any bucket key."""
     params = {"Bucket": S3_BUCKET, "Key": key}

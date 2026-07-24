@@ -99,3 +99,94 @@ def detect_scenes_task(video_id: str):
     if not local:
         raise RuntimeError(f"Video {video_id} not available locally or in S3")
     return detect_scenes(str(local))
+
+
+def _probe_fps(video_path: str) -> float:
+    """Read fps from the video file (cv2, ffprobe fallback). Defaults to 30 if unknown."""
+    try:
+        import cv2
+
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
+        if fps and fps > 0:
+            return float(fps)
+    except Exception:
+        pass
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+             "stream=r_frame_rate", "-of", "default=nk=1:nw=1", video_path],
+            capture_output=True, text=True, timeout=30,
+        ).stdout.strip()
+        if "/" in out:
+            num, den = out.split("/")
+            if float(den):
+                return float(num) / float(den)
+    except Exception:
+        pass
+    return 30.0
+
+
+@celery_app.task(bind=True, name="windsurf.export_dataset")
+def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: float = 0.2, clearml_project=None):
+    """Build a YOLO dataset for a project and publish it via a sink — runs on the cpu-worker so
+    the heavy frame extraction + zip never touches the web pod. Returns {sink, stats, result}."""
+    import re
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from . import storage
+    from .database import DBAnnotation, DBAnnotationClass, DBProject, SessionLocal
+    from .export import generator, sinks
+
+    db = SessionLocal()
+    try:
+        project = db.query(DBProject).filter(DBProject.id == project_id).first()
+        if not project:
+            raise RuntimeError("project not found")
+        sink = sinks.get_sink(sink_name)
+        if sink is None:
+            raise RuntimeError(f"sink {sink_name!r} unavailable ({list(sinks.available_sinks())})")
+
+        video_id = str(project.video_id)
+        self.update_state(state="PROGRESS", meta={"current_step": "fetching video", "progress": 5})
+        local = storage.ensure_local(video_id)
+        if not local:
+            raise RuntimeError("video file unavailable for frame export")
+        fps = _probe_fps(str(local))
+
+        classes = (db.query(DBAnnotationClass)
+                   .filter(DBAnnotationClass.project_id == project_id)
+                   .order_by(DBAnnotationClass.created_at).all())
+        annotations = db.query(DBAnnotation).filter(DBAnnotation.project_id == project_id).all()
+        if not annotations:
+            raise RuntimeError("project has no annotations to export")
+
+        tmp = Path(tempfile.mkdtemp(prefix="yolo-export-"))
+        try:
+            self.update_state(state="PROGRESS", meta={"current_step": "extracting frames", "progress": 20})
+            stats = generator.build_yolo_dataset(
+                tmp, str(local), fps, video_id[:8], annotations, classes, val_fraction,
+            )
+            if stats.images == 0:
+                raise RuntimeError("no exportable boxes (need class_id + bbox on annotations)")
+            self.update_state(state="PROGRESS", meta={"current_step": "packaging", "progress": 85})
+            safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{project.name}-{project_id[:8]}")
+            result = sink.publish(tmp, {"project_id": project_id, "name": safe, "clearml_project": clearml_project})
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        return {
+            "sink": sink.name,
+            "stats": {
+                "images": stats.images, "labels": stats.labels, "boxes": stats.boxes,
+                "skipped": stats.skipped, "classes": stats.classes, "splits": stats.splits,
+            },
+            "result": result,
+        }
+    finally:
+        db.close()

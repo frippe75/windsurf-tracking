@@ -1291,7 +1291,19 @@ export interface ExportResult {
   result: { kind: string; url?: string; id?: string; bytes?: number };
 }
 
-export const exportDataset = async (projectId: string, sink = "zip"): Promise<ExportResult> => {
+export interface ExportStatus {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  progress?: number;
+  current_step?: string;
+  sink?: string;
+  stats?: ExportResult["stats"];
+  result?: ExportResult["result"];
+  error?: string;
+}
+
+/** Dispatch the export to the cpu-worker; returns the job id to poll. */
+export const startExport = async (projectId: string, sink = "zip"): Promise<{ job_id: string }> => {
   const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -1303,4 +1315,46 @@ export const exportDataset = async (projectId: string, sink = "zip"): Promise<Ex
     throw new Error(`Export failed: ${r.status} ${r.statusText} ${t}`);
   }
   return r.json();
+};
+
+export const getExportStatus = async (projectId: string, jobId: string): Promise<ExportStatus> => {
+  const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/export/status/${jobId}`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    throw new Error(`Export status failed: ${r.status}`);
+  }
+  return r.json();
+};
+
+interface ExportPollOpts {
+  onProgress?: (s: ExportStatus) => void;
+  sleep?: (ms: number) => Promise<void>;
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+/** Backward-compatible: dispatch the export and poll to completion, returning the final result.
+ * The heavy build runs on the cpu-worker now, so this just waits (no long-held request). */
+export const exportDataset = async (
+  projectId: string,
+  sink = "zip",
+  opts: ExportPollOpts = {},
+): Promise<ExportResult> => {
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((res) => setTimeout(res, ms)));
+  const interval = opts.intervalMs ?? 4000;
+  const timeout = opts.timeoutMs ?? 30 * 60 * 1000; // 30 min ceiling
+  const { job_id } = await startExport(projectId, sink);
+  const started = Date.now();
+  for (;;) {
+    const s = await getExportStatus(projectId, job_id);
+    opts.onProgress?.(s);
+    if (s.status === "completed") {
+      return { project_id: projectId, sink: s.sink ?? sink, stats: s.stats!, result: s.result! };
+    }
+    if (s.status === "failed") throw new Error(`Export failed: ${s.error ?? "unknown error"}`);
+    if (Date.now() - started > timeout) throw new Error("Export timed out");
+    await sleep(interval);
+  }
 };

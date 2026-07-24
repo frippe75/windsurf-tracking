@@ -1,5 +1,6 @@
 """YOLO export: generator (real frames from the fixture clip), sink registry,
 route contract. No S3/ClearML/deploy needed."""
+import os
 import sys
 import uuid
 import types
@@ -91,3 +92,34 @@ def test_export_routes_exist():
     routes = {(m, r.path) for r in export.router.routes for m in getattr(r, "methods", [])}
     assert ("POST", "/api/projects/{project_id}/export") in routes
     assert ("GET", "/api/export/sinks") in routes
+    # async status endpoint for the dispatched job
+    assert ("GET", "/api/projects/{project_id}/export/status/{job_id}") in routes
+
+
+def test_zipsink_streams_to_a_file_not_memory(monkeypatch):
+    """ZipSink must upload via storage.put_file (streamed from disk), not put_bytes (RAM)."""
+    from app.export import sinks
+    from app import storage
+
+    calls = {}
+    monkeypatch.setattr(storage, "put_file", lambda key, path, ct="": calls.update(key=key, path=path, ct=ct))
+    monkeypatch.setattr(storage, "put_bytes", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not buffer in RAM")))
+    monkeypatch.setattr(storage, "presigned_get", lambda key, fname="": f"https://s3/{key}")
+
+    with tempfile.TemporaryDirectory() as d:
+        ds = Path(d) / "ds"
+        (ds / "images" / "train").mkdir(parents=True)
+        (ds / "images" / "train" / "a.jpg").write_bytes(b"x" * 100)
+        (ds / "data.yaml").write_text("nc: 1\n")
+        out = sinks.ZipSink().publish(ds, {"project_id": "p1", "name": "proj"})
+
+    assert out["kind"] == "zip" and out["bytes"] > 0
+    assert calls["key"] == "exports/p1/proj.zip"
+    assert calls["path"].endswith(".zip") and not os.path.exists(calls["path"])  # temp cleaned up
+    assert out["url"] == "https://s3/exports/p1/proj.zip"
+
+
+def test_export_dataset_task_is_registered():
+    pytest.importorskip("celery")  # present in the annotation-api:base CI image
+    from app.worker import celery_app, export_dataset_task  # noqa: F401
+    assert "windsurf.export_dataset" in celery_app.tasks

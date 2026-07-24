@@ -1,28 +1,37 @@
 """
 YOLO dataset export.
 
-Reads the project's persisted annotations + classes (source of truth), generates
-a YOLO dataset, and hands it to a pluggable sink (zip download by default,
-ClearML if configured). Synchronous v1 — fine for modest datasets; wrap in a job
-(with a Redis-backed store) when datasets get large.
+Reads the project's persisted annotations + classes (source of truth), builds a YOLO
+dataset, and publishes it via a pluggable sink (zip by default, ClearML if configured).
+
+Async: the heavy work (frame extraction + zip) runs as a Celery task on the cpu-worker so
+it never blocks or OOM-kills the web pod. POST dispatches and returns a job_id; poll the
+status endpoint until `completed`, then read `result.url`.
 """
-import re
-import shutil
-import tempfile
-from pathlib import Path
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_active_user
-from ..database import DBAnnotation, DBAnnotationClass, DBProject, DBUser, get_db
+from ..database import DBAnnotation, DBProject, DBUser, get_db
 from ..api_models import ExportRequest
-from ..export import generator, sinks
-from .. import storage
+from ..export import sinks
 
 router = APIRouter(prefix="/api", tags=["export"])
 
 videos_db = {}  # injected from main
+
+
+def _celery():
+    """Celery client for dispatching to / polling the cpu-worker (queue: cpu_worker)."""
+    from celery import Celery
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    app = Celery("windsurf_workers")
+    app.conf.broker_url = f"{redis_url}/1"
+    app.conf.result_backend = f"{redis_url}/2"
+    return app
 
 
 @router.get("/export/sinks")
@@ -38,55 +47,46 @@ async def export_project(
     db: Session = Depends(get_db),
     current_user: DBUser = Depends(get_current_active_user),
 ):
+    """Validate cheaply, then dispatch the build to the cpu-worker. Returns {job_id}."""
     project = db.query(DBProject).filter(
         DBProject.id == project_id, DBProject.owner_id == current_user.id,
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found or access denied")
 
-    sink = sinks.get_sink(request.sink)
-    if sink is None:
+    if sinks.get_sink(request.sink) is None:
         avail = list(sinks.available_sinks().keys())
-        raise HTTPException(status_code=400,
-                            detail=f"sink '{request.sink}' unavailable; available: {avail}")
+        raise HTTPException(status_code=400, detail=f"sink '{request.sink}' unavailable; available: {avail}")
 
-    video_id = str(project.video_id)
-    video_info = videos_db.get(video_id)
-    if not video_info:
-        raise HTTPException(status_code=404, detail="Project video not found")
-    local = storage.ensure_local(video_id)
-    if not local:
-        raise HTTPException(status_code=400, detail="Video file unavailable for frame export")
-
-    classes = (db.query(DBAnnotationClass)
-               .filter(DBAnnotationClass.project_id == project_id)
-               .order_by(DBAnnotationClass.created_at).all())
-    annotations = (db.query(DBAnnotation)
-                   .filter(DBAnnotation.project_id == project_id).all())
-    if not annotations:
+    if db.query(DBAnnotation).filter(DBAnnotation.project_id == project_id).count() == 0:
         raise HTTPException(status_code=400, detail="Project has no annotations to export")
 
-    tmp = Path(tempfile.mkdtemp(prefix="yolo-export-"))
-    try:
-        stats = generator.build_yolo_dataset(
-            tmp, str(local), video_info.fps, video_id[:8],
-            annotations, classes, request.val_fraction,
-        )
-        if stats.images == 0:
-            raise HTTPException(status_code=400,
-                                detail="No exportable boxes (need class_id + bbox on annotations)")
-        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{project.name}-{project_id[:8]}")
-        meta = {"project_id": project_id, "name": safe, "clearml_project": request.clearml_project}
-        result = sink.publish(tmp, meta)
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    task = _celery().send_task(
+        "windsurf.export_dataset",
+        args=[project_id, request.sink, request.val_fraction, request.clearml_project],
+        queue="cpu_worker",
+    )
+    return {"project_id": project_id, "job_id": task.id, "status": "queued"}
 
-    return {
-        "project_id": project_id,
-        "sink": sink.name,
-        "stats": {
-            "images": stats.images, "labels": stats.labels, "boxes": stats.boxes,
-            "skipped": stats.skipped, "classes": stats.classes, "splits": stats.splits,
-        },
-        "result": result,
-    }
+
+@router.get("/projects/{project_id}/export/status/{job_id}")
+async def export_status(
+    project_id: str,
+    job_id: str,
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """Poll the export job: {status: queued|running|completed|failed, progress?, result?, stats?}."""
+    res = _celery().AsyncResult(job_id)
+    state = res.state
+    if state in ("PENDING", "RECEIVED", "STARTED"):
+        return {"job_id": job_id, "status": "running", "progress": 0}
+    if state == "PROGRESS":
+        info = res.info if isinstance(res.info, dict) else {}
+        return {"job_id": job_id, "status": "running", **info}
+    if state == "SUCCESS":
+        r = res.result or {}
+        return {"job_id": job_id, "status": "completed",
+                "sink": r.get("sink"), "stats": r.get("stats"), "result": r.get("result")}
+    if state == "FAILURE":
+        return {"job_id": job_id, "status": "failed", "error": str(res.info)[:400]}
+    return {"job_id": job_id, "status": state.lower()}
