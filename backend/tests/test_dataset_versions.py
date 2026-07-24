@@ -58,7 +58,7 @@ class _CountingBuilder:
     def __init__(self):
         self.builds = 0
 
-    def build(self, *, version_id, inputs, progress_cb=None):
+    def build(self, *, version_id, inputs, fmt="yolo", progress_cb=None):
         self.builds += 1
         stats = types.SimpleNamespace(images=2, labels=2, boxes=2, skipped=0, classes=["sail"], splits={"train": 2})
         return stats, {"key": f"datasets/versions/{version_id}/dataset.zip", "url": "http://z"}

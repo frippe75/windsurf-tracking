@@ -50,3 +50,26 @@ class FrameStore(Protocol):
     ) -> bytes:
         """Return the frame's JPEG bytes, extracting + persisting only if not already cached."""
         ...
+
+
+@runtime_checkable
+class DatasetFormatWriter(Protocol):
+    """Write a dataset on disk in a target layout (YOLO, COCO, …) from labels + a frame provider.
+
+    ``frame_provider(frame_number) -> JPEG bytes``. The writer owns the format; the builder just
+    picks one by name. Adding a format = a new adapter, no core change (DATASET_ARCHITECTURE.md §10).
+    """
+
+    name: str
+
+    def write(
+        self,
+        out_dir,
+        frame_provider,
+        stem: str,
+        annotations: list,
+        classes: list,
+        val_fraction: float = 0.2,
+        progress_cb=None,
+    ):
+        ...

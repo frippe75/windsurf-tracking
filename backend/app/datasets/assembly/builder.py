@@ -19,10 +19,13 @@ class DatasetBuilder:
         self._extractor = extractor
         self._sinks = sinks  # {name: DatasetSink}
 
-    def build(self, *, version_id: str, inputs, progress_cb=None):
+    def build(self, *, version_id: str, inputs, fmt: str = "yolo", progress_cb=None):
         """Return (stats, sink_result). sink_result carries the artifact key + a URL."""
-        from ...export import generator
+        from ..formats import get_writer
 
+        writer = get_writer(fmt)
+        if writer is None:
+            raise RuntimeError(f"unknown dataset format {fmt!r}")
         sink = self._sinks.get(inputs.sink_name)
         if sink is None:
             raise RuntimeError(f"sink {inputs.sink_name!r} unavailable ({list(self._sinks)})")
@@ -35,7 +38,7 @@ class DatasetBuilder:
                     source_path=inputs.source_path, fps=inputs.fps, extractor=self._extractor,
                 )
 
-            stats = generator.build_yolo_dataset(
+            stats = writer.write(
                 tmp, frame_provider, inputs.source_video_id[:8],
                 inputs.annotations, inputs.classes, inputs.val_fraction, progress_cb=progress_cb,
             )

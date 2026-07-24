@@ -63,7 +63,7 @@ async def export_project(
 
     task = _celery().send_task(
         "windsurf.export_dataset",
-        args=[project_id, request.sink, request.val_fraction, request.clearml_project],
+        args=[project_id, request.sink, request.val_fraction, request.clearml_project, request.format],
         queue="cpu_worker",
     )
     return {"project_id": project_id, "job_id": task.id, "status": "queued"}

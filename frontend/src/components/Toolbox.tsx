@@ -2,9 +2,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { MousePointer, Target, Edit3, Wand2 } from "lucide-react";
+import { MousePointer, Target, Edit3 } from "lucide-react";
 
-export type ToolMode = "select" | "annotate" | "edit" | "detect";
+// "detect" folded into "annotate" (it's identical on the canvas) — AI assist is now a sub-option
+// under Annotate (SAM3 concept / trained detector), not a separate tool.
+export type ToolMode = "select" | "annotate" | "edit";
 
 interface ToolboxProps {
   selectedTool: ToolMode;
@@ -62,16 +64,6 @@ export function Toolbox({
             >
               <Edit3 className="h-4 w-4" />
               <span className="text-xs">Edit</span>
-            </Button>
-            <Button
-              variant={selectedTool === "detect" ? "default" : "outline"}
-              size="sm"
-              onClick={() => onToolChange("detect")}
-              className="flex flex-col gap-1 h-auto py-2"
-              title="AI detect & track — SAM3 (d)"
-            >
-              <Wand2 className="h-4 w-4" />
-              <span className="text-xs">Detect</span>
             </Button>
           </div>
         </div>

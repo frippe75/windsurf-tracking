@@ -53,7 +53,7 @@ class DatasetService:
             status="building", created_at=self._now(), source_video_id=inputs.source_video_id,
         )
         try:
-            stats, result = self._builder.build(version_id=fp, inputs=inputs, progress_cb=progress_cb)
+            stats, result = self._builder.build(version_id=fp, inputs=inputs, fmt=fmt, progress_cb=progress_cb)
             version.status = "ready"
             version.stats = _stats_dict(stats)
             version.artifact_key = result.get("key")
