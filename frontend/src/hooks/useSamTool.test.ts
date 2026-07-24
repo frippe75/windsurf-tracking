@@ -67,6 +67,8 @@ describe("addDetections", () => {
     const appended = (setAnnotations.mock.calls[0][0] as any)([]);
     expect(appended[0].bbox).toEqual({ x: 10, y: 10, w: 20, h: 40 });
     expect(appended[0].isKeyframe).toBe(true);
+    // scoped to the loaded clip so it never bleeds onto another video
+    expect(appended[0].videoId).toBe("vid");
   });
 
   it("all-invalid detections -> return 0, no toast/state", () => {
@@ -133,6 +135,9 @@ describe("track", () => {
     expect(progress).toContain("Submitting…");
     expect(n).toBe(1);
     expect(setAnnotations).toHaveBeenCalledTimes(1);
+    // tracked masklets are scoped to the loaded clip
+    const trackedAnns = (setAnnotations.mock.calls[0][0] as any)([]);
+    expect(trackedAnns.every((a: any) => a.videoId === "vid")).toBe(true);
     // a Track record is created (start/end/prompt) so it can be reviewed/thinned
     expect(setTracks).toHaveBeenCalledTimes(1);
     const newTracks = (setTracks.mock.calls[0][0] as any)([]);

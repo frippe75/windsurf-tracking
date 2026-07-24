@@ -55,8 +55,11 @@ export function useSamTool(deps: UseSamToolDeps) {
         nativeHeight: videoNativeHeight,
       });
       if (newAnnotations.length === 0) return 0;
+      // Scope to the loaded video so detections don't bleed across clips in a multi-video project.
+      const vid = samVideoId();
+      const scoped = vid ? newAnnotations.map((a) => ({ ...a, videoId: vid })) : newAnnotations;
       setInstances((prev) => [...prev, ...newInstances]);
-      setAnnotations((prev) => [...prev, ...newAnnotations]);
+      setAnnotations((prev) => [...prev, ...scoped]);
       toast({
         title: "Detections added",
         description: `${newAnnotations.length} object(s) added to ${selectedClass.name} at frame ${currentFrame}`,
@@ -127,7 +130,8 @@ export function useSamTool(deps: UseSamToolDeps) {
         setTracks((prev) => [...prev, { id: trackId, startFrame: start, endFrame: end, prompt: text, createdAt: Date.now(), thinning: [] }]);
       }
       setInstances((prev) => [...prev, ...newInstances]);
-      setAnnotations((prev) => [...prev, ...newAnnotations]);
+      // Scope to the tracked clip so masklets don't bleed onto other clips in the project.
+      setAnnotations((prev) => [...prev, ...newAnnotations.map((a) => ({ ...a, videoId: vid }))]);
       toast({
         title: "Tracking complete",
         description: `${newInstances.length} object(s) tracked across ${(out.frames || []).length} frames`,

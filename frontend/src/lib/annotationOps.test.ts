@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SAIL_COLORS,
+  annotationsForVideo,
   createClass,
   leastUsedColorIndex,
   renameClassById,
@@ -189,5 +190,32 @@ describe("leastUsedColorIndex", () => {
     const first = createClass("A", leastUsedColorIndex([]));
     const second = createClass("B", leastUsedColorIndex([first]));
     expect(first.color).not.toBe(second.color);
+  });
+})
+
+describe("annotationsForVideo", () => {
+  const mk = (id: string, videoId?: string) =>
+    ({ id, instanceId: "i", frameCreated: 0, points: [], isKeyframe: true, videoId } as any);
+
+  it("keeps only annotations for the given clip", () => {
+    const anns = [mk("a", "vA"), mk("b", "vB"), mk("c", "vA")];
+    expect(annotationsForVideo(anns, "vA").map((a) => a.id)).toEqual(["a", "c"]);
+  });
+
+  it("does NOT bleed another clip's boxes onto this clip (the regression)", () => {
+    const anns = [mk("a", "vA"), mk("b", "vB")];
+    expect(annotationsForVideo(anns, "vB").map((a) => a.id)).toEqual(["b"]);
+  });
+
+  it("treats legacy annotations (no videoId) as belonging to the current clip", () => {
+    const anns = [mk("legacy", undefined), mk("scoped", "vA")];
+    expect(annotationsForVideo(anns, "vA").map((a) => a.id)).toEqual(["legacy", "scoped"]);
+    expect(annotationsForVideo(anns, "vZ").map((a) => a.id)).toEqual(["legacy"]);
+  });
+
+  it("does not mutate the input", () => {
+    const anns = [mk("a", "vA")];
+    annotationsForVideo(anns, "vB");
+    expect(anns).toHaveLength(1);
   });
 })

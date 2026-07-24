@@ -19,6 +19,10 @@ export interface Instance {
 export interface Annotation {
   id: string;
   instanceId: string;
+  // The video this annotation belongs to. Stamped at creation from the loaded video so a
+  // multi-video project never bleeds one clip's boxes onto another's frames. Legacy annotations
+  // (created before scoping) have no videoId and are treated as belonging to the current video.
+  videoId?: string;
   frameCreated: number;
   points: Array<{ x: number; y: number }>;
   bbox?: { x: number; y: number; w: number; h: number };
