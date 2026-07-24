@@ -1321,6 +1321,35 @@ export const startExport = async (projectId: string, sink = "zip"): Promise<{ jo
   return r.json();
 };
 
+export interface DatasetModelRun {
+  run_id: string;
+  model: string;
+  epochs: number;
+  metrics?: { mAP50?: number; mAP50_95?: number } | null;
+  weights_key?: string | null;
+  created_at?: string | null;
+}
+export interface DatasetVersionSummary {
+  version_id: string;
+  status: string;
+  created_at?: string | null;
+  stats?: { images: number; boxes: number; classes: string[]; splits: Record<string, number> } | null;
+  models: DatasetModelRun[];
+}
+
+/** Every dataset version built from a video, each with the models trained on it (Models card). */
+export const getVideoDatasetVersions = async (videoId: string): Promise<DatasetVersionSummary[]> => {
+  const r = await fetch(`${config.backendUrl}/api/videos/${videoId}/dataset-versions`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!r.ok) {
+    if (r.status === 401) handleUnauthorized();
+    throw new Error(`dataset versions HTTP ${r.status}`);
+  }
+  const d = await r.json();
+  return d.versions ?? [];
+};
+
 export const getExportStatus = async (projectId: string, jobId: string): Promise<ExportStatus> => {
   const r = await fetch(`${config.backendUrl}/api/projects/${projectId}/export/status/${jobId}`, {
     headers: { ...getAuthHeaders() },

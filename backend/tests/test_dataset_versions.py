@@ -83,6 +83,19 @@ def test_service_builds_then_dedups():
     assert builder.builds == 1                 # ← built once, second call served from the repo
     assert v1.artifact_key.endswith("dataset.zip")
     assert repo.get(v1.id).manifest_key is not None
+    # version is indexed under its source video (for the Models card listing)
+    assert repo.list_for_video("v") == [v1.id]
+
+
+def test_video_version_index_roundtrip():
+    repo = InMemoryDatasetVersionRepository()
+    repo.index_video("vidA", "dsv_1")
+    repo.index_video("vidA", "dsv_2")
+    repo.index_video("vidA", "dsv_1")  # idempotent
+    repo.index_video("vidB", "dsv_3")
+    assert repo.list_for_video("vidA") == ["dsv_1", "dsv_2"]
+    assert repo.list_for_video("vidB") == ["dsv_3"]
+    assert repo.list_for_video("nope") == []
 
 
 def test_service_marks_failed_on_builder_error():

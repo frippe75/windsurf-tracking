@@ -112,6 +112,32 @@ async def get_dataset_version(
     }
 
 
+@router.get("/videos/{video_id}/dataset-versions")
+async def list_video_dataset_versions(
+    video_id: str,
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """Every dataset version built from this video, each with the models trained on it — powers the
+    Project Manager 'Models & Versions' card."""
+    from ..datasets.lineage.repository import S3LineageRepository
+    from ..datasets.versioning.repository import S3DatasetVersionRepository
+
+    vrepo = S3DatasetVersionRepository()
+    lrepo = S3LineageRepository()
+    out = []
+    for vid in vrepo.list_for_video(video_id):
+        v = vrepo.get(vid)
+        if v is None:
+            continue
+        runs = lrepo.runs_for_version(vid)
+        out.append({
+            "version_id": v.id, "status": v.status, "created_at": v.created_at, "stats": v.stats,
+            "models": [r.to_dict() for r in runs],
+        })
+    out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return {"video_id": video_id, "versions": out}
+
+
 @router.get("/dataset-versions/{version_id}/lineage")
 async def get_dataset_version_lineage(
     version_id: str,
