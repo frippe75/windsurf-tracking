@@ -1,0 +1,66 @@
+# yolo-serve — on-prem inference for trained YOLO detectors. Loads best.pt by dataset version from S3
+# and serves detection; registered in the pipeline-service fleet as the `detect` capability.
+# Runs on CPU by default (yolov8n is fast enough and this keeps scarce GPUs for training). To use a
+# GPU instead, add `nvidia.com/gpu: 1` under resources.limits and a GPU node selector/toleration.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windsurf-prod-yolo-serve
+  labels:
+    app: windsurf-yolo-serve
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: windsurf-yolo-serve
+  template:
+    metadata:
+      labels:
+        app: windsurf-yolo-serve
+    spec:
+      containers:
+      - name: yolo-serve
+        image: harbor.tclab.org/windsurf/yolo-serve:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: S3_ENDPOINT
+          value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+        - name: S3_BUCKET
+          value: "windsurf-videos"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: access-key
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-s3-secret
+              key: secret-key
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: windsurf-prod-yolo-serve
+  labels:
+    app: windsurf-yolo-serve
+spec:
+  selector:
+    app: windsurf-yolo-serve
+  ports:
+  - port: 8080
+    targetPort: 8080

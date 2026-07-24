@@ -59,16 +59,22 @@ def client():
         def infer(self, *, prompt=None, image_png_base64=None, json_schema=None, **kw):
             return {"got_image": image_png_base64 is not None, "prompt": prompt}
 
+    class FakeYolo:  # trained detector: echoes the version it was asked to run
+        def infer(self, *, image_png_base64=None, version_id=None, conf=0.25, **kw):
+            return {"detections": [{"bbox": [0.1, 0.1, 0.2, 0.2], "score": 0.9, "label": "Sail", "class_id": 0}],
+                    "width": 10, "height": 10, "served_version": version_id}
+
     MODELS.register_instance("t-sam3", FakeSam3(), capabilities=["concept-segment", "segment-click"])
     MODELS.register_instance("t-sam2", FakeSam2(), capabilities=["segment-click"])
     MODELS.register_instance("t-vlm", FakeVlm(), capabilities=["vlm-extract"])
     MODELS.register_instance("t-track", FakeTrack(), capabilities=["concept-track"])
     MODELS.register_instance("t-claude", FakeAnthropic(), capabilities=["metadata-extract"])
+    MODELS.register_instance("t-yolo", FakeYolo(), capabilities=["detect"])
     c = TestClient(create_app())
     try:
         yield c
     finally:
-        for n in ("t-sam3", "t-sam2", "t-vlm", "t-track", "t-claude"):
+        for n in ("t-sam3", "t-sam2", "t-vlm", "t-track", "t-claude", "t-yolo"):
             MODELS._instances.pop(n, None)
             MODELS._caps.pop(n, None)
 
@@ -194,6 +200,24 @@ def test_warmth_reports_non_serverless_for_local_models(client):
     # fake in-process handles have no RunPod base_url -> not serverless, no network hit
     assert w["t-sam3"]["serverless"] is False
     assert w["t-track"]["serverless"] is False
+
+
+def test_detect_routes_to_trained_yolo(client):
+    r = client.post("/detect", json={"capability": "detect", "inputs": {"version_id": "dsv_x", "image_png_base64": "aGk="}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model"] == "t-yolo"
+    assert body["served_version"] == "dsv_x"
+    assert body["detections"][0]["label"] == "Sail"
+
+
+def test_detect_extracts_frame_from_video(client, monkeypatch):
+    import pipeline_service.app as appmod
+
+    monkeypatch.setattr(appmod, "_resolve_stream_url", lambda vid: "u")
+    monkeypatch.setattr(appmod, "_extract_frame_b64", lambda url, t: "FRAMEB64")
+    r = client.post("/detect", json={"capability": "detect", "inputs": {"version_id": "dsv_x", "video_id": "v", "time_sec": 2.0}})
+    assert r.status_code == 200 and r.json()["model"] == "t-yolo"
 
 
 def test_metadata_text_only_draft(client):

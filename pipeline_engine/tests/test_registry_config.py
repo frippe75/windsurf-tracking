@@ -9,7 +9,7 @@ from pipeline_engine.models import HANDLES, MODELS
 
 
 def test_handles_registered():
-    for h in ("openai-compat-http", "sam3-runpod", "sam2-http", "sam3-runpod-track", "anthropic"):
+    for h in ("openai-compat-http", "sam3-runpod", "sam2-http", "sam3-runpod-track", "anthropic", "yolo-http"):
         assert h in HANDLES.names()
 
 
@@ -47,8 +47,10 @@ def test_example_yaml_loads():
         assert MODELS.by_capability("segment-click") == ["sam2-local", "sam3"]
         assert MODELS.by_capability("concept-track") == ["sam3-video"]
         assert MODELS.by_capability("metadata-extract") == ["claude"]
+        assert MODELS.by_capability("detect") == ["trained-yolo"]
         assert MODELS.get("sam3-video").__class__.__name__ == "Sam3RunpodTrackHandle"
         assert MODELS.get("claude").__class__.__name__ == "AnthropicHandle"
+        assert MODELS.get("trained-yolo").__class__.__name__ == "YoloHttpHandle"
     finally:
         for n in names:
             MODELS._configs.pop(n, None)

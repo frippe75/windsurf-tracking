@@ -14,6 +14,7 @@ resources:
   - frontend-service.yaml
   - gpu-workers.yaml
   - pipeline-service.yaml
+  - yolo-serve.yaml
   - ingress-api.yaml
   - ingress-labelbee.yaml
 images:
@@ -22,4 +23,6 @@ images:
   - name: harbor.tclab.org/windsurf/annotation-api
     newTag: "2bbb4521"
   - name: harbor.tclab.org/windsurf/pipeline-service
-    newTag: "v15"
+    newTag: "v16"
+  - name: harbor.tclab.org/windsurf/yolo-serve
+    newTag: "v1"

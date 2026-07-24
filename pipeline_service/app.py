@@ -41,6 +41,13 @@ class MetadataRequest(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
 
 
+class DetectRequest(BaseModel):
+    model: str | None = None
+    capability: str | None = None  # e.g. "detect"
+    # {version_id, image_png_base64 | (video_id + time_sec), conf?}
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
+
 class TrainRequest(BaseModel):
     """Train a YOLO on a dataset the app already exported (train/val-split zip in S3)."""
     dataset_url: str            # presigned GET for the export zip
@@ -670,6 +677,28 @@ def create_app() -> FastAPI:
         except TypeError as exc:
             raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
         return {"model": name, "result": result}
+
+    @router.post("/detect")
+    def detect(req: DetectRequest) -> dict[str, Any]:
+        # Run a trained detector (routed to the on-prem yolo-serve). Frame is provided directly or
+        # extracted from video_id+time_sec, mirroring /segment.
+        name = _resolve(req.model, req.capability)
+        try:
+            handle = MODELS.get(name)
+        except Exception as exc:
+            raise HTTPException(404, str(exc)) from exc
+        inp = dict(req.inputs)
+        image = inp.get("image_png_base64")
+        if not image and inp.get("video_id") and inp.get("time_sec") is not None:
+            stream = _resolve_stream_url(inp["video_id"])
+            image = _extract_frame_b64(stream, float(inp["time_sec"]))
+        try:
+            result = handle.infer(image_png_base64=image, version_id=inp.get("version_id"), conf=inp.get("conf", 0.25))
+        except pe.ModelError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        except TypeError as exc:
+            raise HTTPException(400, f"bad inputs for model {name!r}: {exc}") from exc
+        return {"model": name, **result}
 
     @router.post("/train")
     def train(req: TrainRequest) -> dict[str, Any]:
