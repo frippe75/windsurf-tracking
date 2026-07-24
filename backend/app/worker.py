@@ -148,8 +148,8 @@ def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: flo
         project = db.query(DBProject).filter(DBProject.id == project_id).first()
         if not project:
             raise RuntimeError("project not found")
-        sink = sinks.get_sink(sink_name)
-        if sink is None:
+        resolved_sink = sinks.get_sink(sink_name)
+        if resolved_sink is None:
             raise RuntimeError(f"sink {sink_name!r} unavailable ({list(sinks.available_sinks())})")
 
         video_id = str(project.video_id)
@@ -166,55 +166,45 @@ def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: flo
         if not annotations:
             raise RuntimeError("project has no annotations to export")
 
-        tmp = Path(tempfile.mkdtemp(prefix="yolo-export-"))
-        try:
-            self.update_state(state="PROGRESS", meta={"current_step": "extracting frames", "progress": 15})
+        # Per-image progress (15→80%), throttled to integer-% changes.
+        last = {"pct": -1}
 
-            # Per-image progress (extraction spans 15→80%); throttle to integer-% changes so we
-            # don't hammer the Celery/Redis result backend on every frame.
-            last = {"pct": -1}
+        def on_frame(done, total):
+            pct = 15 + int(done / max(1, total) * 65)
+            if pct != last["pct"] or done == total:
+                last["pct"] = pct
+                self.update_state(state="PROGRESS", meta={
+                    "current_step": "extracting frames", "progress": pct,
+                    "images_done": done, "images_total": total,
+                })
 
-            def on_frame(done, total):
-                pct = 15 + int(done / max(1, total) * 65)
-                if pct != last["pct"] or done == total:
-                    last["pct"] = pct
-                    self.update_state(state="PROGRESS", meta={
-                        "current_step": "extracting frames", "progress": pct,
-                        "images_done": done, "images_total": total,
-                    })
+        # Compose the dataset service (ports → adapters) and create-or-get an IMMUTABLE version. If an
+        # identical version already exists (same annotation fingerprint) this returns it instantly —
+        # no frame extraction, no zip. See DATASET_ARCHITECTURE.md.
+        from .datasets.assembly.builder import DatasetBuilder
+        from .datasets.frames.extractor import default_extractor
+        from .datasets.frames.store import S3FrameStore
+        from .datasets.service import BuildInputs, DatasetService
+        from .datasets.versioning.repository import S3DatasetVersionRepository
 
-            # Frames go through the content-addressed store: extracted+persisted once, reused by
-            # every later export/version (no ffmpeg re-decode on repeat runs). See DATASET_ARCHITECTURE.md.
-            from .datasets.frames.extractor import default_extractor
-            from .datasets.frames.store import S3FrameStore
+        service = DatasetService(
+            S3DatasetVersionRepository(),
+            DatasetBuilder(S3FrameStore(), default_extractor(), sinks.available_sinks()),
+        )
+        inputs = BuildInputs(
+            project_id=project_id, project_name=project.name, source_video_id=video_id,
+            source_path=str(local), fps=fps, classes=classes, annotations=annotations,
+            val_fraction=val_fraction, sink_name=resolved_sink.name, clearml_project=clearml_project,
+        )
+        version = service.create_or_get(inputs, progress_cb=on_frame)
 
-            _store = S3FrameStore()
-            _extractor = default_extractor()
-
-            def frame_provider(frame_number):
-                return _store.get_or_materialize(
-                    video_id, frame_number, source_path=str(local), fps=fps, extractor=_extractor,
-                )
-
-            stats = generator.build_yolo_dataset(
-                tmp, frame_provider, video_id[:8], annotations, classes, val_fraction,
-                progress_cb=on_frame,
-            )
-            if stats.images == 0:
-                raise RuntimeError("no exportable boxes (need class_id + bbox on annotations)")
-            self.update_state(state="PROGRESS", meta={"current_step": "packaging", "progress": 85})
-            safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{project.name}-{project_id[:8]}")
-            result = sink.publish(tmp, {"project_id": project_id, "name": safe, "clearml_project": clearml_project})
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-
+        self.update_state(state="PROGRESS", meta={"current_step": "packaging", "progress": 92})
+        url = storage.presigned_get(version.artifact_key, f"dataset-{version.id}.zip") if version.artifact_key else None
         return {
-            "sink": sink.name,
-            "stats": {
-                "images": stats.images, "labels": stats.labels, "boxes": stats.boxes,
-                "skipped": stats.skipped, "classes": stats.classes, "splits": stats.splits,
-            },
-            "result": result,
+            "sink": resolved_sink.name,
+            "version_id": version.id,
+            "stats": version.stats,
+            "result": {"kind": "zip", "url": url, "key": version.artifact_key},
         }
     finally:
         db.close()
