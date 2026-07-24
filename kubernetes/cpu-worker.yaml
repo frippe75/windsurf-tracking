@@ -32,6 +32,12 @@ spec:
         env:
         - name: REDIS_URL
           value: "redis://windsurf-prod-redis:6379"
+        # Export task queries the project's annotations from Postgres.
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: windsurf-backend-secret
+              key: database-url
         - name: S3_ENDPOINT
           value: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
         - name: S3_PUBLIC_ENDPOINT
