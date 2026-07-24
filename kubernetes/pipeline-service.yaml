@@ -111,7 +111,7 @@ spec:
               key: ANTHROPIC_API_KEY
         # Training Job config: the image to run, and S3 to read metrics.json back.
         - name: TRAIN_IMAGE
-          value: harbor.tclab.org/windsurf/train:v2
+          value: harbor.tclab.org/windsurf/train:v3
         - name: TRAIN_NAMESPACE
           value: windsurf-prod
         - name: S3_ENDPOINT
