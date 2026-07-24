@@ -44,20 +44,20 @@ def _yolo_line(class_idx: int, bbox: dict) -> str | None:
 
 def build_yolo_dataset(
     out_dir: Path,
-    video_path: str,
-    fps: float,
+    frame_provider,  # callable(frame_number:int) -> JPEG bytes; raises if unreadable
     stem: str,
     annotations: list,
     classes: list,
     val_fraction: float = 0.2,
     progress_cb=None,  # optional callable(done:int, total:int) — per-frame progress
 ) -> DatasetStats:
-    """
+    """Assemble a YOLO dataset on disk. This is a pure *format writer*: it groups labels, splits
+    train/val, and writes image bytes obtained from ``frame_provider`` — it no longer knows how a
+    frame is decoded or where it's cached (that's the FrameStore's job). See DATASET_ARCHITECTURE.md.
+
     annotations: rows with .frame_number, .class_id, .geometry (dict with 'bbox').
     classes:     ordered rows with .id, .name → class index = position.
     """
-    from ..frames import extract_frame_image
-
     class_index = {str(c.id): i for i, c in enumerate(classes)}
     stats = DatasetStats(classes=[c.name for c in classes])
 
@@ -86,11 +86,11 @@ def build_yolo_dataset(
         split = "val" if (val_every and i % val_every == 0) else "train"
         name = f"{stem}_{frame:06d}"
         try:
-            img = extract_frame_image(video_path, frame, fps)
+            jpg = frame_provider(frame)
         except Exception:
             stats.skipped += len(by_frame[frame])
             continue
-        img.convert("RGB").save(out_dir / "images" / split / f"{name}.jpg", quality=90)
+        (out_dir / "images" / split / f"{name}.jpg").write_bytes(jpg)
         (out_dir / "labels" / split / f"{name}.txt").write_text("\n".join(by_frame[frame]) + "\n")
         stats.images += 1
         stats.labels += 1

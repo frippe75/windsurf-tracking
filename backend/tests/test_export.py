@@ -41,6 +41,20 @@ def test_yolo_line_rejects_bad_bbox():
     assert _yolo_line(0, {"x": 0}) is None
 
 
+def _fixture_provider():
+    """frame_number -> JPEG bytes from the fixture clip (mirrors the real extractor adapter)."""
+    from io import BytesIO
+    from app.frames import extract_frame_image
+
+    def provider(frame_number: int) -> bytes:
+        img = extract_frame_image(str(FIXTURE), frame_number, 10.0)
+        buf = BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+
+    return provider
+
+
 @pytest.mark.skipif(not FIXTURE.exists(), reason="fixture clip missing")
 def test_build_yolo_dataset_from_fixture():
     from app.export.generator import build_yolo_dataset
@@ -52,7 +66,7 @@ def test_build_yolo_dataset_from_fixture():
 
     with tempfile.TemporaryDirectory() as d:
         out = Path(d)
-        stats = build_yolo_dataset(out, str(FIXTURE), 10.0, "clip", anns, [cls], val_fraction=0.2)
+        stats = build_yolo_dataset(out, _fixture_provider(), "clip", anns, [cls], val_fraction=0.2)
 
         assert stats.boxes == 5 and stats.images == 5 and stats.classes == ["square"]
         jpgs = list(out.rglob("images/**/*.jpg"))
@@ -75,7 +89,11 @@ def test_annotations_without_class_or_bbox_are_skipped():
     anns = [_ann(0, None, {"x": .1, "y": .1, "w": .1, "h": .1}),   # no class
             _ann(1, cls.id, {})]                                    # no bbox
     with tempfile.TemporaryDirectory() as d:
-        stats = build_yolo_dataset(Path(d), str(FIXTURE), 10.0, "clip", anns, [cls])
+        # frame_provider must never be called — every annotation is skipped (no class / no bbox)
+        def boom(_fn):
+            raise AssertionError("frame_provider should not be called when all anns are skipped")
+
+        stats = build_yolo_dataset(Path(d), boom, "clip", anns, [cls])
         assert stats.boxes == 0 and stats.images == 0 and stats.skipped == 2
 
 
