@@ -49,6 +49,17 @@ describe("pipelineApi request shapes", () => {
     );
   });
 
+  it("detectWithModel posts capability+inputs and returns detections", async () => {
+    const calls = mockFetch([{ body: { model: "trained-yolo", detections: [{ bbox: [0.1, 0.1, 0.2, 0.2], score: 0.8, class_id: 0, label: "Sail" }] } }]);
+    const dets = await api.detectWithModel({ version_id: "dsv_x", video_id: "v", time_sec: 2, conf: 0.3 });
+    expect(dets[0].label).toBe("Sail");
+    expect(calls[0].url).toBe("/pipeline/detect");
+    expect(JSON.parse(calls[0].init!.body as string)).toEqual({
+      capability: "detect",
+      inputs: { version_id: "dsv_x", video_id: "v", time_sec: 2, conf: 0.3 },
+    });
+  });
+
   it("startTraining posts the spec and returns job_id; getTrainingStatus unwraps metrics", async () => {
     const calls = mockFetch([{ body: { job_id: "train-abc", status: "submitted" } }]);
     expect(await api.startTraining({ dataset_url: "https://s3/ds.zip", project_id: "p1", epochs: 10 })).toEqual({

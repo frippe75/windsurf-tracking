@@ -7,6 +7,7 @@ import { KeyframeManager } from "@/components/KeyframeManager";
 import { HierarchicalTimeline } from "@/components/HierarchicalTimeline";
 import { ScenesManager } from "@/components/ScenesManager";
 import { Toolbox, type ToolMode } from "@/components/Toolbox";
+import { TrainedDetectorPanel } from "@/components/TrainedDetectorPanel";
 import { ContextMenu } from "@/components/ContextMenu";
 import { TrackingJobs } from "@/components/TrackingJobs";
 import { TrackReview } from "@/components/TrackReview";
@@ -2218,6 +2219,17 @@ const Index = () => {
                   onDetectAll={handleDetectAllClasses}
                   onTrack={handleSamTrack}
                   videoReady={!!videoId}
+                />
+              )}
+              {/* Trained-detector assist under Annotate: run your own model on the frame → annotations */}
+              {selectedTool === "annotate" && (
+                <TrainedDetectorPanel
+                  videoId={videoId}
+                  timeSec={videoFps ? currentFrame / videoFps : 0}
+                  nativeWidth={videoNativeWidth}
+                  nativeHeight={videoNativeHeight}
+                  selectedClassId={selectedClassId}
+                  onAddDetections={handleAddSamDetections}
                 />
               )}
               <ClassManager
