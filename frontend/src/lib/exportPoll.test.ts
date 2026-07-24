@@ -33,6 +33,18 @@ describe("exportDataset (dispatch + poll)", () => {
     expect(calls[2]).toContain("/export/status/ex-1");
   });
 
+  it("tolerates a transient fetch failure mid-poll and still completes", async () => {
+    let i = 0;
+    global.fetch = vi.fn(async (url: any) => {
+      i++;
+      if (i === 1) return { ok: true, status: 200, json: async () => ({ job_id: "ex-3", status: "queued" }) } as any;
+      if (i === 2) throw new TypeError("Failed to fetch"); // transient blip on first poll
+      return { ok: true, status: 200, json: async () => ({ job_id: "ex-3", status: "completed", sink: "zip", stats: {}, result: { kind: "zip", url: "https://s3/ok.zip" } }) } as any;
+    });
+    const res = await exportDataset("p1", "zip", { sleep: noSleep });
+    expect(res.result.url).toBe("https://s3/ok.zip");
+  });
+
   it("throws on a failed job", async () => {
     mockFetch([
       { body: { job_id: "ex-2", status: "queued" } },
