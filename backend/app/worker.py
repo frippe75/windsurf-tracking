@@ -131,7 +131,7 @@ def _probe_fps(video_path: str) -> float:
 
 
 @celery_app.task(bind=True, name="windsurf.export_dataset")
-def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: float = 0.2, clearml_project=None):
+def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: float = 0.2, clearml_project=None, fmt: str = "yolo"):
     """Build a YOLO dataset for a project and publish it via a sink — runs on the cpu-worker so
     the heavy frame extraction + zip never touches the web pod. Returns {sink, stats, result}."""
     import re
@@ -196,7 +196,7 @@ def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: flo
             source_path=str(local), fps=fps, classes=classes, annotations=annotations,
             val_fraction=val_fraction, sink_name=resolved_sink.name, clearml_project=clearml_project,
         )
-        version = service.create_or_get(inputs, progress_cb=on_frame)
+        version = service.create_or_get(inputs, fmt=fmt, progress_cb=on_frame)
 
         self.update_state(state="PROGRESS", meta={"current_step": "packaging", "progress": 92})
         url = storage.presigned_get(version.artifact_key, f"dataset-{version.id}.zip") if version.artifact_key else None

@@ -138,6 +138,8 @@ const Index = () => {
   const toolPrefs = getToolPreferences();
   const [overlays, setOverlays] = useState(toolPrefs.overlays);
   const [selectedTool, setSelectedTool] = useState<ToolMode>("annotate");
+  // AI assist method under Annotate (folds the old "detect" tool + trained models into one sub-picker)
+  const [assistModel, setAssistModel] = useState<"none" | "sam3" | "trained">("none");
   // Touch prompt mode: on phones there is no Ctrl/Alt, so a plain tap places
   // this prompt type. null = desktop behaviour (hold a modifier).
   const [promptTapMode, setPromptTapMode] = useState<PromptType | null>(null);
@@ -527,8 +529,10 @@ const Index = () => {
           setSelectedTool("edit");
           break;
         case "d":
+          // 'd' = AI assist: Annotate mode with the SAM3 concept detector active
           e.preventDefault();
-          setSelectedTool("detect");
+          setSelectedTool("annotate");
+          setAssistModel("sam3");
           break;
         case "1":
         case "2":
@@ -2210,7 +2214,36 @@ const Index = () => {
                 useSAM2={useSAM2}
                 onUseSAM2Change={setUseSAM2}
               />
-              {selectedTool === "detect" && (
+              {/* AI assist sub-picker under Annotate — folds the old Detect tool + trained models
+                  into one place (None / SAM3 concept / your trained detector). */}
+              {selectedTool === "annotate" && (
+                <Card className="p-3 bg-card border-border space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground">AI assist</h3>
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      { k: "none", label: "Manual" },
+                      { k: "sam3", label: "SAM3" },
+                      { k: "trained", label: "Trained" },
+                    ] as const).map((o) => (
+                      <Button
+                        key={o.k}
+                        size="sm"
+                        variant={assistModel === o.k ? "default" : "outline"}
+                        className="h-7 text-xs"
+                        onClick={() => setAssistModel(o.k)}
+                      >
+                        {o.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {assistModel === "none" && "Click/drag to annotate by hand."}
+                    {assistModel === "sam3" && "SAM3 concept/text detection + tracking."}
+                    {assistModel === "trained" && "Run your trained model on this frame."}
+                  </p>
+                </Card>
+              )}
+              {selectedTool === "annotate" && assistModel === "sam3" && (
                 <SamTool
                   classes={classes}
                   selectedClassId={selectedClassId}
@@ -2221,8 +2254,7 @@ const Index = () => {
                   videoReady={!!videoId}
                 />
               )}
-              {/* Trained-detector assist under Annotate: run your own model on the frame → annotations */}
-              {selectedTool === "annotate" && (
+              {selectedTool === "annotate" && assistModel === "trained" && (
                 <TrainedDetectorPanel
                   videoId={videoId}
                   timeSec={videoFps ? currentFrame / videoFps : 0}
