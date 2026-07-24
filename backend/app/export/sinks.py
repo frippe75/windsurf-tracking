@@ -37,7 +37,8 @@ class ZipSink:
         fd, zpath = tempfile.mkstemp(suffix=".zip")
         os.close(fd)
         fname = f"{meta['name']}.zip"
-        key = f"exports/{meta['project_id']}/{fname}"
+        # Caller may pin an immutable, content-addressed key (dataset versions); else the legacy path.
+        key = meta.get("key") or f"exports/{meta['project_id']}/{fname}"
         try:
             with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
                 for p in sorted(dataset_dir.rglob("*")):
@@ -47,7 +48,7 @@ class ZipSink:
             storage.put_file(key, zpath, "application/zip")
         finally:
             os.unlink(zpath)
-        return {"kind": "zip", "url": storage.presigned_get(key, fname), "bytes": size}
+        return {"kind": "zip", "url": storage.presigned_get(key, fname), "key": key, "bytes": size}
 
 
 class ClearMLSink:

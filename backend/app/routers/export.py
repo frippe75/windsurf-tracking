@@ -85,8 +85,28 @@ async def export_status(
         return {"job_id": job_id, "status": "running", **info}
     if state == "SUCCESS":
         r = res.result or {}
-        return {"job_id": job_id, "status": "completed",
-                "sink": r.get("sink"), "stats": r.get("stats"), "result": r.get("result")}
+        return {"job_id": job_id, "status": "completed", "sink": r.get("sink"),
+                "stats": r.get("stats"), "result": r.get("result"), "version_id": r.get("version_id")}
     if state == "FAILURE":
         return {"job_id": job_id, "status": "failed", "error": str(res.info)[:400]}
     return {"job_id": job_id, "status": state.lower()}
+
+
+@router.get("/dataset-versions/{version_id}")
+async def get_dataset_version(
+    version_id: str,
+    current_user: DBUser = Depends(get_current_active_user),
+):
+    """Inspect an immutable dataset version: status, stats, a fresh artifact URL, lineage pointers."""
+    from .. import storage
+    from ..datasets.versioning.repository import S3DatasetVersionRepository
+
+    v = S3DatasetVersionRepository().get(version_id)
+    if v is None:
+        raise HTTPException(status_code=404, detail=f"dataset version {version_id!r} not found")
+    url = storage.presigned_get(v.artifact_key, f"dataset-{v.id}.zip") if v.artifact_key else None
+    return {
+        "version_id": v.id, "project_id": v.project_id, "status": v.status, "format": v.format,
+        "fingerprint": v.fingerprint, "stats": v.stats, "created_at": v.created_at,
+        "source_video_id": v.source_video_id, "manifest_key": v.manifest_key, "artifact_url": url,
+    }
