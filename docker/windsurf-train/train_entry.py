@@ -61,6 +61,14 @@ def main() -> int:
     data_yaml = os.path.join(work, "data.yaml")
     if not os.path.exists(data_yaml):
         raise SystemExit(f"[train] no data.yaml in dataset zip ({os.listdir(work)})")
+    # Ultralytics resolves data.yaml `path:` against its datasets dir (not the file's dir), so a
+    # relative `path: .` looks under /app. Pin it to the absolute extract dir.
+    import re as _re
+    _dy = open(data_yaml).read()
+    _dy = _re.sub(r"(?m)^path:.*$", f"path: {work}", _dy)
+    if not _re.search(r"(?m)^path:", _dy):
+        _dy = f"path: {work}\n" + _dy
+    open(data_yaml, "w").write(_dy)
 
     s3 = boto3.client(
         "s3",
