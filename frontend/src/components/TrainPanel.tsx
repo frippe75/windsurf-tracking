@@ -54,6 +54,7 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   const [exportProg, setExportProg] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startingRef = useRef(false); // synchronous re-entry guard for the Train button
 
   const persist = useCallback(
     (id: string | null) => {
@@ -97,6 +98,10 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   }, [jobId]);
 
   const train = async () => {
+    // Synchronous guard: `busy` is state-based and lags a render, so a fast double-click could
+    // fire two exports/trainings before the button disables. This blocks re-entry immediately.
+    if (startingRef.current || busy) return;
+    startingRef.current = true;
     setError("");
     setStatus(null);
     setExportProg(null);
@@ -109,6 +114,8 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
     } catch (e: any) {
       setError(String(e?.message ?? e));
       setPhase("idle");
+    } finally {
+      startingRef.current = false;
     }
   };
 
