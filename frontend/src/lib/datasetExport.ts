@@ -90,6 +90,7 @@ export interface ExportProjectOpts {
   sink?: string;
   genId?: () => string;
   now?: () => string;
+  onProgress?: (done: number, total: number) => void; // per-image export progress
 }
 
 /** Create a backend project + classes, save annotations, and export a dataset. */
@@ -114,5 +115,9 @@ export async function exportProjectAsYolo(opts: ExportProjectOpts): Promise<Expo
   }
   await opts.api.saveBackendAnnotations(project.id, payload);
 
-  return opts.api.exportDataset(project.id, opts.sink ?? "zip");
+  return opts.api.exportDataset(project.id, opts.sink ?? "zip", {
+    onProgress: (s) => {
+      if (opts.onProgress && s.images_total) opts.onProgress(s.images_done ?? 0, s.images_total);
+    },
+  });
 }

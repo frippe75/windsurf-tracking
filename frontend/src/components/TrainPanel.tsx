@@ -23,7 +23,7 @@ const MODELS = [
 type Props = {
   projectId: string;
   canTrain: boolean; // classes + annotations present
-  getDatasetUrl: () => Promise<string>; // exports + returns the dataset zip URL
+  getDatasetUrl: (onProgress?: (done: number, total: number) => void) => Promise<string>; // exports + returns the dataset zip URL
 };
 
 const TERMINAL = new Set(["succeeded", "failed"]);
@@ -51,6 +51,7 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   const [showTuning, setShowTuning] = useState(false);
   const [status, setStatus] = useState<TrainStatus | null>(null);
   const [phase, setPhase] = useState<"idle" | "exporting" | "polling">("idle");
+  const [exportProg, setExportProg] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -89,9 +90,10 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   const train = async () => {
     setError("");
     setStatus(null);
+    setExportProg(null);
     setPhase("exporting");
     try {
-      const dataset_url = await getDatasetUrl();
+      const dataset_url = await getDatasetUrl((done, total) => setExportProg({ done, total }));
       setPhase("polling");
       const { job_id } = await startTraining({ dataset_url, project_id: projectId, epochs, model, imgsz });
       persist(job_id);
@@ -167,10 +169,23 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
       {!canTrain && <div className="text-[11px] text-muted-foreground">Add classes + annotations before training.</div>}
       {error && <div className="text-[11px] text-destructive break-words">{error}</div>}
 
-      {busy && !m && !status?.progress && (
-        <div className="text-[11px] text-muted-foreground">
-          {phase === "exporting" ? "Building dataset…" : "Starting on a GPU node (cold start + model load)…"}
+      {phase === "exporting" && (
+        <div className="space-y-1 border-t border-border pt-2">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted-foreground">Exporting dataset</span>
+            {exportProg && <span className="tabular-nums">{exportProg.done}/{exportProg.total} images</span>}
+          </div>
+          <div className="h-1.5 overflow-hidden rounded bg-muted">
+            <div
+              className="h-full rounded bg-primary transition-all"
+              style={{ width: exportProg ? `${(exportProg.done / Math.max(1, exportProg.total)) * 100}%` : "8%" }}
+            />
+          </div>
         </div>
+      )}
+
+      {busy && !m && phase !== "exporting" && !status?.progress && (
+        <div className="text-[11px] text-muted-foreground">Starting on a GPU node (cold start + model load)…</div>
       )}
 
       {status?.status === "running" && status.progress && (

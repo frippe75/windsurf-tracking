@@ -1963,7 +1963,7 @@ const Index = () => {
 
   // Export the dataset and return just the zip URL — the Train tab feeds this straight to the GPU
   // training Job. Reuses the export flow (which saves annotations to the backend + builds the split).
-  const exportForTraining = async (): Promise<string> => {
+  const exportForTraining = async (onProgress?: (done: number, total: number) => void): Promise<string> => {
     if (!videoId) throw new Error("Open a video before training.");
     const activeProject = projects.find((p) => p.id === activeProjectId);
     const res = await exportProjectAsYolo({
@@ -1973,6 +1973,7 @@ const Index = () => {
       instances,
       annotations,
       api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
+      onProgress,
     });
     const url = res.result?.url;
     if (!url) throw new Error("export produced no dataset URL");

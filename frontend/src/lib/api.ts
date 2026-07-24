@@ -1296,6 +1296,8 @@ export interface ExportStatus {
   status: "queued" | "running" | "completed" | "failed";
   progress?: number;
   current_step?: string;
+  images_done?: number;
+  images_total?: number;
   sink?: string;
   stats?: ExportResult["stats"];
   result?: ExportResult["result"];
