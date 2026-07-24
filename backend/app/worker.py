@@ -183,8 +183,21 @@ def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: flo
                         "images_done": done, "images_total": total,
                     })
 
+            # Frames go through the content-addressed store: extracted+persisted once, reused by
+            # every later export/version (no ffmpeg re-decode on repeat runs). See DATASET_ARCHITECTURE.md.
+            from .datasets.frames.extractor import default_extractor
+            from .datasets.frames.store import S3FrameStore
+
+            _store = S3FrameStore()
+            _extractor = default_extractor()
+
+            def frame_provider(frame_number):
+                return _store.get_or_materialize(
+                    video_id, frame_number, source_path=str(local), fps=fps, extractor=_extractor,
+                )
+
             stats = generator.build_yolo_dataset(
-                tmp, str(local), fps, video_id[:8], annotations, classes, val_fraction,
+                tmp, frame_provider, video_id[:8], annotations, classes, val_fraction,
                 progress_cb=on_frame,
             )
             if stats.images == 0:

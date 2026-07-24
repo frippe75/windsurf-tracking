@@ -163,6 +163,20 @@ def put_file(key: str, path: str, content_type: str = "application/octet-stream"
     internal().upload_file(str(path), S3_BUCKET, key, ExtraArgs={"ContentType": content_type})
 
 
+def get_bytes(key: str) -> bytes:
+    """Download an arbitrary bucket key into memory (used by the frame cache)."""
+    return internal().get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
+
+
+def object_exists(key: str) -> bool:
+    """True if the bucket key exists (cheap HEAD). Any error → treat as absent."""
+    try:
+        internal().head_object(Bucket=S3_BUCKET, Key=key)
+        return True
+    except Exception:
+        return False
+
+
 def presigned_get(key: str, filename: str = "") -> str:
     """Presign a browser-fetchable GET URL for any bucket key."""
     params = {"Bucket": S3_BUCKET, "Key": key}
