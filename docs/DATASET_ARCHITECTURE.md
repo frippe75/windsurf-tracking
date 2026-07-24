@@ -227,8 +227,16 @@ re-pointed at versions with the **same `ExportResult` shape** (zero blast radius
 | **P2 — Versions** | `versioning/*`, `assembly/builder.py`, `dataset_versions` table, new endpoints; `/export` shim | a version has a stable id; re-creating with unchanged annotations returns the same id instantly |
 | **P3 — Lineage** | `lineage/*`, `ModelRun`, training records `dataset_version_id`; Train tab shows "trained on v3 (hash…)" | model → version → sources is queryable end to end |
 | **P4 — Formats/sinks breadth** | COCO writer, HF/Roboflow sink, augmentation seam | a second format + a second sink added with **no core diff** |
+| **P5 — Use trained models (flywheel)** | serve `best.pt` on-prem as a `detect` capability; Models/Versions card in PM stats; trained detector as an Annotate sub-option that auto-annotates a frame | model → auto-annotate → review → next version → retrain, all in the registry |
 
 Each phase is independently shippable and independently valuable. P1 alone fixes the export perf.
+
+**P5 status (built):** P5a `yolo-serve` on-prem (`detect` capability, loads best.pt by version) ✅ ·
+P5b Models & Versions card in Project Manager stats ✅ · P5c trained-detector assist under Annotate
+(run your model on the current frame → annotations) ✅. This closes the loop: served model → boxes →
+review → feeds the next dataset version. Serving is CPU by default (keeps GPUs for training); the
+model picker/tool-rail is driven by the `detect` capability so new trained models appear as options
+with no new chrome.
 
 ## 13. Testing strategy
 
