@@ -116,6 +116,17 @@ export function annotationsAtFrame(annotations: Annotation[], frame: number): An
 }
 
 /**
+ * Annotations belonging to a given clip. A project can hold several videos that share one
+ * annotation array, so frame-position views (canvas overlay, timeline) must scope to the loaded
+ * clip — otherwise one clip's boxes bleed onto another clip's identical frame numbers.
+ * Legacy annotations created before scoping have no `videoId` and fall through to the current clip
+ * (never hidden — non-destructive to pre-existing work).
+ */
+export function annotationsForVideo(annotations: Annotation[], videoId: string): Annotation[] {
+  return annotations.filter((ann) => !ann.videoId || ann.videoId === videoId);
+}
+
+/**
  * Remove one SAM2 prompt (by index) from an annotation. An emptied prompt
  * list becomes `undefined` (matches the original Index.tsx semantics).
  */

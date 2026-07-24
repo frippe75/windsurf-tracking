@@ -12,6 +12,10 @@ import { detectWithModel } from "@/lib/pipelineApi";
  */
 type Props = {
   videoId?: string | null;
+  // All videos in the active project. A trained model runs on ANY clip's current frame (the model
+  // weights are independent of the source clip), so the picker lists every model in the project —
+  // switching the loaded clip must not make a trained model disappear.
+  videoIds?: string[];
   timeSec: number;
   nativeWidth: number;
   nativeHeight: number;
@@ -21,22 +25,35 @@ type Props = {
 
 const bestMap = (v: DatasetVersionSummary) => v.models.reduce((m, r) => Math.max(m, r.metrics?.mAP50 ?? 0), 0);
 
-export function TrainedDetectorPanel({ videoId, timeSec, nativeWidth, nativeHeight, selectedClassId, onAddDetections }: Props) {
+// Merge trained versions across all the project's clips, dedup by version_id, best mAP first.
+export async function loadProjectModels(videoIds: string[]): Promise<DatasetVersionSummary[]> {
+  const lists = await Promise.all(videoIds.map((id) => getVideoDatasetVersions(id).catch(() => [])));
+  const byId = new Map<string, DatasetVersionSummary>();
+  for (const v of lists.flat()) {
+    if (v.models.length > 0 && !byId.has(v.version_id)) byId.set(v.version_id, v);
+  }
+  return [...byId.values()].sort((a, b) => bestMap(b) - bestMap(a));
+}
+
+export function TrainedDetectorPanel({ videoId, videoIds, timeSec, nativeWidth, nativeHeight, selectedClassId, onAddDetections }: Props) {
   const [versions, setVersions] = useState<DatasetVersionSummary[] | null>(null);
   const [selected, setSelected] = useState<string>("");
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // Fetch project-wide so the list is stable across clip switches. Fall back to the loaded clip.
+  const ids = (videoIds && videoIds.length > 0 ? videoIds : videoId ? [videoId] : []);
+  const idsKey = ids.join(",");
   useEffect(() => {
-    if (!videoId) return;
-    getVideoDatasetVersions(videoId)
-      .then((vs) => {
-        const trained = vs.filter((v) => v.models.length > 0).sort((a, b) => bestMap(b) - bestMap(a));
+    if (ids.length === 0) return;
+    loadProjectModels(ids)
+      .then((trained) => {
         setVersions(trained);
-        if (trained[0]) setSelected(trained[0].version_id);
+        setSelected((cur) => (cur && trained.some((v) => v.version_id === cur) ? cur : trained[0]?.version_id ?? ""));
       })
       .catch((e) => setMsg(String(e?.message ?? e)));
-  }, [videoId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
 
   const run = async () => {
     if (!videoId || !selected) return;

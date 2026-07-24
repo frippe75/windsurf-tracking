@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { SamTool } from "@/components/SamTool";
@@ -45,7 +45,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { useAnnotations } from "@/hooks/useAnnotations";
 import { useTrackingJobs } from "@/hooks/useTrackingJobs";
-import { SAIL_COLORS, annotationsAtFrame } from "@/lib/annotationOps";
+import { SAIL_COLORS, annotationsAtFrame, annotationsForVideo } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { extractYoutubeId, youtubeThumbnail } from "@/lib/youtubeUrl";
 import { resolvePromptType, type PromptType } from "@/lib/promptType";
@@ -113,6 +113,15 @@ const Index = () => {
     handleDeletePrompt,
     handleSceneQualityChange,
   } = useAnnotations({ currentFrame, toast });
+
+  // Video-scoped view of the annotation list. A project can hold several clips that all share one
+  // annotation array; frame-position views (canvas overlay, timeline) must show only the loaded
+  // clip's boxes, or a clip's annotations bleed onto another clip's identical frame numbers.
+  // Legacy annotations created before scoping (no videoId) fall through to the current clip.
+  const currentVideoAnnotations = useMemo(
+    () => annotationsForVideo(annotations, videoId),
+    [annotations, videoId],
+  );
 
   // Tracking-jobs domain: auto-created segment jobs, execution/polling,
   // result ingestion into tracked annotations.
@@ -1692,6 +1701,7 @@ const Index = () => {
           const newAnnotation: Annotation = {
             id: `ann-${Date.now()}`,
             instanceId: newInstance.id,
+            videoId,
             points,
             bbox,
             maskBase64: maskBase64,
@@ -1764,6 +1774,7 @@ const Index = () => {
       const newAnnotation: Annotation = {
         id: `ann-${Date.now()}`,
         instanceId: newInstance.id,
+        videoId,
         points,
         bbox: {
           x: x - radius,
@@ -1912,6 +1923,7 @@ const Index = () => {
         const annotation: Annotation = {
           id: `annotation-${Date.now()}-${idx}`,
           instanceId: instance.id,
+          videoId,
           frameCreated: currentFrame,
           points: detection.points,
           bbox: detection.bbox,
@@ -2257,6 +2269,7 @@ const Index = () => {
               {selectedTool === "annotate" && assistModel === "trained" && (
                 <TrainedDetectorPanel
                   videoId={videoId}
+                  videoIds={projects.find((p) => p.id === activeProjectId)?.videoIds}
                   timeSec={videoFps ? currentFrame / videoFps : 0}
                   nativeWidth={videoNativeWidth}
                   nativeHeight={videoNativeHeight}
@@ -2347,7 +2360,7 @@ const Index = () => {
                 onCanvasClick={handleCanvasClick}
                 classes={classes}
                 instances={instances}
-                annotations={annotations}
+                annotations={currentVideoAnnotations}
                 onAnnotationUpdate={handleAnnotationUpdate}
                 onAnnotationSelect={setSelectedAnnotationId}
                 overlays={overlays}
@@ -2359,7 +2372,7 @@ const Index = () => {
               <HierarchicalTimeline
                 classes={classes}
                 instances={instances}
-                annotations={annotations}
+                annotations={currentVideoAnnotations}
                 keyframes={keyframes}
                 currentFrame={currentFrame}
                 totalFrames={totalFrames}

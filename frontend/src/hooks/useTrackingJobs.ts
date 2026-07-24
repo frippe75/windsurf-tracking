@@ -489,6 +489,7 @@ export function useTrackingJobs(options: UseTrackingJobsOptions) {
           newAnnotations.push({
             id: `ann-tracked-${result.object_id}-${result.frame_number}-${Date.now()}-${Math.random()}`,
             instanceId: originalAnnotation.instanceId,
+            videoId,
             points,
             bbox,
             maskBase64: result.mask_base64,
