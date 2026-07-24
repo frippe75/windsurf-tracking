@@ -1966,18 +1966,33 @@ const Index = () => {
   const exportForTraining = async (onProgress?: (done: number, total: number) => void): Promise<string> => {
     if (!videoId) throw new Error("Open a video before training.");
     const activeProject = projects.find((p) => p.id === activeProjectId);
-    const res = await exportProjectAsYolo({
-      projectName: activeProject?.name ?? "windsurf-project",
-      videoId,
-      classes,
-      instances,
-      annotations,
-      api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
-      onProgress,
-    });
-    const url = res.result?.url;
-    if (!url) throw new Error("export produced no dataset URL");
-    return url;
+    // Progress lives in a persistent, closable toast (not just the Train tab) so it survives
+    // switching tabs. On completion we always fire a "done" toast — even if the user closed the
+    // progress one early.
+    const t = toast({ title: "Exporting dataset…", description: "Preparing…" });
+    try {
+      const res = await exportProjectAsYolo({
+        projectName: activeProject?.name ?? "windsurf-project",
+        videoId,
+        classes,
+        instances,
+        annotations,
+        api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
+        onProgress: (done, total) => {
+          onProgress?.(done, total);
+          const pct = total ? Math.round((done / total) * 100) : 0;
+          t.update({ id: t.id, title: "Exporting dataset…", description: `${done}/${total} images (${pct}%)` });
+        },
+      });
+      const url = res.result?.url;
+      if (!url) throw new Error("export produced no dataset URL");
+      t.dismiss();
+      toast({ title: "Dataset exported", description: `${res.stats.images} images ready — training is starting.` });
+      return url;
+    } catch (e) {
+      t.dismiss();
+      throw e;
+    }
   };
 
   const handleExportData = async () => {
