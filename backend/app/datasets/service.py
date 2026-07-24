@@ -45,6 +45,7 @@ class DatasetService:
         )
         existing = self._repo.get(fp)
         if existing is not None and existing.status == "ready":
+            self._repo.index_video(inputs.source_video_id, existing.id)  # idempotent
             return existing  # ← dedup: instant, no re-extract / re-zip
 
         version = DatasetVersion(
@@ -59,6 +60,7 @@ class DatasetService:
             manifest = build_manifest(version, inputs.classes, version.stats)
             version.manifest_key = self._repo.write_manifest(fp, manifest)
             self._repo.upsert(version)
+            self._repo.index_video(inputs.source_video_id, version.id)
             return version
         except Exception as exc:
             version.status = "failed"

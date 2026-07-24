@@ -115,6 +115,7 @@ def test_export_routes_exist():
     # dataset version inspection (P2) + lineage (P3)
     assert ("GET", "/api/dataset-versions/{version_id}") in routes
     assert ("GET", "/api/dataset-versions/{version_id}/lineage") in routes
+    assert ("GET", "/api/videos/{video_id}/dataset-versions") in routes
 
 
 def test_zipsink_streams_to_a_file_not_memory(monkeypatch):

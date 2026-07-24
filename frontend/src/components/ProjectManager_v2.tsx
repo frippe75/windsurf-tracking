@@ -9,6 +9,7 @@ import { Project } from "@/types/project";
 import { ManagedVideo } from "@/types/video";
 import { MetaField } from "@/types/annotation";
 import { MetadataSchemaCard } from "@/components/MetadataSchemaCard";
+import { DatasetVersionsCard } from "@/components/DatasetVersionsCard";
 import {
   FolderOpen,
   Plus,
@@ -244,6 +245,9 @@ export function ProjectManager_v2({
                       />
                     </div>
                   )}
+                  <div className="pt-4 border-t border-border">
+                    <DatasetVersionsCard videoId={currentVideoId} />
+                  </div>
                   </div>
                 </ScrollArea>
               </div>
