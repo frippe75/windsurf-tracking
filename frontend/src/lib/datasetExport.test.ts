@@ -86,7 +86,7 @@ describe("exportProjectAsYolo orchestration", () => {
       instance_id: "uuid-1", class_id: "backend-sail", frame_number: 0, annotation_type: "bbox",
       geometry: { bbox: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } }, is_keyframe: true,
     }]);
-    expect(api.exportDataset).toHaveBeenCalledWith("proj-1", "zip");
+    expect(api.exportDataset).toHaveBeenCalledWith("proj-1", "zip", expect.objectContaining({ onProgress: expect.any(Function) }));
     expect(res.result.url).toBe("http://z/ds.zip");
   });
 

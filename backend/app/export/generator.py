@@ -50,6 +50,7 @@ def build_yolo_dataset(
     annotations: list,
     classes: list,
     val_fraction: float = 0.2,
+    progress_cb=None,  # optional callable(done:int, total:int) — per-frame progress
 ) -> DatasetStats:
     """
     annotations: rows with .frame_number, .class_id, .geometry (dict with 'bbox').
@@ -94,6 +95,8 @@ def build_yolo_dataset(
         stats.images += 1
         stats.labels += 1
         stats.splits[split] = stats.splits.get(split, 0) + 1
+        if progress_cb:
+            progress_cb(i + 1, len(frames))
 
     names_yaml = "\n".join(f"  {i}: {n}" for i, n in enumerate(stats.classes))
     (out_dir / "data.yaml").write_text(

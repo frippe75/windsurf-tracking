@@ -168,9 +168,24 @@ def export_dataset_task(self, project_id: str, sink_name=None, val_fraction: flo
 
         tmp = Path(tempfile.mkdtemp(prefix="yolo-export-"))
         try:
-            self.update_state(state="PROGRESS", meta={"current_step": "extracting frames", "progress": 20})
+            self.update_state(state="PROGRESS", meta={"current_step": "extracting frames", "progress": 15})
+
+            # Per-image progress (extraction spans 15→80%); throttle to integer-% changes so we
+            # don't hammer the Celery/Redis result backend on every frame.
+            last = {"pct": -1}
+
+            def on_frame(done, total):
+                pct = 15 + int(done / max(1, total) * 65)
+                if pct != last["pct"] or done == total:
+                    last["pct"] = pct
+                    self.update_state(state="PROGRESS", meta={
+                        "current_step": "extracting frames", "progress": pct,
+                        "images_done": done, "images_total": total,
+                    })
+
             stats = generator.build_yolo_dataset(
                 tmp, str(local), fps, video_id[:8], annotations, classes, val_fraction,
+                progress_cb=on_frame,
             )
             if stats.images == 0:
                 raise RuntimeError("no exportable boxes (need class_id + bbox on annotations)")
