@@ -27,20 +27,27 @@ class ZipSink:
         return storage.enabled()
 
     def publish(self, dataset_dir: Path, meta: dict) -> dict:
-        import io
+        import os
+        import tempfile
         import zipfile
         from .. import storage
 
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for p in sorted(dataset_dir.rglob("*")):
-                if p.is_file():
-                    z.write(p, p.relative_to(dataset_dir).as_posix())
-        data = buf.getvalue()
+        # Zip to a temp FILE (not an in-memory BytesIO) and stream it to S3, so a large
+        # dataset never balloons the process memory — this is what OOM-killed the web pod.
+        fd, zpath = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
         fname = f"{meta['name']}.zip"
         key = f"exports/{meta['project_id']}/{fname}"
-        storage.put_bytes(key, data, "application/zip")
-        return {"kind": "zip", "url": storage.presigned_get(key, fname), "bytes": len(data)}
+        try:
+            with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+                for p in sorted(dataset_dir.rglob("*")):
+                    if p.is_file():
+                        z.write(p, p.relative_to(dataset_dir).as_posix())
+            size = os.path.getsize(zpath)
+            storage.put_file(key, zpath, "application/zip")
+        finally:
+            os.unlink(zpath)
+        return {"kind": "zip", "url": storage.presigned_get(key, fname), "bytes": size}
 
 
 class ClearMLSink:
