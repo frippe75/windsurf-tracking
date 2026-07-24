@@ -124,13 +124,13 @@ export function ProjectManager_v2({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[92vw] xl:max-w-7xl h-[85vh] p-0" onKeyDown={nav.onKeyDown}>
+      <DialogContent className="max-w-6xl h-[85vh] p-0" onKeyDown={nav.onKeyDown}>
         <DialogTitle className="sr-only">Project Manager</DialogTitle>
         {activeProject ? (
           <>
-            <div className="p-6 border-b border-border">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="p-6 border-b border-border space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="h-10 w-10 shrink-0 rounded-lg bg-green-500/20 flex items-center justify-center">
                     <FolderOpen className="h-5 w-5 text-green-500" />
                   </div>
@@ -148,7 +148,7 @@ export function ProjectManager_v2({
                         autoFocus
                       />
                     ) : (
-                      <h2 
+                      <h2
                         className="text-lg font-semibold cursor-pointer hover:underline transition-all"
                         onClick={startEditingName}
                         title="Click to rename"
@@ -159,13 +159,6 @@ export function ProjectManager_v2({
                     <p className="text-sm text-muted-foreground">
                       Active Project
                     </p>
-                    <Textarea
-                      value={descDraft ?? activeProject.description ?? ""}
-                      onChange={(e) => setDescDraft(e.target.value)}
-                      onBlur={saveDescription}
-                      placeholder="Describe this dataset's purpose (domain, subjects, what it's for) — the auto-draft reads this to propose a relevant metadata schema."
-                      className="mt-2 resize-none min-h-[3rem] text-xs md:min-h-[7rem] md:text-sm"
-                    />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -187,6 +180,14 @@ export function ProjectManager_v2({
                   </Button>
                 </div>
               </div>
+              {/* Full-width description row (was cramped inside the header, next to the buttons) */}
+              <Textarea
+                value={descDraft ?? activeProject.description ?? ""}
+                onChange={(e) => setDescDraft(e.target.value)}
+                onBlur={saveDescription}
+                placeholder="Describe this dataset's purpose (domain, subjects, what it's for) — the auto-draft reads this to propose a relevant metadata schema."
+                className="w-full resize-none min-h-[4rem] md:min-h-[6rem] text-xs md:text-sm"
+              />
             </div>
 
             {/* Stack the two columns on mobile (they were laid out side-by-side, pushing the right
@@ -307,8 +308,10 @@ export function ProjectManager_v2({
                           showThumbnail
                           showProgress
                           showYoutubeIcon={false}
+                          onClick={(id) => { if (video.status === "ready") onLoadVideo(id); }}
                           onLoad={onLoadVideo}
                           onDelete={onRemoveVideo}
+                          loadButtonTitle="Set as active video"
                           deleteButtonTitle="Remove from project"
                         />
                       </div>
