@@ -320,12 +320,16 @@ def build_train_job(
                 "metadata": {"labels": {"app": "windsurf-train"}},
                 "spec": {
                     "restartPolicy": "Never",
+                    # PyTorch DataLoader workers use /dev/shm; the k8s default (64Mi) starves them
+                    # and deadlocks training. Give it a real shared-memory mount.
+                    "volumes": [{"name": "dshm", "emptyDir": {"medium": "Memory", "sizeLimit": "2Gi"}}],
                     "containers": [
                         {
                             "name": "train",
                             "image": image,
                             "env": env,
                             "resources": {"limits": {"nvidia.com/gpu": 1}},
+                            "volumeMounts": [{"name": "dshm", "mountPath": "/dev/shm"}],
                         }
                     ],
                 },
