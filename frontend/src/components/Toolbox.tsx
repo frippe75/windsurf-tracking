@@ -32,7 +32,7 @@ export function Toolbox({
       <div className="space-y-3">
         <div>
           <h3 className="text-xs font-semibold mb-2 text-muted-foreground">Tools</h3>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-3 gap-1">
             <Button
               variant={selectedTool === "select" ? "default" : "outline"}
               size="sm"
