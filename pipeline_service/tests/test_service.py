@@ -260,7 +260,9 @@ def test_build_train_job_manifest():
     )
     assert m["kind"] == "Job"
     assert m["metadata"]["name"] == appmod.train_job_name(spec)
-    assert m["metadata"]["annotations"][appmod.RESULTS_ANNOTATION] == appmod.train_results_prefix(spec)
+    ann = m["metadata"]["annotations"]
+    assert ann[appmod.RESULTS_ANNOTATION] == appmod.train_results_prefix(spec)
+    assert ann[appmod.MODEL_ANNOTATION] == "yolov8s.pt" and ann[appmod.EPOCHS_ANNOTATION] == "10"
     pod = m["spec"]["template"]["spec"]
     c = pod["containers"][0]
     assert c["image"] == "harbor/train:v1"
@@ -272,6 +274,27 @@ def test_build_train_job_manifest():
     assert env["DATASET_URL"]["value"] == "https://s3/ds.zip"
     assert env["TRAIN_EPOCHS"]["value"] == "10"
     assert env["S3_ACCESS_KEY"]["valueFrom"]["secretKeyRef"]["name"] == "windsurf-s3-secret"
+
+
+def test_build_train_job_carries_dataset_version_for_lineage():
+    import pipeline_service.app as appmod
+
+    spec = {"dataset_url": "u", "project_id": "p", "dataset_version_id": "dsv_abc", "model": "yolov8n.pt", "epochs": 5}
+    m = appmod.build_train_job(spec, image="i", namespace="n", s3_secret="s", s3_endpoint="e", s3_bucket="b")
+    assert m["metadata"]["annotations"][appmod.DATASET_VERSION_ANNOTATION] == "dsv_abc"
+
+
+def test_build_model_run_lineage_record():
+    import pipeline_service.app as appmod
+
+    run = appmod.build_model_run(
+        run_id="train-1", dataset_version_id="dsv_x", model="yolov8n.pt", epochs="15",
+        metrics={"mAP50": 0.84}, results_prefix="exports/p/train-1/", created_at="t",
+    )
+    assert run == {
+        "run_id": "train-1", "dataset_version_id": "dsv_x", "model": "yolov8n.pt", "epochs": 15,
+        "metrics": {"mAP50": 0.84}, "weights_key": "exports/p/train-1/best.pt", "created_at": "t",
+    }
 
 
 def test_train_job_name_is_idempotent_per_dataset():

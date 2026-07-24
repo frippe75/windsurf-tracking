@@ -1289,6 +1289,7 @@ export interface ExportResult {
   sink: string;
   stats: { images: number; labels: number; boxes: number; skipped: number; classes: string[]; splits: Record<string, number> };
   result: { kind: string; url?: string; id?: string; bytes?: number };
+  version_id?: string;
 }
 
 export interface ExportStatus {
@@ -1301,6 +1302,7 @@ export interface ExportStatus {
   sink?: string;
   stats?: ExportResult["stats"];
   result?: ExportResult["result"];
+  version_id?: string;
   error?: string;
 }
 
@@ -1364,7 +1366,7 @@ export const exportDataset = async (
     }
     opts.onProgress?.(s);
     if (s.status === "completed") {
-      return { project_id: projectId, sink: s.sink ?? sink, stats: s.stats!, result: s.result! };
+      return { project_id: projectId, sink: s.sink ?? sink, stats: s.stats!, result: s.result!, version_id: s.version_id };
     }
     if (s.status === "failed") throw new Error(`Export failed: ${s.error ?? "unknown error"}`);
     if (Date.now() - started > timeout) throw new Error("Export timed out");

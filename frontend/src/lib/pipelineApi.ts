@@ -103,6 +103,7 @@ export interface TrainStatus {
   status: "submitted" | "running" | "succeeded" | "failed";
   progress?: TrainProgress | null;
   metrics?: TrainMetrics | null;
+  dataset_version_id?: string | null;
 }
 
 export interface TrainInput {
@@ -111,6 +112,7 @@ export interface TrainInput {
   epochs?: number;
   model?: string;
   imgsz?: number;
+  dataset_version_id?: string;
 }
 
 export async function startTraining(input: TrainInput): Promise<{ job_id: string; status: string }> {

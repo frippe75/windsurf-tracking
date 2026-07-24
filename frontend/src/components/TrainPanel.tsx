@@ -23,7 +23,9 @@ const MODELS = [
 type Props = {
   projectId: string;
   canTrain: boolean; // classes + annotations present
-  getDatasetUrl: (onProgress?: (done: number, total: number) => void) => Promise<string>; // exports + returns the dataset zip URL
+  getDatasetUrl: (
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<{ url: string; version_id?: string }>; // exports + returns the dataset zip URL + version id
 };
 
 const TERMINAL = new Set(["succeeded", "failed"]);
@@ -107,9 +109,11 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
     setExportProg(null);
     setPhase("exporting");
     try {
-      const dataset_url = await getDatasetUrl((done, total) => setExportProg({ done, total }));
+      const { url: dataset_url, version_id } = await getDatasetUrl((done, total) => setExportProg({ done, total }));
       setPhase("polling");
-      const { job_id } = await startTraining({ dataset_url, project_id: projectId, epochs, model, imgsz });
+      const { job_id } = await startTraining({
+        dataset_url, project_id: projectId, epochs, model, imgsz, dataset_version_id: version_id,
+      });
       persist(job_id);
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -230,6 +234,11 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
           {m.per_class.map((c) => (
             <Bar key={c.class} label={c.class} value={c.ap50_95} />
           ))}
+          {status?.dataset_version_id && (
+            <div className="pt-1 text-[10px] text-muted-foreground" title="lineage: the immutable dataset version this model trained on">
+              trained on dataset <span className="font-mono text-foreground">{status.dataset_version_id}</span>
+            </div>
+          )}
         </div>
       )}
 

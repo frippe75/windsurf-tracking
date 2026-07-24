@@ -177,6 +177,16 @@ def object_exists(key: str) -> bool:
         return False
 
 
+def list_keys(prefix: str) -> list:
+    """All object keys under a prefix (used to enumerate a version's model-runs for lineage)."""
+    out = []
+    paginator = internal().get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            out.append(obj["Key"])
+    return out
+
+
 def presigned_get(key: str, filename: str = "") -> str:
     """Presign a browser-fetchable GET URL for any bucket key."""
     params = {"Bucket": S3_BUCKET, "Key": key}

@@ -112,8 +112,9 @@ def test_export_routes_exist():
     assert ("GET", "/api/export/sinks") in routes
     # async status endpoint for the dispatched job
     assert ("GET", "/api/projects/{project_id}/export/status/{job_id}") in routes
-    # dataset version inspection (P2)
+    # dataset version inspection (P2) + lineage (P3)
     assert ("GET", "/api/dataset-versions/{version_id}") in routes
+    assert ("GET", "/api/dataset-versions/{version_id}/lineage") in routes
 
 
 def test_zipsink_streams_to_a_file_not_memory(monkeypatch):
