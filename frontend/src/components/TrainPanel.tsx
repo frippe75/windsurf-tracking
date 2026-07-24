@@ -68,16 +68,25 @@ export function TrainPanel({ projectId, canTrain, getDatasetUrl }: Props) {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
+    let fails = 0;
     const tick = async () => {
       try {
         const s = await getTrainingStatus(jobId);
         if (cancelled) return;
+        fails = 0;
         setStatus(s);
+        setError("");
         if (!TERMINAL.has(s.status)) {
           timer.current = setTimeout(tick, 5000);
         }
       } catch (e: any) {
-        if (!cancelled) setError(String(e?.message ?? e));
+        if (cancelled) return;
+        // Tolerate transient network blips — keep polling; only surface after a run of failures.
+        if (++fails >= 8) {
+          setError(String(e?.message ?? e));
+        } else {
+          timer.current = setTimeout(tick, 5000);
+        }
       }
     };
     tick();

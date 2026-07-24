@@ -1349,8 +1349,19 @@ export const exportDataset = async (
   const timeout = opts.timeoutMs ?? 30 * 60 * 1000; // 30 min ceiling
   const { job_id } = await startExport(projectId, sink);
   const started = Date.now();
+  let transientFails = 0;
   for (;;) {
-    const s = await getExportStatus(projectId, job_id);
+    let s: ExportStatus;
+    try {
+      s = await getExportStatus(projectId, job_id);
+      transientFails = 0;
+    } catch (e) {
+      // A transient network blip on one poll must NOT abort an export that's still running
+      // server-side. Tolerate a run of failures before giving up.
+      if (++transientFails >= 8) throw e;
+      await sleep(interval);
+      continue;
+    }
     opts.onProgress?.(s);
     if (s.status === "completed") {
       return { project_id: projectId, sink: s.sink ?? sink, stats: s.stats!, result: s.result! };
