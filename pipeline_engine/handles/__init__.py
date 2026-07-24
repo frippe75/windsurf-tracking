@@ -6,6 +6,15 @@ the engine core — that keeps the boundary clean.
 """
 from __future__ import annotations
 
-from . import anthropic, openai_compat, sam2_http, sam3_runpod, sam3_runpod_track  # noqa: F401  (register on import)
+from . import (  # noqa: F401  (register on import)
+    anthropic,
+    openai_compat,
+    sam2_http,
+    sam3_runpod,
+    sam3_runpod_track,
+    yolo_http,
+)
 
-__all__ = ["anthropic", "openai_compat", "sam2_http", "sam3_runpod", "sam3_runpod_track"]
+__all__ = [
+    "anthropic", "openai_compat", "sam2_http", "sam3_runpod", "sam3_runpod_track", "yolo_http",
+]

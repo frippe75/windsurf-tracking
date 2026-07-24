@@ -68,6 +68,11 @@ data:
         type: sam2-http
         capabilities: [segment-click]
         base_url: http://windsurf-prod-backend:8000/api/ai/sam2
+      - name: trained-yolo
+        type: yolo-http
+        capabilities: [detect]
+        base_url: http://windsurf-prod-yolo-serve:8080
+        timeout_s: 60
 ---
 apiVersion: apps/v1
 kind: Deployment

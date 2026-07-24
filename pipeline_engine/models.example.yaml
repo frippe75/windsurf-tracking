@@ -42,3 +42,10 @@ models:
     type: sam2-http
     capabilities: [segment-click]
     base_url: https://windsurf-api.tclab.org/api/ai/sam2
+
+  # --- trained YOLO detectors, served on-prem (loads best.pt by dataset version) ---
+  - name: trained-yolo
+    type: yolo-http
+    capabilities: [detect]
+    base_url: http://windsurf-prod-yolo-serve:8080
+    timeout_s: 60
