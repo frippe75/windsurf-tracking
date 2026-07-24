@@ -1966,10 +1966,21 @@ const Index = () => {
   const exportForTraining = async (onProgress?: (done: number, total: number) => void): Promise<string> => {
     if (!videoId) throw new Error("Open a video before training.");
     const activeProject = projects.find((p) => p.id === activeProjectId);
-    // Progress lives in a persistent, closable toast (not just the Train tab) so it survives
-    // switching tabs. On completion we always fire a "done" toast — even if the user closed the
-    // progress one early.
-    const t = toast({ title: "Exporting dataset…", description: "Preparing…" });
+    // Progress lives in a persistent (duration: Infinity), closable toast — not just the Train tab —
+    // so it survives switching tabs. On completion we always fire a "done" toast, even if the user
+    // closed the progress one early.
+    const exportBar = (done: number, total: number) => {
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      return (
+        <div className="space-y-1 pt-1 w-full">
+          <div className="text-xs text-muted-foreground">{total ? `${done}/${total} images (${pct}%)` : "Preparing…"}</div>
+          <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+            <div className="h-full rounded bg-primary transition-all" style={{ width: `${total ? pct : 8}%` }} />
+          </div>
+        </div>
+      );
+    };
+    const t = toast({ title: "Exporting dataset…", description: exportBar(0, 0), duration: Infinity });
     try {
       const res = await exportProjectAsYolo({
         projectName: activeProject?.name ?? "windsurf-project",
@@ -1980,8 +1991,7 @@ const Index = () => {
         api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
         onProgress: (done, total) => {
           onProgress?.(done, total);
-          const pct = total ? Math.round((done / total) * 100) : 0;
-          t.update({ id: t.id, title: "Exporting dataset…", description: `${done}/${total} images (${pct}%)` });
+          t.update({ id: t.id, title: "Exporting dataset…", description: exportBar(done, total), duration: Infinity });
         },
       });
       const url = res.result?.url;

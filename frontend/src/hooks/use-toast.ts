@@ -168,11 +168,15 @@ function toast({ ...props }: Toast) {
     },
   });
 
-  // Auto-dismiss after context-aware duration
-  const duration = calculateToastDuration(props.title, props.description);
-  setTimeout(() => {
-    dismiss();
-  }, duration);
+  // Auto-dismiss after a context-aware duration — UNLESS the caller passes an explicit duration.
+  // duration === Infinity (or 0) keeps the toast open until it's dismissed manually/programmatically
+  // (used for long-running progress toasts like dataset export).
+  const duration = props.duration ?? calculateToastDuration(props.title, props.description);
+  if (duration !== Infinity && duration > 0) {
+    setTimeout(() => {
+      dismiss();
+    }, duration);
+  }
 
   return {
     id: id,
