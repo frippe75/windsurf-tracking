@@ -81,6 +81,32 @@ export async function extractMetadata(input: MetadataInput): Promise<any> {
   return d.result;
 }
 
+// --- trained-detector inference ----------------------------------------------------
+
+export interface YoloDetection {
+  bbox: [number, number, number, number]; // [x, y, w, h] as 0–1 fractions of the frame
+  score: number;
+  class_id: number;
+  label: string;
+}
+
+/** Run a served trained detector (by dataset version) on a video frame → normalized detections. */
+export async function detectWithModel(input: {
+  version_id: string;
+  video_id: string;
+  time_sec: number;
+  conf?: number;
+}): Promise<YoloDetection[]> {
+  const r = await fetch(`${PIPELINE}/detect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ capability: "detect", inputs: input }),
+  });
+  const d = await jparse(r);
+  if (!r.ok) throw new Error(d.detail || `detect HTTP ${r.status}`);
+  return d.detections ?? [];
+}
+
 // --- training ---------------------------------------------------------------------
 
 export interface TrainMetrics {
