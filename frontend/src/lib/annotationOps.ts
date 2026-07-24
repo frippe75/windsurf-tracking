@@ -127,6 +127,23 @@ export function annotationsForVideo(annotations: Annotation[], videoId: string):
 }
 
 /**
+ * Instances belonging to a given clip, DERIVED from the (video-scoped) annotations: an instance is
+ * "in" a clip when at least one of its annotations is. Instances are otherwise project-global, so
+ * without this their counts (ClassManager), balance (BalancePanel) and the exported dataset would
+ * include objects from every other clip in the project. No videoId field on Instance is needed —
+ * annotation scoping is the single source of truth (legacy annotations fall through to the
+ * current clip via annotationsForVideo).
+ */
+export function instancesForVideo(
+  instances: Instance[],
+  annotations: Annotation[],
+  videoId: string
+): Instance[] {
+  const ids = new Set(annotationsForVideo(annotations, videoId).map((a) => a.instanceId));
+  return instances.filter((inst) => ids.has(inst.id));
+}
+
+/**
  * Remove one SAM2 prompt (by index) from an annotation. An emptied prompt
  * list becomes `undefined` (matches the original Index.tsx semantics).
  */

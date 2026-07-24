@@ -45,7 +45,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { useVideoLibrary } from "@/hooks/useVideoLibrary";
 import { useAnnotations } from "@/hooks/useAnnotations";
 import { useTrackingJobs } from "@/hooks/useTrackingJobs";
-import { SAIL_COLORS, annotationsAtFrame, annotationsForVideo } from "@/lib/annotationOps";
+import { SAIL_COLORS, annotationsAtFrame, annotationsForVideo, instancesForVideo } from "@/lib/annotationOps";
 import { resolveVideoSource as resolveVideoSourceCore, type VideoMetadata as VideoSourceMetadata } from "@/lib/videoSource";
 import { extractYoutubeId, youtubeThumbnail } from "@/lib/youtubeUrl";
 import { resolvePromptType, type PromptType } from "@/lib/promptType";
@@ -121,6 +121,12 @@ const Index = () => {
   const currentVideoAnnotations = useMemo(
     () => annotationsForVideo(annotations, videoId),
     [annotations, videoId],
+  );
+  // Instances are project-global; scope them to the loaded clip (derived from the scoped
+  // annotations) so counts, balance, and the exported dataset never include other clips' objects.
+  const currentVideoInstances = useMemo(
+    () => instancesForVideo(instances, annotations, videoId),
+    [instances, annotations, videoId],
   );
 
   // Tracking-jobs domain: auto-created segment jobs, execution/polling,
@@ -2005,8 +2011,10 @@ const Index = () => {
         projectName: activeProject?.name ?? "windsurf-project",
         videoId,
         classes,
-        instances,
-        annotations,
+        // Scope to the clip being exported — a project can hold several clips sharing one
+        // annotation/instance array, and the dataset must contain only this clip's objects.
+        instances: instancesForVideo(instances, annotations, videoId),
+        annotations: annotationsForVideo(annotations, videoId),
         api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
         onProgress: (done, total) => {
           onProgress?.(done, total);
@@ -2041,8 +2049,10 @@ const Index = () => {
         projectName: activeProject?.name ?? "windsurf-project",
         videoId,
         classes,
-        instances,
-        annotations,
+        // Scope to the clip being exported — a project can hold several clips sharing one
+        // annotation/instance array, and the dataset must contain only this clip's objects.
+        instances: instancesForVideo(instances, annotations, videoId),
+        annotations: annotationsForVideo(annotations, videoId),
         api: { createBackendProject, createBackendClass, saveBackendAnnotations, exportDataset },
       });
 
@@ -2279,8 +2289,8 @@ const Index = () => {
               )}
               <ClassManager
                 classes={classes}
-                instances={instances}
-                annotations={annotations}
+                instances={currentVideoInstances}
+                annotations={currentVideoAnnotations}
                 currentFrame={currentFrame}
                 overlays={overlays}
                 selectedClassId={selectedClassId}
@@ -2448,7 +2458,7 @@ const Index = () => {
                   />
                 </TabsContent>
                 <TabsContent value="balance" className="mt-4">
-                  <BalancePanel classes={classes} instances={instances} scenes={scenes} annotations={annotations} schema={metadataSchema} />
+                  <BalancePanel classes={classes} instances={currentVideoInstances} scenes={scenes} annotations={currentVideoAnnotations} schema={metadataSchema} />
                 </TabsContent>
                 <TabsContent value="train" className="mt-4">
                   <TrainPanel
