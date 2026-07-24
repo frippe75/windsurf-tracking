@@ -261,9 +261,13 @@ def test_build_train_job_manifest():
     assert m["kind"] == "Job"
     assert m["metadata"]["name"] == appmod.train_job_name(spec)
     assert m["metadata"]["annotations"][appmod.RESULTS_ANNOTATION] == appmod.train_results_prefix(spec)
-    c = m["spec"]["template"]["spec"]["containers"][0]
+    pod = m["spec"]["template"]["spec"]
+    c = pod["containers"][0]
     assert c["image"] == "harbor/train:v1"
     assert c["resources"]["limits"]["nvidia.com/gpu"] == 1
+    # /dev/shm mount so PyTorch dataloader workers don't deadlock on the 64Mi default
+    assert {"name": "dshm", "mountPath": "/dev/shm"} in c["volumeMounts"]
+    assert pod["volumes"][0]["emptyDir"]["medium"] == "Memory"
     env = {e["name"]: e for e in c["env"]}
     assert env["DATASET_URL"]["value"] == "https://s3/ds.zip"
     assert env["TRAIN_EPOCHS"]["value"] == "10"
