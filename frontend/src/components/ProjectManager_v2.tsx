@@ -188,9 +188,11 @@ export function ProjectManager_v2({
               </div>
             </div>
 
-            <div className="flex-1 flex min-h-0 p-4 gap-4">
+            {/* Stack the two columns on mobile (they were laid out side-by-side, pushing the right
+                one off a narrow screen); side-by-side from md up. Scroll the whole area on mobile. */}
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 p-4 gap-4 overflow-y-auto md:overflow-hidden">
               {/* Left: Statistics */}
-              <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
+              <div className="flex-1 flex flex-col min-w-0 min-h-[45vh] md:min-h-0 border border-border rounded-lg bg-card overflow-hidden">
                 <div className="p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">Statistics</h3>
                 </div>
@@ -249,7 +251,7 @@ export function ProjectManager_v2({
               </div>
 
               {/* Right: Videos */}
-              <div className="flex-1 flex flex-col min-w-0 border border-border rounded-lg bg-card overflow-hidden">
+              <div className="flex-1 flex flex-col min-w-0 min-h-[45vh] md:min-h-0 border border-border rounded-lg bg-card overflow-hidden">
                 <div className="flex items-center justify-between gap-2 p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">Videos</h3>
                   {projectVideos.length > 0 && (
